@@ -315,8 +315,8 @@ class DeviceIdTest {
  */
 class CrossLinkTest {
 
-    private val usbSerial = "58414441303230323733"
-    private val netSerial = "XADA020273"
+    private val usbSerial = "51574552303132333435"
+    private val netSerial = "QWER012345"
 
     private fun onUsb(product: String? = "EPSON ET-2820 Series", serial: String? = usbSerial) = DetectedPrinter(
         link = Link.Usb(1, 4, 1, 0x81.toByte(), 0x02, true),
@@ -350,10 +350,26 @@ class CrossLinkTest {
         assertEquals("ET-2825", assertNotNull(joined.crossCheck).name)
     }
 
+    /**
+     * The fixture above is the idealised descriptor. A real ET-2820 hex-encodes only the first
+     * eight characters and writes the last two literally, which read as uniform hex decode to
+     * `QWER0123E` and stop the serial from matching — the printer then shows up twice, as an
+     * `ET-2820` on USB beside its own `ET-2825` network entry, with neither borrowing from the
+     * other. The serial is a stand-in; the encoding is the one the hardware uses.
+     */
+    @Test
+    fun `a partly encoded descriptor serial still finds its own network entry`() {
+        val usb = onUsb(serial = "515745523031323345")
+
+        val joined = PrinterDiscovery.crossChecked(listOf(usb), listOf(onNetwork())).single()
+
+        assertEquals("ET-2825", assertNotNull(joined.crossCheck).name)
+    }
+
     /** The serial is the whole proof. Another printer of the same family must not lend its name. */
     @Test
     fun `a different serial does not lend its name`() {
-        val other = onNetwork(serial = "XADA999999")
+        val other = onNetwork(serial = "QWER999999")
         assertNull(PrinterDiscovery.crossChecked(listOf(onUsb()), listOf(other)).single().crossCheck)
     }
 

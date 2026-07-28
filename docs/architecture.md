@@ -67,7 +67,7 @@ descriptor gives `EPSON ET-2820 Series`, which is eight units in a trenchcoat. W
 present the unit wins, and the family never has to be put to the user at all.
 
 What proves they are one printer is the serial, and that takes a step of its own: the descriptor
-reports it hex-encoded (`58414441…`) where SNMP reports the same characters plainly (`XADA0202…`).
+reports it hex-encoded (`51574552…`) where SNMP reports the same characters plainly (`QWER0123…`).
 `Serials.canonical` decodes the first into the second, under a deliberately narrow test — an even
 run of hex digits *and* a decoded form that still looks like a serial — because guessing wrong here
 renames a printer. The raw value stays on the device card underneath, since it is what the device

@@ -325,7 +325,7 @@ class CalibrationTest {
         // whether this fills a gap, confirms a figure, or contradicts one.
         assertContains(report, "app has")
 
-        assertFalse(report.contains("XADA020273"), "a serial has no place in a public issue")
+        assertFalse(report.contains("QWER012345"), "a serial has no place in a public issue")
     }
 
     /** A maximum belongs to one SKU, and 120 models share the ET-2820's layout. */

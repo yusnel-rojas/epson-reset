@@ -257,12 +257,9 @@ private fun DeviceCard(vm: ResetViewModel, entry: MatchedPrinter, selected: Bool
             }
         }
         // The decoded form, because it is the one the same printer shows on its other link. The
-        // descriptor's own spelling stays visible underneath: it is what the device actually said.
-        entry.device.serial?.let { raw ->
-            val canonical = entry.device.canonicalSerial ?: raw
-            Meta("Serial", canonical)
-            if (!canonical.equals(raw, ignoreCase = true)) Meta("  as reported", raw)
-        }
+        // descriptor's own hex spelling is not shown — it is what the device said, but saying it
+        // twice in the card taught the reader nothing. `./gradlew diagnose` still prints it.
+        entry.device.canonicalSerial?.let { Meta("Serial", it) }
 
         entry.device.crossCheck?.let {
             Meta("Model from", "${it.name} · SNMP at ${it.link.where}")

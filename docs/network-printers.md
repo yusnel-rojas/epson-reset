@@ -23,7 +23,7 @@ On any Epson answering SNMP:
 | | |
 |---|---|
 | **Exact model** | `…1.2.2.1.1.1.2.1` → `ET-2825`. The only source anywhere that names the unit rather than the family — DNS-SD and the USB descriptor both say `ET-2820 Series`, which is a *different* database entry with different addresses. Discovery pays an SNMP round trip for this because matching on the family name silently builds a reset from the wrong sibling's data. |
-| **Serial** | `…1.1.1.5.1` → `XADA020273`. What binds a backup to one physical printer. |
+| **Serial** | `…1.1.1.5.1` → `QWER012345`. What binds a backup to one physical printer. |
 | **Status** | `…1.1.1.4.1` → a complete `@BDC ST2` block, byte-identical to the one the USB path reads: ink levels and all. |
 | **Firmware** | `…2.1.1.2.1.3` → `05.24`. Worth reporting, because the refusal below is firmware-specific. |
 

@@ -149,7 +149,7 @@ private fun usbDevice(serial: String? = null, product: String? = "EPSON TEST Ser
 
 /** A USB printer wearing the unit name its own network entry gave, which is what the join produces. */
 private fun crossCheckedPrinter(product: String = "EPSON TEST Series") = MatchedPrinter(
-    device = usbDevice(serial = "58414441303230323733", product = product).copy(
+    device = usbDevice(serial = "51574552303132333435", product = product).copy(
         crossCheck = DetectedPrinter.CrossCheck("OTHER-9", Link.Network("192.168.2.39")),
     ),
     model = otherModel,
@@ -820,7 +820,7 @@ class ViewModelModelLockTest {
 
         val overUsb = viewModel(choicesFile = choices)
         overUsb.database = classDatabase
-        overUsb.select(classPrinter().copy(device = usbDevice(serial = "58414441303230323733")))
+        overUsb.select(classPrinter().copy(device = usbDevice(serial = "51574552303132333435")))
         overUsb.selectModel(otherModel)
         advanceUntilIdle()
 
@@ -831,7 +831,7 @@ class ViewModelModelLockTest {
                 device = DetectedPrinter(
                     link = Link.Network("192.168.2.39"),
                     product = "EPSON TEST Series",
-                    serial = "XADA020273",
+                    serial = "QWER012345",
                 ),
             ),
         )

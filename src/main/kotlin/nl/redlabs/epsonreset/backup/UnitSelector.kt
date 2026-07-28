@@ -2,6 +2,7 @@ package nl.redlabs.epsonreset.backup
 
 import nl.redlabs.epsonreset.device.DetectedPrinter
 import nl.redlabs.epsonreset.device.MatchedPrinter
+import nl.redlabs.epsonreset.device.Serials
 
 /** Which physical printer a restore should write to, given what is on the bus. */
 sealed interface UnitChoice {
@@ -36,7 +37,11 @@ object UnitSelector {
         val wanted = backup.printerSerial
 
         if (wanted != null) {
-            candidates.firstOrNull { it.device.serial == wanted }
+            // Serials.same, not string equality: a backup taken over USB records the descriptor's
+            // hex spelling, and the same printer reconnected over the network answers SNMP with
+            // the plain one. Compared literally those look like two units, and the restore this
+            // check exists to permit gets refused as a write to the wrong printer.
+            candidates.firstOrNull { Serials.same(it.device.serial, wanted) }
                 ?.let { return UnitChoice.Write(it.device, unconfirmed = null) }
 
             // Every unit that could identify itself named something else. Descriptors that came

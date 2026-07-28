@@ -283,7 +283,7 @@ class BackupFileTest {
 
 class UnitSelectorTest {
 
-    private fun backup(model: String = "ET-2820", serial: String? = "XADA1") = EepromBackup(
+    private fun backup(model: String = "ET-2820", serial: String? = "UNIT-1") = EepromBackup(
         model = model,
         createdAt = "20260727T004500Z",
         printerSerial = serial,
@@ -313,24 +313,51 @@ class UnitSelectorTest {
     fun `writes to the unit whose serial matches`() {
         val choice = UnitSelector.choose(
             backup(),
-            listOf(unit("ET-2820", "OTHER", 4), unit("ET-2820", "XADA1", 5)),
+            listOf(unit("ET-2820", "OTHER", 4), unit("ET-2820", "UNIT-1", 5)),
         )
 
         val write = assertIs<UnitChoice.Write>(choice)
-        assertEquals("XADA1", write.device.serial)
+        assertEquals("UNIT-1", write.device.serial)
         assertNull(write.unconfirmed)
+    }
+
+    /**
+     * A backup taken over one link, replayed while the printer is on the other. The descriptor's
+     * hex spelling and the SNMP one are the same unit; compared literally they are not, and the
+     * restore this guard exists to allow was being refused as a write to the wrong printer.
+     */
+    @Test
+    fun `writes to the unit that reports its serial on the other link`() {
+        val choice = UnitSelector.choose(
+            backup(serial = "515745523031323345"),
+            listOf(unit("ET-2820", "QWER012345")),
+        )
+
+        val write = assertIs<UnitChoice.Write>(choice)
+        assertNull(write.unconfirmed)
+    }
+
+    /** The same leniency must not reach a unit that merely looks similar. */
+    @Test
+    fun `still refuses a neighbouring serial from the same batch`() {
+        val choice = UnitSelector.choose(
+            backup(serial = "515745523031323345"),
+            listOf(unit("ET-2820", "QWER012346")),
+        )
+
+        assertIs<UnitChoice.WrongUnit>(choice)
     }
 
     @Test
     fun `refuses when nothing on the bus is that model`() {
-        val choice = UnitSelector.choose(backup(), listOf(unit("XP-245", "XADA1")))
+        val choice = UnitSelector.choose(backup(), listOf(unit("XP-245", "UNIT-1")))
 
         assertIs<UnitChoice.NoSuchModel>(choice)
     }
 
     @Test
     fun `refuses when an unmatched device is all that is connected`() {
-        val choice = UnitSelector.choose(backup(), listOf(unit(null, "XADA1")))
+        val choice = UnitSelector.choose(backup(), listOf(unit(null, "UNIT-1")))
 
         assertIs<UnitChoice.NoSuchModel>(choice)
     }
@@ -341,7 +368,7 @@ class UnitSelectorTest {
         val choice = UnitSelector.choose(backup(), listOf(unit("ET-2820", "DIFFERENT")))
 
         val wrong = assertIs<UnitChoice.WrongUnit>(choice)
-        assertEquals("XADA1", wrong.wanted)
+        assertEquals("UNIT-1", wrong.wanted)
         assertEquals(listOf("DIFFERENT"), wrong.connected)
     }
 
@@ -362,7 +389,7 @@ class UnitSelectorTest {
     @Test
     fun `refuses two identical models when neither reports a serial to match`() {
         val choice = UnitSelector.choose(
-            backup(serial = "XADA1"),
+            backup(serial = "UNIT-1"),
             listOf(unit("ET-2820", null, 4), unit("ET-2820", null, 5)),
         )
 
@@ -375,23 +402,23 @@ class UnitSelectorTest {
      */
     @Test
     fun `allows a lone unit when the backup has no serial, but says so`() {
-        val choice = UnitSelector.choose(backup(serial = null), listOf(unit("ET-2820", "XADA1")))
+        val choice = UnitSelector.choose(backup(serial = null), listOf(unit("ET-2820", "UNIT-1")))
 
         assertNotNull(assertIs<UnitChoice.Write>(choice).unconfirmed)
     }
 
     @Test
     fun `allows a lone unit whose serial could not be read, but says so`() {
-        val choice = UnitSelector.choose(backup(serial = "XADA1"), listOf(unit("ET-2820", null)))
+        val choice = UnitSelector.choose(backup(serial = "UNIT-1"), listOf(unit("ET-2820", null)))
 
         val write = assertIs<UnitChoice.Write>(choice)
         assertNotNull(write.unconfirmed)
-        assertTrue(write.unconfirmed!!.contains("XADA1"))
+        assertTrue(write.unconfirmed!!.contains("UNIT-1"))
     }
 
     @Test
     fun `model matching ignores case`() {
-        val choice = UnitSelector.choose(backup(model = "et-2820"), listOf(unit("ET-2820", "XADA1")))
+        val choice = UnitSelector.choose(backup(model = "et-2820"), listOf(unit("ET-2820", "UNIT-1")))
 
         assertIs<UnitChoice.Write>(choice)
     }

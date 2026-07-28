@@ -71,7 +71,10 @@ object PrinterDiscovery {
      * serial is what proves they are one machine, once both are spelled the same way; see [Serials].
      */
     private fun crossChecked(printer: DetectedPrinter, network: List<DetectedPrinter>): DetectedPrinter {
-        val serial = printer.canonicalSerial ?: return printer
+        // The descriptor's own spelling, not the canonical one: [Serials.same] weighs every
+        // reading of both sides, and handing it a string already reduced to one throws away the
+        // alternative that the network entry is the one agreeing with.
+        val serial = printer.serial?.takeIf { it.isNotBlank() } ?: return printer
 
         // Only worth borrowing when it answers the question the descriptor left open.
         if (printer.product?.let { DeviceMatcher.namesAClass(it) } != true) return printer

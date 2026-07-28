@@ -308,7 +308,7 @@ class SnmpTransportTest {
             when (oid) {
                 EpsonMib.MODEL -> "ET-2825".toByteArray()
                 EpsonMib.PRODUCT -> "ET-2820 Series".toByteArray()
-                EpsonMib.SERIAL -> "XADA020273".toByteArray()
+                EpsonMib.SERIAL -> "QWER012345".toByteArray()
                 else -> null
             }
         }.use { agent ->
@@ -318,7 +318,7 @@ class SnmpTransportTest {
 
             assertEquals("ET-2825", identity.model)
             assertEquals("ET-2820 Series", identity.product)
-            assertEquals("XADA020273", identity.serial)
+            assertEquals("QWER012345", identity.serial)
         }
     }
 

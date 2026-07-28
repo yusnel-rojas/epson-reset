@@ -14,7 +14,7 @@ object EpsonMib {
     /** The IEEE 1284 device ID string — `MFG:EPSON;…;MDL:…;SN:…;`, as [nl.redlabs.epsonreset.protocol.DeviceId] parses. */
     val DEVICE_ID = ROOT + listOf(1, 1, 1, 1, 1)
 
-    /** The unit serial, e.g. `XADA020273`. What binds a backup to one physical printer. */
+    /** The unit serial, e.g. `QWER012345`. What binds a backup to one physical printer. */
     val SERIAL = ROOT + listOf(1, 1, 1, 5, 1)
 
     /** A complete `@BDC ST2` block, byte-identical to the one the USB path reads. */
