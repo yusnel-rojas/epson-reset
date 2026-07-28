@@ -1,0 +1,194 @@
+name: Sync printer data
+
+on:
+  schedule:
+    - cron: '0 4 1 * *'   # 04:00 UTC on the 1st
+  workflow_dispatch:
+    inputs:
+      source_url:
+        description: 'reinkpy epson.toml to convert'
+        required: false
+        default: 'https://codeberg.org/atufi/reinkpy/raw/branch/main/reinkpy/epson.toml'
+
+jobs:
+  sync:
+    name: Regenerate counters.json and database.json
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # Temurin 21 + Gradle so the regenerated file is actually exercised before it's proposed.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Fetch upstream epson.toml
+        env:
+          # A scheduled run carries no inputs, so fall back to the same default the form shows.
+          SOURCE_URL: ${{ inputs.source_url || 'https://codeberg.org/atufi/reinkpy/raw/branch/main/reinkpy/epson.toml' }}
+        run: |
+          set -euo pipefail
+          curl -fsSL "$SOURCE_URL" -o "$RUNNER_TEMP/epson.toml"
+          echo "Fetched $(wc -c < "$RUNNER_TEMP/epson.toml") bytes from $SOURCE_URL"
+
+      - name: Convert
+        id: convert
+        run: |
+          set -euo pipefail
+          summary="$(python3 tools/convert_reinkpy.py "$RUNNER_TEMP/epson.toml" \
+            src/main/resources/counters.json src/main/resources/database.json)"
+          echo "$summary"
+          echo "summary=$summary" >> "$GITHUB_OUTPUT"
+
+      - name: Check for changes
+        id: diff
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- src/main/resources/counters.json src/main/resources/database.json; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # What actually moved, in model terms — the raw diff is one minified JSON line and unreadable.
+      - name: Summarise the change
+        if: steps.diff.outputs.changed == 'true'
+        run: |
+          set -euo pipefail
+          git show HEAD:src/main/resources/counters.json > "$RUNNER_TEMP/counters-old.json"
+          git show HEAD:src/main/resources/database.json > "$RUNNER_TEMP/database-old.json"
+          python3 - "$RUNNER_TEMP/counters-old.json" src/main/resources/counters.json \
+                    "$RUNNER_TEMP/database-old.json" src/main/resources/database.json \
+                    > "$RUNNER_TEMP/body.md" <<'PY'
+          import json, sys
+
+          def layouts(path):
+              """model -> its counter list. A model listed in two groups keeps the last one;
+              close enough for a change summary, and upstream barely does it."""
+              doc = json.load(open(path))
+              out = {}
+              for g in doc['groups']:
+                  for m in g['models']:
+                      out[m] = g['counters']
+              return out
+
+          old, new = layouts(sys.argv[1]), layouts(sys.argv[2])
+          added = sorted(new.keys() - old.keys())
+          removed = sorted(old.keys() - new.keys())
+          changed = sorted(m for m in old.keys() & new.keys() if old[m] != new[m])
+
+          # database.json drives the writes, so its diff is reported separately and in full.
+          def resets(path):
+              db = json.load(open(path))
+              return {n: m.get('pad_groups', []) for n, m in db.items()}
+
+          dold, dnew = resets(sys.argv[3]), resets(sys.argv[4])
+          dadded = sorted(dnew.keys() - dold.keys())
+          dremoved = sorted(dold.keys() - dnew.keys())
+          dchanged = sorted(m for m in dold.keys() & dnew.keys() if dold[m] != dnew[m])
+
+          def listing(title, models):
+              if not models:
+                  return
+              print(f'\n**{title} ({len(models)})**\n')
+              print(', '.join(f'`{m}`' for m in models[:40]) + (' …' if len(models) > 40 else ''))
+
+          print('## Read layouts (`counters.json`)\n')
+          print(f'Models: {len(old)} → {len(new)}')
+          listing('Added', added)
+          listing('Removed', removed)
+          listing('Layout changed', changed)
+
+          print('\n## Reset data (`database.json`)\n')
+          print(f'Models: {len(dold)} → {len(dnew)}')
+          listing('Added', dadded)
+          listing('Removed', dremoved)
+          listing('Pad groups changed', dchanged)
+
+          if dchanged:
+              print('\n<details><summary>Changed pad groups, first 10</summary>\n')
+              for m in dchanged[:10]:
+                  print(f'\n`{m}`\n')
+                  print('```')
+                  print(f'- {json.dumps(dold[m])}')
+                  print(f'+ {json.dumps(dnew[m])}')
+                  print('```')
+              print('\n</details>')
+
+          if changed:
+              print('\n<details><summary>Changed layouts, first 10</summary>\n')
+              for m in changed[:10]:
+                  print(f'\n`{m}`\n')
+                  print('```')
+                  print(f'- {json.dumps(old[m])}')
+                  print(f'+ {json.dumps(new[m])}')
+                  print('```')
+              print('\n</details>')
+          PY
+          cat "$RUNNER_TEMP/body.md" >> "$GITHUB_STEP_SUMMARY"
+
+      # A garbled or restructured upstream file would still convert cleanly — CounterSpecTest and
+      # the dry run are what catch it. Failing here leaves the branch unpushed.
+      - name: Test against the regenerated data
+        if: steps.diff.outputs.changed == 'true'
+        run: |
+          ./gradlew test --stacktrace
+          ./gradlew diagnose --args="ET-2825"
+
+      - name: Push branch and open PR
+        if: steps.diff.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          # A scheduled run carries no inputs, so fall back to the same default the form shows.
+          SOURCE_URL: ${{ inputs.source_url || 'https://codeberg.org/atufi/reinkpy/raw/branch/main/reinkpy/epson.toml' }}
+          CONVERT_SUMMARY: ${{ steps.convert.outputs.summary }}
+        run: |
+          set -euo pipefail
+          branch="sync/printer-data-$(date -u +%Y%m%d)-${GITHUB_RUN_ID}"
+          base="${GITHUB_REF_NAME}"
+
+          git config user.name  'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git checkout -b "$branch"
+          git add src/main/resources/counters.json src/main/resources/database.json
+          git commit -m "Sync printer data from reinkpy" -m "$CONVERT_SUMMARY" -m "Source: $SOURCE_URL"
+          git push origin "$branch"
+
+          {
+            echo "Regenerated from \`$SOURCE_URL\`."
+            echo
+            echo "\`$CONVERT_SUMMARY\`"
+            echo
+            cat "$RUNNER_TEMP/body.md"
+            echo
+            echo "Tests and the ET-2825 dry run passed against this data."
+          } > "$RUNNER_TEMP/pr.md"
+
+          # PR creation with GITHUB_TOKEN needs Settings → Actions → "Allow GitHub Actions to
+          # create and approve pull requests". Without it the branch is still pushed, so fall back
+          # to handing over the compare link.
+          if gh pr create --base "$base" --head "$branch" \
+               --title "Sync printer data from reinkpy" --body-file "$RUNNER_TEMP/pr.md"; then
+            echo "Opened a pull request from \`$branch\`." >> "$GITHUB_STEP_SUMMARY"
+          else
+            {
+              echo "Could not open the PR automatically — check Settings → Actions → \"Allow GitHub"
+              echo "Actions to create and approve pull requests\"."
+              echo
+              echo "Branch \`$branch\` is pushed: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/compare/$base...$branch"
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Report no-op
+        if: steps.diff.outputs.changed == 'false'
+        run: echo "counters.json and database.json already match upstream — nothing to sync." >> "$GITHUB_STEP_SUMMARY"

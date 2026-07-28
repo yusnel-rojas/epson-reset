@@ -1,0 +1,36 @@
+{
+  "_readme": [
+    "Counter maxima measured by this project, layered on top of the upstream layouts in",
+    "counters.json. Kept in a separate file so regenerating counters.json from reinkpy",
+    "(tools/convert_reinkpy.py) never discards them.",
+    "",
+    "Upstream declares a max for only 2 of 626 counters, so percentages otherwise cannot be",
+    "shown at all. Each entry here was derived by reading the printer and comparing against a",
+    "tool that reports percentages: max = value / (percent/100).",
+    "",
+    "A second, stronger basis needs no reference tool at all: a printer declaring the pad at end",
+    "of life has reached its limit, so the counter value IS the maximum. Those entries record",
+    "\"observed\": { \"value\": N, \"at\": \"service required\" } and a range of one integer.",
+    "",
+    "Only add an entry you have actually measured. Record the observation alongside it so the",
+    "figure can be re-checked, and note the range when the source's rounding leaves one — a",
+    "percentage printed to two decimals brackets the maximum, it does not pin it. Trailing zeros",
+    "in \"percent\" are deliberate: 60.90 says the tool was read to two decimals, and 60.9 does not.",
+    "",
+    "Entries come from the app's Calibrate percentages card (db/Calibration.kt derives the maximum",
+    "and the range) and are merged with tools/apply_calibration.py, which checks them against",
+    "counters.json. A user overlay (counters-overlay.json) still wins over anything here."
+  ],
+  "calibrations": [
+    {
+      "models": ["ET-2820", "ET-2821", "ET-2822", "ET-2823", "ET-2824", "ET-2825", "ET-2826", "ET-2828"],
+      "measured": "Epson ET-2820, 2026-07-26",
+      "note": "Pairing assumes the reference percentages come back in the same address order the counters are declared in. Maxima are model constants (pad capacity), not per-unit, so they apply across these SKUs. Deliberately NOT extended to the other 119 models sharing this EEPROM layout (ET-1810..ET-4800, L1210..L5318): a shared layout does not prove identical pad capacity.",
+      "maxima": [
+        { "addr": [48, 49], "max": 6346, "observed": { "value": 3865, "percent": 60.90 }, "range": [6346, 6347] },
+        { "addr": [50, 51], "max": 3400, "observed": { "value": 60, "percent": 1.76 }, "range": [3400, 3418] },
+        { "addr": [252, 253], "max": 1300, "observed": { "value": 180, "percent": 13.85 }, "range": [1299, 1300] }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,175 @@
+name: Build & package
+
+# Packaging runs on demand and on v* tags, not on every push — five runners per commit is a lot of
+# minutes for installers nobody downloads. Tests run per-push in ci.yml.
+
+on:
+  push:
+    tags: [ 'v*' ]       # tagging vX.Y.Z sets the installer version and publishes a Release
+  workflow_dispatch:     # run packaging manually from the Actions tab
+  # pull_request:        # uncomment to package every PR
+
+jobs:
+  package:
+    name: Package (${{ matrix.artifact }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest        # macOS Apple Silicon (arm64)
+            task: packageDmg
+            glob: build/compose/binaries/main/dmg/*.dmg
+            artifact: EpsonReset-macos-arm64
+          # - os: macos-13          # macOS Intel (x64) — enable if anyone asks for it
+          #   task: packageDmg
+          #   glob: build/compose/binaries/main/dmg/*.dmg
+          #   artifact: EpsonReset-macos-x64
+          - os: windows-latest      # Windows x64 Inno Setup .exe
+            task: createDistributable
+            glob: build/installer/windows/*.exe
+            artifact: EpsonReset-windows-x64
+          - os: ubuntu-22.04        # Linux x64 .deb
+            task: packageDeb
+            glob: build/compose/binaries/main/deb/*.deb
+            artifact: EpsonReset-linux-x64
+          - os: ubuntu-22.04-arm    # Linux arm64 .deb / Raspberry Pi OS 64-bit
+            task: packageDeb
+            glob: build/compose/binaries/main/deb/*.deb
+            artifact: EpsonReset-linux-arm64
+          # No AppImage yet: appimagetool needs an icon and a .desktop entry, and this project
+          # ships no icon assets. Add src/main/resources/icon.png first.
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # jpackage ships inside a full JDK; Temurin 21 matches jvmToolchain(21) and the daemon pin in
+      # gradle/gradle-daemon-jvm.properties, which resolves against installed JDKs.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      # Caches Gradle dependencies and the build cache between runs.
+      - uses: gradle/actions/setup-gradle@v4
+
+      # Sign macOS builds only when a certificate secret is configured — otherwise produce an
+      # unsigned .dmg rather than failing the build.
+      - name: Detect macOS signing
+        id: signing
+        if: runner.os == 'macOS'
+        shell: bash
+        env:
+          CERT: ${{ secrets.MACOS_CERTIFICATE_P12 }}
+        run: |
+          if [ -n "$CERT" ]; then echo "enabled=true" >> "$GITHUB_OUTPUT"; else echo "enabled=false" >> "$GITHUB_OUTPUT"; fi
+
+      - name: Import signing certificate
+        if: runner.os == 'macOS' && steps.signing.outputs.enabled == 'true'
+        uses: apple-actions/import-codesign-certs@v3
+        with:
+          p12-file-base64: ${{ secrets.MACOS_CERTIFICATE_P12 }}
+          p12-password: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+
+      - name: Package Compose distribution
+        shell: bash      # makes ./gradlew work the same way on the Windows runner
+        run: ./gradlew ${{ matrix.task }} --stacktrace
+        env:
+          # On a tag ref github.ref_name is "vX.Y.Z"; build.gradle.kts strips the leading "v".
+          APP_VERSION: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || '' }}
+          # Compose's macOS signing block reads these; SIGN_APP gates whether it signs at all.
+          SIGN_APP: ${{ steps.signing.outputs.enabled == 'true' && 'true' || 'false' }}
+          IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          NOTARIZATION_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+      - name: Install Inno Setup
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: choco install innosetup --no-progress -y
+
+      - name: Build Windows installer
+        if: runner.os == 'Windows'
+        shell: powershell
+        env:
+          APP_VERSION: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || '' }}
+        run: |
+          $version = $env:APP_VERSION
+          if ([string]::IsNullOrWhiteSpace($version)) {
+            $version = "1.0.0"
+          }
+          if ($version.StartsWith("v")) {
+            $version = $version.Substring(1)
+          }
+
+          $repo = (Get-Location).Path
+          $scriptDir = Join-Path $repo "installer\windows"
+          $sourceDir = Join-Path $repo "build\compose\binaries\main\app\EpsonReset"
+          $outputDir = Join-Path $repo "build\installer\windows"
+          $launcher = Join-Path $sourceDir "EpsonReset.exe"
+
+          if (!(Test-Path $launcher)) {
+            Get-ChildItem -Recurse (Join-Path $repo "build\compose\binaries") | Select-Object FullName
+            throw "Expected Windows launcher was not found: $launcher"
+          }
+
+          New-Item -ItemType Directory -Force -Path $outputDir | Out-Null
+          Write-Host "Using app image: $sourceDir"
+          Write-Host "Writing installer to: $outputDir"
+
+          $iscc = Join-Path ${env:ProgramFiles(x86)} "Inno Setup 6\ISCC.exe"
+          if (!(Test-Path $iscc)) {
+            $iscc = "iscc.exe"
+          }
+
+          Push-Location $scriptDir
+          try {
+            & $iscc "EpsonReset.iss" "/DAppVersion=$version"
+          } finally {
+            Pop-Location
+          }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.glob }}
+          if-no-files-found: error
+
+  # Attaches the installers to a GitHub Release when the workflow runs against a v* tag. Manual
+  # runs on a branch only upload build artifacts.
+  release:
+    name: Publish release
+    needs: package
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write     # GITHUB_TOKEN needs this to create the Release
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      # Each artifact folder is named per the matrix (EpsonReset-macos-arm64, …) and holds one
+      # version-named installer. Rename each to "<folder>.<ext>" so release assets get stable,
+      # version-less names that releases/latest/download/<name> links can point at.
+      - name: Rename installers to stable names
+        run: |
+          cd artifacts
+          for d in */; do
+            name="${d%/}"
+            file="$(ls "$d" | head -n1)"
+            mv "$d$file" "$name.${file##*.}"
+          done
+          ls -la
+
+      # Publishing to this same repo, so the default GITHUB_TOKEN is enough. To publish elsewhere
+      # (e.g. a separate public repo), add `repository:` plus a fine-grained PAT with Contents:
+      # read/write as `token:`.
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: |
+            artifacts/*.dmg
+            artifacts/*.exe
+            artifacts/*.deb
+          generate_release_notes: true

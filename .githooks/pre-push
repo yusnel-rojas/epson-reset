@@ -1,0 +1,21 @@
+#!/bin/sh
+# Runs the test suite before a push — the same thing CI will run, found out locally instead of
+# five minutes later in a red badge.
+#
+# Installed by `./gradlew installGitHooks`. Skip once with `git push --no-verify`.
+# Nothing here touches hardware: the suite is offline and headless.
+
+set -e
+
+repo_root=$(git rev-parse --show-toplevel)
+cd "$repo_root"
+
+echo "pre-push: ./gradlew test"
+if ! ./gradlew --quiet --console=plain test; then
+    echo >&2
+    echo "pre-push: tests failed. Report: build/reports/tests/test/index.html" >&2
+    echo "  Push anyway:  git push --no-verify" >&2
+    exit 1
+fi
+
+exit 0

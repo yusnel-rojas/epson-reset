@@ -1,0 +1,46 @@
+#!/bin/sh
+# Formatting gate: runs ktlint when a commit touches Kotlin.
+#
+# Installed by `./gradlew installGitHooks`, which sets core.hooksPath to this directory.
+# Skip once with `git commit --no-verify`.
+
+set -e
+
+repo_root=$(git rev-parse --show-toplevel)
+cd "$repo_root"
+
+# Nothing Kotlin in the commit, nothing to check. A delete or a pure rename leaves no content.
+staged=$(git diff --cached --name-only --diff-filter=ACMR -- '*.kt' '*.kts')
+[ -z "$staged" ] && exit 0
+
+# ktlint runs over the source tree, not over the index, so it sees the working copy. If a Kotlin
+# file has changes that are not staged, the verdict may not be about what is being committed —
+# say so rather than let a confusing failure stand unexplained.
+unstaged=$(git diff --name-only -- '*.kt' '*.kts')
+if [ -n "$unstaged" ]; then
+    count=$(printf '%s\n' "$unstaged" | wc -l | tr -d ' ')
+    echo "pre-commit: note — $count file(s) have unstaged changes, and are checked as they are" >&2
+    echo "            on disk rather than as staged:" >&2
+    printf '%s\n' "$unstaged" | head -5 | sed 's/^/              /' >&2
+    [ "$count" -gt 5 ] && echo "              ... and $((count - 5)) more" >&2
+fi
+
+echo "pre-commit: ktlint..."
+
+# --continue so every source set reports, rather than stopping at the first one that fails and
+# leaving the rest to be discovered on the next attempt.
+if ./gradlew --quiet --console=plain --continue ktlintCheck >/dev/null 2>&1; then
+    exit 0
+fi
+
+# Gradle's failure block names the report file but not a single violation, so print the reports:
+# file:line:column and the rule that objected is what is actually needed to fix anything.
+echo >&2
+echo "pre-commit: ktlint found problems." >&2
+echo >&2
+find build/reports/ktlint -name '*Check*.txt' -exec cat {} + 2>/dev/null |
+    sed -e 's/\x1b\[[0-9;]*m//g' -e "s|^$repo_root/||" -e 's/^/  /' >&2
+echo >&2
+echo "  Fix what is fixable:  ./gradlew ktlintFormat   (then re-stage)" >&2
+echo "  Commit anyway:        git commit --no-verify" >&2
+exit 1

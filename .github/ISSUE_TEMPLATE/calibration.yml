@@ -1,0 +1,80 @@
+name: Counter calibration
+description: A measured waste-counter maximum, so a model can show percentages
+title: "Calibration: "
+labels: ["calibration"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A percentage needs a maximum, and Epson publishes none: upstream declares one for 6 counters
+        out of 626, and every other one this app knows was measured off a printer by hand. That is
+        the whole reason percentages exist for 14 models out of 1588.
+
+        This form is how that number grows. **Epson Reset fills it in for you** — read the counters
+        on the Reset tab, then use *Calibrate percentages → Open an issue*. Filling it in by hand is
+        fine too; the fields below are what a maintainer needs to check the figure rather than
+        take it on trust.
+
+  - type: input
+    id: model
+    attributes:
+      label: Model
+      description: >
+        Exactly as the printer names itself. `ET-2825`, not `ET-2820 Series` — the family name is a
+        different database entry with different addresses.
+      placeholder: ET-2825
+    validations:
+      required: true
+
+  - type: textarea
+    id: entry
+    attributes:
+      label: calibrations.json entry
+      description: >
+        The JSON the app generated. It records the maximum, the reading it came from, and every
+        integer maximum consistent with that reading — the last is what makes the figure
+        re-checkable later.
+      render: json
+      placeholder: |
+        {
+          "models": ["ET-2825"],
+          "measured": "ET-2825, 2026-07-28",
+          "note": "Measured on one unit.",
+          "maxima": [
+            {
+              "addr": [48, 49],
+              "max": 6346,
+              "observed": { "value": 3865, "percent": 60.90 },
+              "range": [6346, 6347]
+            }
+          ]
+        }
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: How it was measured
+      description: >
+        The app's report. If you are writing this by hand: which counter, what it read, and what
+        told you its true percentage — the printer's own service-required message, or another tool
+        and its exact reading, digits and all.
+      render: markdown
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: provenance
+    attributes:
+      label: Before submitting
+      options:
+        - label: >
+            The values came from a **Live** read of a real printer, not a dry run. (A dry run's
+            values are invented by the simulator; a maximum derived from them would be wrong for
+            every printer of this model, silently.)
+          required: true
+        - label: >
+            The model above is the one I measured. I have not extended it to models that merely
+            share its EEPROM layout — a shared layout does not prove identical pad capacity.
+          required: true

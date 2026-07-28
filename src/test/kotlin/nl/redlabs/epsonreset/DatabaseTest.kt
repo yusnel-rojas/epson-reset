@@ -1,0 +1,164 @@
+package nl.redlabs.epsonreset
+
+import nl.redlabs.epsonreset.db.PadKind
+import nl.redlabs.epsonreset.db.PrinterDatabase
+import nl.redlabs.epsonreset.device.DetectedPrinter
+import nl.redlabs.epsonreset.device.DeviceMatcher
+import nl.redlabs.epsonreset.device.Link
+import nl.redlabs.epsonreset.device.MatchedPrinter
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+
+class DatabaseTest {
+
+    private val db = PrinterDatabase.load()
+
+    @Test
+    fun `bundled database loads the full model set`() {
+        assertTrue(db.size > 1000, "expected the full database, got ${db.size}")
+    }
+
+    @Test
+    fun `a known entry parses its keys and pad groups`() {
+        val model = assertNotNull(db["PX-7V"])
+
+        assertEquals(1, model.readKey)
+        assertEquals("Zvubnpsj", model.writeKey)
+        assertEquals("Yutamori", model.writeKey1)
+        assertEquals(511, model.memHigh)
+        assertEquals(2, model.padGroups.size)
+
+        val platen = model.padGroups.first { it.effectiveKind == PadKind.PLATEN }
+        assertEquals(listOf(58, 59, 83, 84, 85, 86), platen.addresses)
+
+        val main = model.padGroups.first { it.effectiveKind == PadKind.MAIN }
+        assertEquals(listOf(87, 88, 89, 90), main.addresses)
+    }
+
+    @Test
+    fun `every model pairs each address with a reset value`() {
+        val mismatched = db.models.filter { model ->
+            model.padGroups.any { it.addresses.size != it.resetValues.size }
+        }
+        assertTrue(mismatched.isEmpty(), "unpaired addresses in: ${mismatched.take(5).map { it.name }}")
+    }
+
+    @Test
+    fun `lookup is case insensitive`() {
+        assertNotNull(db["l3150"])
+        assertNotNull(db["L3150"])
+    }
+
+    @Test
+    fun `search ranks exact and prefix hits first`() {
+        val results = db.search("L3150")
+        assertEquals("L3150", results.first().name)
+    }
+
+    @Test
+    fun `search returns nothing for a nonsense query`() {
+        assertTrue(db.search("zzzznotaprinter").isEmpty())
+    }
+
+    @Test
+    fun `schema 3 wrapper form parses the same as a bare map`() {
+        val wrapped = """
+            {"schema_version": 3, "models": {
+              "FAKE-1": {"rkey": 2, "wkey": "abc", "pad_groups": [
+                {"desc": "Platen Pad Counter", "kind": "platen", "addresses": [1,2], "reset": [0,0]}
+              ]}
+            }}
+        """.trimIndent()
+
+        val parsed = PrinterDatabase.parse(wrapped)
+        val model = assertNotNull(parsed["FAKE-1"])
+        assertEquals(2, model.readKey)
+        assertTrue(model.isPlatenOnly)
+    }
+
+    @Test
+    fun `legacy flat addresses become a single implicit group`() {
+        val legacy = """{"OLD-1": {"wkey": "k", "addresses": [5,6,7], "reset": [0]}}"""
+        val model = assertNotNull(PrinterDatabase.parse(legacy)["OLD-1"])
+
+        assertEquals(1, model.padGroups.size)
+        assertEquals(listOf(5, 6, 7), model.padGroups[0].addresses)
+        // Short reset arrays pad with zeros so no address is left without a value.
+        assertEquals(listOf(0, 0, 0), model.padGroups[0].resetValues)
+    }
+
+    @Test
+    fun `platen only detection drives the main-waste-box warning`() {
+        val platenOnly = """
+            {"P": {"wkey": "k", "pad_groups": [
+              {"desc": "Platen Pad Counter", "kind": "platen", "addresses": [1], "reset": [0]}]}}
+        """.trimIndent()
+        assertTrue(assertNotNull(PrinterDatabase.parse(platenOnly)["P"]).isPlatenOnly)
+
+        val both = """
+            {"B": {"wkey": "k", "pad_groups": [
+              {"desc": "Platen Pad Counter", "kind": "platen", "addresses": [1], "reset": [0]},
+              {"desc": "Main Pad Counter", "kind": "main", "addresses": [2], "reset": [0]}]}}
+        """.trimIndent()
+        assertTrue(!assertNotNull(PrinterDatabase.parse(both)["B"]).isPlatenOnly)
+    }
+}
+
+class DeviceMatcherTest {
+
+    private val db = PrinterDatabase.load()
+
+    private fun device(product: String?) = DetectedPrinter(
+        link = Link.Usb(
+            busNumber = 1,
+            deviceAddress = 4,
+            interfaceNumber = 1,
+            endpointIn = 0x81.toByte(),
+            endpointOut = 0x02,
+            isPrinterClass = true,
+        ),
+        manufacturer = "EPSON",
+        product = product,
+        serial = "X4KP0219",
+        productId = 0x1169,
+    )
+
+    @Test
+    fun `strips vendor and marketing words`() {
+        assertEquals("L3150", DeviceMatcher.normalise("EPSON L3150 Series"))
+        assertEquals("XP-245", DeviceMatcher.normalise("EPSON XP-245 Series"))
+        assertEquals("SX130", DeviceMatcher.normalise("EPSON Stylus SX130"))
+    }
+
+    @Test
+    fun `resolves a typical descriptor string to its database entry`() {
+        val matched = DeviceMatcher.match(device("EPSON L3150 Series"), db)
+
+        assertEquals("L3150", matched.model?.name)
+        assertEquals(MatchedPrinter.Confidence.EXACT, matched.confidence)
+    }
+
+    @Test
+    fun `a missing product string is reported rather than guessed`() {
+        val matched = DeviceMatcher.match(device(null), db)
+
+        assertNull(matched.model)
+        assertEquals(MatchedPrinter.Confidence.NONE, matched.confidence)
+    }
+
+    @Test
+    fun `an unrecognisable name does not fall back to an arbitrary model`() {
+        val matched = DeviceMatcher.match(device("EPSON Totally Made Up 9999"), db)
+        assertEquals(MatchedPrinter.Confidence.NONE, matched.confidence)
+    }
+
+    /** The prefix is what keeps a bus address and a host:port from ever colliding. */
+    @Test
+    fun `device identity is stable across rescans`() {
+        assertEquals("usb:1:4", device("EPSON L3150 Series").id)
+        assertEquals("net:192.168.1.50:9100", Link.Network("192.168.1.50").id)
+    }
+}
