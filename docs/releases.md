@@ -21,6 +21,24 @@ git tag v1.0.0 && git push origin v1.0.0
 
 `APP_VERSION` is the tag with the `v` stripped; untagged runs build `1.0.0`.
 
+That produces a **draft** release, not a public one. The four installers are built and attached,
+and nothing else happens until you press Publish — which is when the release notes get written.
+GitHub's auto-generated notes are assembled from merged pull requests, and the work here lands as
+direct commits to `main`, so what it generates is close to empty; treat it as a placeholder to
+replace, not as the notes.
+
+Until the draft is published it is not the latest release, which means
+`releases/latest/download/<name>` links and the in-app update check both keep resolving to the
+previous version. Nobody is offered a half-finished release.
+
+Two fields, and they are not the same one:
+
+- **Body** — what the releases page shows. Editable at any time afterwards, and editing it does not
+  re-notify watchers.
+- **Title** — what the app shows in its update prompt, because `UpdateCheck` reads the release's
+  `name`. `build.yml` sets no `name:`, so it defaults to the tag (`v1.0.0`). Worth changing to
+  something readable while the draft is open.
+
 ## Versioning
 
 Tags are `vMAJOR.MINOR.PATCH` ([semver](https://semver.org)), and the tag is the only place a
