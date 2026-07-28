@@ -69,31 +69,38 @@ val installGitHooks = tasks.register("installGitHooks") {
     group = "verification"
     description = "Point git at the versioned hooks in .githooks/"
 
-    val hooksDir = layout.projectDirectory.dir(".githooks")
-    val gitDir = layout.projectDirectory.dir(".git")
+    val hooksDir = layout.projectDirectory.dir(".githooks").asFile
+    val gitDir = layout.projectDirectory.dir(".git").asFile
+    val workingDir = layout.projectDirectory.asFile
 
     doLast {
-        if (!gitDir.asFile.exists()) {
+        if (!gitDir.exists()) {
             logger.lifecycle("Not a git checkout — skipping hook installation.")
             return@doLast
         }
         // Executable bits do not survive every checkout (Windows, zip exports), so restore them
         // rather than letting git fail with "hook not executable" at commit time.
-        hooksDir.asFile.listFiles()?.forEach { it.setExecutable(true, false) }
+        hooksDir.listFiles()?.forEach { it.setExecutable(true, false) }
 
-        val current =
-            providers.exec {
-                commandLine("git", "config", "--get", "core.hooksPath")
-                isIgnoreExitValue = true
-            }.standardOutput.asText.get().trim()
+        fun git(vararg args: String): Pair<Int, String> {
+            val process =
+                ProcessBuilder("git", *args)
+                    .directory(workingDir)
+                    .redirectErrorStream(true)
+                    .start()
+            val output = process.inputStream.bufferedReader().use { it.readText() }.trim()
+            return process.waitFor() to output
+        }
 
+        val (_, current) = git("config", "--get", "core.hooksPath")
         if (current == ".githooks") {
             logger.lifecycle("Git hooks already installed (core.hooksPath=.githooks).")
-        } else {
-            providers.exec { commandLine("git", "config", "core.hooksPath", ".githooks") }
-                .result.get().assertNormalExitValue()
-            logger.lifecycle("Git hooks installed: core.hooksPath=.githooks")
+            return@doLast
         }
+
+        val (status, output) = git("config", "core.hooksPath", ".githooks")
+        check(status == 0) { "git config core.hooksPath failed ($status): $output" }
+        logger.lifecycle("Git hooks installed: core.hooksPath=.githooks")
     }
 }
 
@@ -109,7 +116,7 @@ if (System.getenv("CI").isNullOrBlank()) {
 // jpackage's --app-version reaches the installer but not the classpath, so the value is written
 // into a resource here instead. An untagged build gets "dev", which UpdateCheck refuses to compare
 // — a working copy is never told to upgrade to the release it is ahead of.
-val generateVersionResource by tasks.registering {
+val generateVersionResource = tasks.register("generateVersionResource") {
     val outputDir = layout.buildDirectory.dir("generated/version")
     val version = releaseVersion ?: "dev"
 
