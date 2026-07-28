@@ -80,8 +80,10 @@ Whether a reset can happen over the network is the printer's decision, not a set
 [the write gate](docs/network-printers.md#the-write-gate). Where a printer refuses, the app says
 which refusal it was rather than failing obscurely.
 
-**The reset (write) path has not been run against a real printer here** — only the read path has.
-That and every other standing limit is in [Field notes](docs/field-notes.md#standing-limits).
+The reset path has been run against a real printer: counters reset, read back at zero, and the
+pre-reset snapshot restored to recover the original values. What that covers and what it does not —
+network resets, the inspector's key discovery, percentages — is in
+[Field notes](docs/field-notes.md#standing-limits).
 
 ## Documentation
 

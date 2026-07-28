@@ -11,7 +11,7 @@ The hardware is an ET-2820 (USB) and an ET-2825 on firmware 05.24 (USB and netwo
 | Path | Status |
 |---|---|
 | Read over USB | Exercised. Counters come back and decode; the [credit flow](#the-reply-rides-a-later-credit-exchange) was diagnosed here. |
-| **Reset (write) over USB** | **Never run against a real printer.** A faithful port of upstream, covered by golden-packet tests and dry runs, and that is all it is. Dry-run first. |
+| **Reset (write) over USB** | Exercised on an ET-2825. A live run reported 14 of 14 writes verified over 45 acknowledged packets; a re-read returned every counter at zero; restoring the pre-reset snapshot brought the original values back. The write, the read-back and the recovery path have all now answered on hardware. |
 | Identity, serial, status, firmware over the network | Works on the ET-2825, over SNMP. |
 | Counters and resets over the network | Refused by that firmware — [`:41:NA;`](#the-refusal-is-of-the-command-class-not-the-key). Untested elsewhere; the app asks and reports. |
 | The inspector's read-key discovery | Unproven against hardware. The 159 keys and the ranking are reasoning about the database, not a result. |
@@ -78,9 +78,21 @@ That is what made it safe to conclude nothing client-side would change it, and w
 SNMP round trip for this because matching on the family name silently builds a reset from the wrong
 sibling's data, and this is the only place the unit's own name can be had.
 
+### The reset writes, and the restore puts it back
+
+An ET-2825 over USB, live: 14 writes across 2 groups, all 14 verified, 45 packets sent and 45
+acknowledged. Reading the counters again returned every address at zero — the platen group's
+`08 96 15 5E 5E 5E` came back `00 00 00 5E 5E 5E`, the `5E` bytes being the limit bytes that never
+move. Replaying the snapshot taken before the run restored the original values, which is the first
+time the recovery path has been shown to work against hardware rather than against a simulated
+EEPROM.
+
+Two things this does not establish: that the same sequence is right for any other model — the keys
+and addresses are per-model data, and only this one has been tried — and that a reset over the
+network is possible, which the same firmware still refuses.
+
 ## Standing limits
 
-- The reset (write) path has **not** been run against a real printer here — only the read path has.
 - Percentages are almost never available. Upstream defines a `max` for 6 of 626 counters, and no
   model in the ET-2820 family has one. The UI says "no limit" rather than inventing a number;
   supply your own via [an overlay](counter-database.md#overlays) or
