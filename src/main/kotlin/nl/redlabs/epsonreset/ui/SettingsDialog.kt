@@ -63,6 +63,8 @@ fun SettingsDialog(vm: ResetViewModel, updates: AppUpdates) {
                 DataDirectory(vm)
 
                 Divider()
+                About()
+                Divider()
                 OutlinedButton(onClick = { vm.settingsOpen = false }) { Text("Close") }
             }
         }
@@ -286,6 +288,29 @@ private fun RememberedChoices(vm: ResetViewModel) {
     TextButton(onClick = { vm.forgetAllRememberedChoices() }) {
         Text("Forget all", color = StatusColors.bad)
     }
+}
+
+@Composable
+private fun About() {
+    Section("About")
+
+    Text(
+        "Epson Reset ${AppVersion.display}",
+        style = MaterialTheme.typography.bodyMedium,
+        fontWeight = FontWeight.SemiBold,
+    )
+    Spacer(Modifier.height(4.dp))
+    Text(
+        "by Yusnel Rojas",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    Spacer(Modifier.height(4.dp))
+    Text(
+        "Licensed under the GNU Affero General Public License v3.0",
+        style = MaterialTheme.typography.labelSmall,
+        color = StatusColors.muted,
+    )
 }
 
 @Composable
