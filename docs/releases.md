@@ -19,7 +19,36 @@ Tag and push to cut a release:
 git tag v1.0.0 && git push origin v1.0.0
 ```
 
-`APP_VERSION` is the tag with the `v` stripped; untagged runs build `1.0.0`. macOS builds are
+`APP_VERSION` is the tag with the `v` stripped; untagged runs build `1.0.0`.
+
+## Versioning
+
+Tags are `vMAJOR.MINOR.PATCH` ([semver](https://semver.org)), and the tag is the only place a
+version is written by hand — the Gradle `version`, the installer's `packageVersion` and the
+`app-version.properties` the running app reads all derive from it.
+
+- **Patch** — bug fixes, new or corrected entries in the printer database, doc changes.
+- **Minor** — new features, new hardware support, anything additive to the UI.
+- **Major** — a redesign, a dropped platform, or a preferences/backup format an older build can't
+  read.
+
+Pre-releases are `v1.2.0-rc1`; `UpdateCheck.compare` orders them below the matching final release,
+so an rc never offers itself as an upgrade to someone already on it.
+
+Two shapes the tag can't take, both enforced by Compose at configuration time rather than at
+packaging time — a bad tag fails the build immediately, it doesn't produce a broken installer:
+
+- **`MAJOR` must be greater than zero.** The `.dmg` carries the version as `CFBundleVersion`, which
+  has no concept of a `0.x` development series. There is no `v0.9.0`; the first release is
+  `v1.0.0`.
+- **The installer gets the numeric core only.** `-rc1` and `+sha` are stripped before the version
+  reaches `packageVersion` (see `installerVersion` in `build.gradle.kts`), so a `v1.2.0-rc1` build
+  installs as `1.2.0`. The full tag still reaches the app through `app-version.properties`, which
+  is what the update check actually compares — an rc knows it's an rc even though its installer
+  doesn't.
+
+Release notes are generated from commits and PRs by `generate_release_notes` in `build.yml`; there
+is no hand-maintained changelog. macOS builds are
 signed and notarized only if the secrets exist (`MACOS_CERTIFICATE_P12`,
 `MACOS_CERTIFICATE_PASSWORD`, `MACOS_SIGN_IDENTITY`, `APPLE_ID`, `APPLE_APP_PASSWORD`,
 `APPLE_TEAM_ID`); without them the job produces an unsigned `.dmg` needing right-click → Open on

@@ -9,15 +9,26 @@ plugins {
 }
 
 group = "nl.redlabs.epsonreset"
-version = "1.0-SNAPSHOT"
 
 // Set by the release workflow from the v* tag. Absent everywhere else, which is the difference
 // between a release and a working copy — see the version resource below.
 val releaseVersion: String? =
     System.getenv("APP_VERSION")?.removePrefix("v")?.takeIf { it.isNotBlank() }
 
-// Installers need a real version number even for an untagged build; jpackage rejects "dev".
-val appVersion: String = releaseVersion ?: "1.0.0"
+// What the installers are stamped with. Not the same string as the tag: the macOS .dmg carries it
+// as CFBundleVersion, and Compose rejects anything that isn't MAJOR[.MINOR][.PATCH] with MAJOR > 0
+// — so "1.2.0-rc1" and "0.9.0" both fail the build at configuration time. Strip the pre-release
+// and build metadata, and fall back for an untagged build, where jpackage would reject "dev".
+val installerVersion: String =
+    releaseVersion
+        ?.substringBefore('+')
+        ?.substringBefore('-')
+        ?.takeIf { core -> core.matches(Regex("""[1-9]\d*(\.\d+){0,2}""")) }
+        ?: "1.0.0"
+
+// The full tag, which is what shows up in the jar name. The version resource below keeps it too —
+// only the installers need the trimmed form.
+version = releaseVersion ?: installerVersion
 
 repositories {
     mavenCentral()
@@ -196,7 +207,7 @@ compose.desktop {
             // title stays "Epson Reset" — Main.kt's window title, the Windows installer's
             // AppName, the Linux menu entry.
             packageName = "EpsonReset"
-            packageVersion = appVersion
+            packageVersion = installerVersion
             description = "Reset Epson waste ink pad counters"
             vendor = "redlabs"
 
