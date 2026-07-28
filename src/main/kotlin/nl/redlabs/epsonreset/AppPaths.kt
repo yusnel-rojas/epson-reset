@@ -34,6 +34,9 @@ object AppPaths {
     /** Network printers added by hand, one address per line. */
     val networkPrinters: File get() = File(dataDir, "network-printers.txt")
 
+    /** Which model a printer is, for printers that report only the family. One per line. */
+    val modelChoices: File get() = File(dataDir, "model-choices.txt")
+
     /** EEPROM snapshots, taken before a live run's first write or on request. */
     val backups: File get() = File(dataDir, "backups")
 }

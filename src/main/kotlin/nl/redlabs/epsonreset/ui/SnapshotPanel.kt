@@ -529,7 +529,7 @@ private fun RestoreControls(vm: ResetViewModel, backup: EepromBackup) {
                             confirming = false
                             vm.restoreSelectedSnapshot()
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = StatusColors.bad),
+                        colors = dangerButtonColors(),
                     ) { Text("Yes, write it back") }
                 }
 

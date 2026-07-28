@@ -143,7 +143,7 @@ private fun FilterChip(label: String, active: Boolean, onClick: () -> Unit) {
         label,
         style = MaterialTheme.typography.labelMedium,
         fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
-        color = if (active) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+        color = if (active) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier
             .clip(RoundedCornerShape(16.dp))
             .background(

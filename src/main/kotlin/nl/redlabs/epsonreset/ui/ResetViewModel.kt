@@ -21,6 +21,7 @@ import nl.redlabs.epsonreset.db.CounterSpec
 import nl.redlabs.epsonreset.db.CounterSpecs
 import nl.redlabs.epsonreset.db.ModelCapabilities
 import nl.redlabs.epsonreset.db.ModelCapability
+import nl.redlabs.epsonreset.db.ModelClass
 import nl.redlabs.epsonreset.db.PrinterDatabase
 import nl.redlabs.epsonreset.db.PrinterModel
 import nl.redlabs.epsonreset.db.ResetScope
@@ -30,10 +31,13 @@ import nl.redlabs.epsonreset.device.DetectedPrinter
 import nl.redlabs.epsonreset.device.DeviceMatcher
 import nl.redlabs.epsonreset.device.Link
 import nl.redlabs.epsonreset.device.MatchedPrinter
+import nl.redlabs.epsonreset.device.ModelChoices
 import nl.redlabs.epsonreset.device.PrinterDiscovery
 import nl.redlabs.epsonreset.device.PrinterTransports
+import nl.redlabs.epsonreset.device.Serials
 import nl.redlabs.epsonreset.net.NetworkAddress
 import nl.redlabs.epsonreset.net.SavedPrinters
+import nl.redlabs.epsonreset.prefs.PreferencesStore
 import nl.redlabs.epsonreset.probe.DeviceInspector
 import nl.redlabs.epsonreset.probe.SweepAnalysis
 import nl.redlabs.epsonreset.protocol.CounterReader
@@ -43,6 +47,7 @@ import nl.redlabs.epsonreset.protocol.SequenceGenerator
 import nl.redlabs.epsonreset.protocol.Status
 import nl.redlabs.epsonreset.protocol.Transport
 import nl.redlabs.epsonreset.update.AppVersion
+import nl.redlabs.epsonreset.usb.LibUsb
 import nl.redlabs.epsonreset.usb.UsbPrinterScanner
 import java.io.File
 import java.time.LocalDateTime
@@ -55,8 +60,11 @@ class ResetViewModel(
     private val scope: CoroutineScope,
     private val io: CoroutineContext = Dispatchers.IO,
     private val transports: (DetectedPrinter) -> PrinterTransports.OpenResult = PrinterTransports::open,
-    private val discover: () -> PrinterDiscovery.Result = { PrinterDiscovery.scan() },
+    private val discover: () -> PrinterDiscovery.Result = {
+        PrinterDiscovery.scan(crossCheck = PreferencesStore.current().crossCheckOverSnmp)
+    },
     private val backupDir: () -> File = { AppPaths.backups },
+    private val choicesFile: () -> File = { AppPaths.modelChoices },
 ) {
 
     /** The model database. */
@@ -72,9 +80,67 @@ class ResetViewModel(
     var selectedDevice by mutableStateOf<MatchedPrinter?>(null)
         private set
 
-    /** The model the selected printer named *itself* as — not the one the user picked. */
-    var identifiedModel by mutableStateOf<PrinterModel?>(null)
+    /**
+     * What the selected printer is taken to be, and how that was arrived at — not the model the user
+     * picked on the Reset tab, which is [selectedModel].
+     *
+     * The two travel together because everything downstream cites the identification when it acts on
+     * it, and a citation that names the wrong source is worse than none: a USB descriptor and an
+     * SNMP answer are not equally strong, and the descriptor is the one that usually names a family.
+     */
+    var identity by mutableStateOf<Identity?>(null)
         private set
+
+    val identifiedModel: PrinterModel? get() = identity?.model
+
+    /**
+     * The printer named a family whose members disagree about what a reset writes, and which of them
+     * is on the desk has not been settled. Null once it has been, either by the user or by an answer
+     * remembered from a previous session.
+     */
+    var pendingClass by mutableStateOf<PendingClass?>(null)
+        private set
+
+    /**
+     * The family string the identity was settled *against*, when a person settled it rather than the
+     * printer naming a unit outright. Kept so changing the answer re-answers the same question
+     * instead of reading as a mismatch with a name the printer never claimed.
+     */
+    val confirmedClass: String? get() = identity?.takeIf { it.via == Identity.Via.CONFIRMED }?.reported
+
+    /** What the printer would only say, and everything it could have meant. */
+    data class PendingClass(val reported: String, val candidates: List<PrinterModel>)
+
+    /**
+     * A model, the words it was derived from, and the channel those words arrived on.
+     *
+     * [reported] is kept verbatim because it is the evidence: `ET-2820 Series` resolving to the
+     * `ET-2820` entry is a family answering for eight units, and only the original string says so.
+     */
+    data class Identity(val model: PrinterModel, val via: Via, val reported: String) {
+        enum class Via(val label: String) {
+            /** iProduct off the USB descriptor. Names a family far more often than a unit. */
+            USB_DESCRIPTOR("its USB descriptor"),
+
+            /** `@EJL ID` asked over the open USB channel. */
+            USB_EJL("an EJL query over USB"),
+
+            /** An mDNS advertisement, or a name cached from one. */
+            NETWORK_ADVERT("its network advertisement"),
+
+            /** The Epson MIB over SNMP — the one source that reliably gives a unit. */
+            SNMP("SNMP"),
+
+            /** The same printer's SNMP answer, borrowed from its network entry onto its USB one. */
+            SNMP_CROSS_LINK("SNMP on its network address"),
+
+            /** A person read the label on the printer, because nothing else could tell. */
+            CONFIRMED("you"),
+        }
+
+        /** Whether the words behind this were a family name rather than a unit's. */
+        val namesAFamily: Boolean get() = DeviceMatcher.namesAClass(reported)
+    }
 
     /** Why one source came up empty, when the other one didn't. */
     var usbNote by mutableStateOf<String?>(null)
@@ -115,12 +181,69 @@ class ResetViewModel(
 
     /** Whether the sidebar shows the model search list rather than the one selected model. */
     val modelPickerExpanded: Boolean
-        get() = manualModelRequested || identifiedModel == null || modelMismatch != null
+        get() = manualModelRequested || identifiedModel == null || modelMismatch != null ||
+            pendingClass != null
 
     /** The user asked for the add-by-address field. It also appears on its own — see the panel. */
     var addByAddressRequested by mutableStateOf(false)
 
     var tab by mutableStateOf(Tab.RESET)
+
+    /** The settings window, which is a window rather than a tab — it is an errand, not a screen. */
+    var settingsOpen by mutableStateOf(false)
+
+    /**
+     * Mirrors of the two preferences with a switch in that window. Restored and persisted in
+     * App.kt alongside the rest, so the view model stays out of the preferences file.
+     */
+    var crossCheckOverSnmp by mutableStateOf(true)
+    var checkForUpdates by mutableStateOf(true)
+
+    /** Every family answer on file, for the window that lists them. Loaded on open. */
+    var rememberedChoices by mutableStateOf<List<ModelChoices.Choice>>(emptyList())
+        private set
+
+    fun openSettings() {
+        settingsOpen = true
+        refreshRememberedChoices()
+    }
+
+    private fun refreshRememberedChoices() {
+        scope.launch {
+            rememberedChoices = withContext(io) { ModelChoices.load(choicesFile()) }
+        }
+    }
+
+    /**
+     * Drops one remembered answer by key. When it is the printer in front of us, the identity it
+     * was propping up has to go with it — otherwise the window says the answer is forgotten while
+     * the rest of the app carries on citing it.
+     */
+    fun forgetRememberedChoice(key: String) {
+        if (key in printerKeys) {
+            forgetModelChoice()
+            refreshRememberedChoices()
+            return
+        }
+
+        scope.launch {
+            withContext(io) { ModelChoices.forget(choicesFile(), key) }
+            info("Forgot the remembered model for $key.")
+            refreshRememberedChoices()
+        }
+    }
+
+    fun forgetAllRememberedChoices() {
+        val known = rememberedChoices
+        if (known.isEmpty()) return
+
+        scope.launch {
+            withContext(io) { ModelChoices.save(choicesFile(), emptyList()) }
+            if (identity?.via == Identity.Via.CONFIRMED) identity = null
+            info("Forgot ${known.size} remembered model choice(s).")
+            refreshRememberedChoices()
+        }
+    }
 
     var logCollapsed by mutableStateOf(false)
 
@@ -335,6 +458,15 @@ class ResetViewModel(
     /** Why a live write to the selected printer is not allowed, or null when it is. */
     val writeBlockedReason: String?
         get() {
+            // First, because it is the one gate that fires while everything visible still looks
+            // agreed: a family name resolves to *a* database entry, and the entry it resolves to
+            // reads and writes like a printer that may not be this one.
+            pendingClass?.let {
+                return "This printer reports itself as \"${it.reported}\", which names a family of " +
+                    "${it.candidates.size} models that do not share a reset recipe. Pick the model " +
+                    "printed on the printer before running live."
+            }
+
             // Ahead of the link question, and on both links: writing one model's bytes into
             // another is wrong over USB for exactly the same reason it is wrong over SNMP.
             modelMismatch?.let { return it }
@@ -397,8 +529,19 @@ class ResetViewModel(
         }
     }
 
+    /**
+     * How the last database download went, for the window that started it. The log has it too, but
+     * a result that only exists behind another panel is a result the person who asked did not get.
+     */
+    var databaseUpdateStatus by mutableStateOf<Outcome?>(null)
+        private set
+
+    /** A short result to show where the action was taken. */
+    data class Outcome(val text: String, val ok: Boolean)
+
     fun refreshDatabaseFromNetwork() {
         scope.launch {
+            databaseUpdateStatus = Outcome("Downloading…", ok = true)
             info("Downloading the latest printer database…")
             val result = withContext(io) {
                 runCatching {
@@ -412,8 +555,14 @@ class ResetViewModel(
             }
             result.onSuccess {
                 database = it
+                databaseUpdateStatus = Outcome("Updated — ${it.size} models.", ok = true)
                 good("Database updated — ${it.size} models.")
             }.onFailure {
+                // Plain here, specific in the log. What went wrong is usually a URL and an HTTP
+                // code, which is the maintainer's problem rather than something the reader can act
+                // on — and the one thing they do need to know is that nothing was lost.
+                databaseUpdateStatus =
+                    Outcome("Could not download the database. Keeping the current copy.", ok = false)
                 warn("Database update failed: ${it.message}. Keeping the current copy.")
             }
         }
@@ -489,7 +638,8 @@ class ResetViewModel(
         selectedDevice = device
         lastTest = null
         // Both belong to the printer that was selected before this one, not to this one.
-        identifiedModel = null
+        identity = null
+        pendingClass = null
         manualModelRequested = false
         refreshIdentity()
         device.model?.let {
@@ -498,22 +648,124 @@ class ResetViewModel(
             val how = when (device.confidence) {
                 MatchedPrinter.Confidence.EXACT -> "matched exactly"
                 MatchedPrinter.Confidence.LIKELY -> "matched (likely — please confirm)"
+                MatchedPrinter.Confidence.CLASS_ONLY -> "matched to a family, not to a unit"
                 MatchedPrinter.Confidence.NONE -> "unmatched"
             }
             info("${device.device.displayName} on ${device.device.link.kind} → ${it.name} ($how).")
         } ?: warn(
             "${device.device.displayName} did not match any database entry — pick the model manually.",
         )
+
+        if (device.confidence == MatchedPrinter.Confidence.CLASS_ONLY) {
+            classReported(device.device.product.orEmpty(), device.candidates)
+        }
+
+        noteCrossCheck(device)
     }
 
-    /** Re-derives [identifiedModel] from the selected printer. */
+    /**
+     * The other link's answer, once it is established that both links are the same printer.
+     *
+     * Usually it is free money: the descriptor named a family, SNMP named the unit inside it, and
+     * they agree on every byte a reset writes. Where they *don't* agree the borrowed name is no
+     * longer a refinement but a contradiction, and settling it silently in favour of either one
+     * would be writing a key on the strength of a guess about which link is lying.
+     */
+    private fun noteCrossCheck(device: MatchedPrinter) {
+        val cross = device.device.crossCheck ?: return
+        val db = database ?: return
+        val fromPeer = DeviceMatcher.resolve(cross.name, db).model ?: return
+        val fromDescriptor = DeviceMatcher.resolve(device.device.product, db).model
+
+        if (fromDescriptor != null && ModelClass.recipeOf(fromDescriptor) != ModelClass.recipeOf(fromPeer)) {
+            identity = null
+            warn(
+                "This printer's descriptor matches ${fromDescriptor.name}, but the same serial " +
+                    "answers SNMP at ${cross.link.where} as ${fromPeer.name} — and the two do not " +
+                    "write the same bytes (rkey ${fromDescriptor.readKey} against " +
+                    "${fromPeer.readKey}). Pick the one on the label before running live.",
+            )
+            return
+        }
+
+        identity = Identity(fromPeer, Identity.Via.SNMP_CROSS_LINK, cross.name)
+        info(
+            "The same serial answers SNMP at ${cross.link.where} as ${fromPeer.name}. Using that: " +
+                "the descriptor says only \"${device.device.product}\", which names a family.",
+        )
+    }
+
+    /**
+     * The printer would only name its family. Either we were told which member it is once already,
+     * or we have to ask — and until it is answered a live run has no business proceeding, because
+     * the entry the family name resolved to is a guess wearing an exact match's clothes.
+     */
+    private fun classReported(reported: String, candidates: List<PrinterModel>) {
+        if (candidates.isEmpty()) return
+
+        rememberedModel(reported)?.let { remembered ->
+            pendingClass = null
+            identity = Identity(remembered, Identity.Via.CONFIRMED, reported)
+            selectedModel = remembered
+            query = remembered.name
+            info("\"$reported\" names a family; this printer was confirmed as ${remembered.name} before.")
+            return
+        }
+
+        identity = null
+        pendingClass = PendingClass(reported, candidates)
+        warn(
+            "This printer reports \"$reported\", which covers ${candidates.size} models that do not " +
+                "share a reset recipe. Pick the model printed on the printer itself — another " +
+                "member's key would be written to this one otherwise.",
+        )
+    }
+
+    /**
+     * Keys this printer could have been remembered under, best first. The serial outlives both a
+     * DHCP lease and a change of USB port, which is exactly what the connection does not.
+     */
+    private val printerKeys: List<String>
+        get() {
+            val reported = (selectedDevice?.device?.serial ?: lastTest?.serial)?.takeIf { it.isNotBlank() }
+            return listOfNotNull(
+                // Canonical first, so a choice made on one link is found from the other. The raw
+                // form follows it, because pins written before serials were canonicalised are
+                // filed under whatever the descriptor happened to say.
+                Serials.canonical(reported),
+                reported,
+                selectedDevice?.device?.id,
+            ).distinct()
+        }
+
+    private fun rememberedModel(reported: String): PrinterModel? {
+        val db = database ?: return null
+        val name = ModelChoices.lookup(choicesFile(), printerKeys, reported) ?: return null
+        return db[name]
+    }
+
+    /**
+     * Re-derives the identity from the selected printer — from the scan, which is the descriptor a
+     * USB device carries or the name a network one advertises. Neither is SNMP: that only happens
+     * when a connection test actually asks, in [reportTest].
+     */
     private fun refreshIdentity() {
         val device = selectedDevice ?: run {
-            identifiedModel = null
+            identity = null
             return
         }
         val fromScan = device.model.takeIf { device.confidence == MatchedPrinter.Confidence.EXACT }
-        identifiedModel = fromScan ?: identifiedModel
+            ?: return
+
+        identity = Identity(
+            model = fromScan,
+            via = if (device.device.isNetwork) {
+                Identity.Via.NETWORK_ADVERT
+            } else {
+                Identity.Via.USB_DESCRIPTOR
+            },
+            reported = device.device.product.orEmpty(),
+        )
     }
 
     /** Adds a printer by address, then immediately asks it what it is. */
@@ -586,9 +838,21 @@ class ResetViewModel(
         if (reported != null && db != null) {
             val resolution = DeviceMatcher.resolve(reported, db)
             if (resolution.confidence == MatchedPrinter.Confidence.EXACT) {
-                identifiedModel = resolution.model
+                resolution.model?.let {
+                    // Where the answer came from, not where answers usually come from: over the
+                    // network this is the Epson MIB, and over USB it is an EJL query on the
+                    // channel — SNMP is not involved in the second at all.
+                    val via =
+                        if (result.overNetwork) Identity.Via.SNMP else Identity.Via.USB_EJL
+                    identity = Identity(it, via, reported)
+                }
             }
-            if (selectedModel == null) {
+            if (resolution.confidence == MatchedPrinter.Confidence.CLASS_ONLY) {
+                classReported(reported, resolution.candidates)
+            }
+            // Not while a family is outstanding: filling the selection in with one member and
+            // saying it was matched is the sentence the prompt exists to stop being said.
+            if (selectedModel == null && pendingClass == null) {
                 resolution.model?.let {
                     selectedModel = it
                     query = it.name
@@ -600,9 +864,61 @@ class ResetViewModel(
 
     fun selectModel(model: PrinterModel) {
         selectedModel = model
+
+        val pending = pendingClass
+        val settled = confirmedClass
+        when {
+            pending != null -> confirmClass(pending.reported, model)
+            // Changing a hand-made answer re-answers the same question. Left alone it would instead
+            // read as a mismatch against a name the printer never actually claimed.
+            settled != null && !model.name.equals(identifiedModel?.name, ignoreCase = true) ->
+                confirmClass(settled, model)
+        }
+
         if (runState is RunState.Finished) runState = RunState.Idle
         // Every other decision that could end badly is in the log; this one belongs there too.
         modelMismatch?.let { warn("$it Dry runs still work; a live run will refuse.") }
+    }
+
+    /** The user settled which member of a family this printer is. Keep it, so it is asked once. */
+    private fun confirmClass(reported: String, model: PrinterModel) {
+        pendingClass = null
+        identity = Identity(model, Identity.Via.CONFIRMED, reported)
+        manualModelRequested = false
+        query = model.name
+
+        val key = printerKeys.firstOrNull()
+        if (key == null) {
+            info(
+                "Using ${model.name} for this printer, for this session — nothing identifies it " +
+                    "well enough to remember the choice.",
+            )
+            return
+        }
+
+        scope.launch {
+            withContext(io) { ModelChoices.pin(choicesFile(), ModelChoices.Choice(key, reported, model.name)) }
+            info("Remembered: the printer at $key reporting \"$reported\" is a ${model.name}.")
+        }
+    }
+
+    /** Drops a remembered answer and asks again — for when the wrong member was confirmed. */
+    fun forgetModelChoice() {
+        val reported = confirmedClass ?: return
+        val db = database ?: return
+        val key = printerKeys.firstOrNull()
+
+        identity = null
+        scope.launch {
+            if (key != null) withContext(io) { ModelChoices.forget(choicesFile(), key) }
+            val candidates = DeviceMatcher.resolve(reported, db).candidates
+            if (candidates.isEmpty()) {
+                info("Forgot the choice for this printer.")
+                return@launch
+            }
+            pendingClass = PendingClass(reported, candidates)
+            info("Forgot the choice for this printer. It reports \"$reported\" — pick again.")
+        }
     }
 
     /** Puts back the model the last session ended on. */
@@ -1301,7 +1617,10 @@ class ResetViewModel(
     val calibrationModelWarning: String?
         get() {
             val name = calibrationModel.trim()
-            val identified = identifiedModel?.name
+            val id = identity
+            val identified = id?.model?.name
+            val differs = identified != null && !name.equals(identified, ignoreCase = true)
+
             return when {
                 name.isEmpty() -> "Name the model this printer actually is."
 
@@ -1316,9 +1635,33 @@ class ResetViewModel(
                     "'$name' is not in the database. Fine if it is a model nobody has added yet; " +
                         "worth a second look otherwise."
 
-                identified != null && !name.equals(identified, ignoreCase = true) ->
-                    "This printer names itself $identified over SNMP, which is the strongest " +
-                        "identification there is. Filing it as $name overrides that."
+                // The name came from the user, not the firmware, so it carries no more authority
+                // than the one about to replace it.
+                id != null && id.via == Identity.Via.CONFIRMED && differs ->
+                    "You confirmed this printer as $identified — it names only " +
+                        "\"${id.reported}\", which is a family. Filing it as $name replaces your " +
+                        "own answer, so file the one you can read off the printer."
+
+                // The source named a family, so it never named this unit — and over USB that is the
+                // ordinary case, not the exception. Correcting the box is the point of it, and
+                // saying anything about overriding a strong answer would have it backwards.
+                id != null && id.namesAFamily && differs ->
+                    "This printer answers \"${id.reported}\" (${id.via.label}), which is a family " +
+                        "rather than a unit — $identified is that family's database entry, not " +
+                        "this printer's own answer. If $name is what the label says, it is the " +
+                        "better name to file."
+
+                // Same fact, but nothing has been corrected yet: the box is still holding a family's
+                // entry, and leaving it there is what makes a measurement unattributable later.
+                id != null && id.namesAFamily ->
+                    "The name above was derived from \"${id.reported}\" (${id.via.label}), which " +
+                        "covers several units. Check it against the label on the printer — a " +
+                        "maximum filed against the wrong sibling cannot afterwards be told from " +
+                        "one measured on the right one."
+
+                differs ->
+                    "This printer names itself $identified via ${id?.via?.label}, which is the " +
+                        "strongest identification available here. Filing it as $name overrides that."
 
                 else -> null
             }
@@ -1411,6 +1754,58 @@ class ResetViewModel(
         )
     }
 
+    /**
+     * Puts the counter layouts back to what is on disk, dropping anything a calibration layered on
+     * top of this session.
+     *
+     * "Show it now" changes what every percentage on screen is divided by, and a maximum that is
+     * wrong makes every reading wrong with it — so undoing it has to be one button rather than a
+     * restart nobody knows to perform.
+     */
+    fun revertSessionCalibration() {
+        scope.launch {
+            val reloaded = withContext(io) { runCatching { CounterSpecs.load() } }
+            reloaded.onSuccess {
+                counterSpecs = it
+                calibrationApplied = false
+                good(
+                    "Counter layouts back to what is on disk. Any maximum applied to this session " +
+                        "is gone; percentages are computed from the shipped figures again.",
+                )
+            }.onFailure { e -> warn("Could not reload the counter layouts: ${e.message}") }
+        }
+    }
+
+    /** Whether a user overlay file is in force, which outlives a restart where a session does not. */
+    val overlayInForce: Boolean get() = counterSpecs?.overlayLoaded == true
+
+    /**
+     * Deletes `counters-overlay.json` and reloads. The overlay is the persistent half: a session
+     * calibration disappears on its own at exit, this one does not, and nothing in the app put it
+     * there — so nothing in the app could take it away either.
+     */
+    fun removeCounterOverlay() {
+        scope.launch {
+            val file = AppPaths.counterOverlay
+            val removed = withContext(io) { runCatching { file.takeIf { it.isFile }?.delete() ?: false } }
+
+            removed.onSuccess { deleted ->
+                if (!deleted) {
+                    warn("No overlay file to remove at $file.")
+                    return@onSuccess
+                }
+                info("Removed $file.")
+                revertSessionCalibration()
+            }.onFailure { e -> warn("Could not remove the overlay: ${e.message}") }
+        }
+    }
+
+    /** Opens the data directory in the file manager. Everything the app keeps is in there. */
+    fun openDataDirectory() {
+        val dir = AppPaths.dataDir
+        if (!Browser.openDirectory(dir)) warn("Could not open a file manager. The directory is $dir")
+    }
+
     /** Opens the calibration issue form, prefilled. */
     fun openCalibrationIssue(toClipboard: (String) -> Unit) {
         if (!canSubmitCalibration) return
@@ -1443,6 +1838,9 @@ class ResetViewModel(
     private fun calibrationContext(): Calibration.Context = Calibration.Context(
         model = calibrationModelName,
         identifiedAs = identifiedModel?.name,
+        confirmedAgainst = confirmedClass,
+        identifiedVia = identity?.takeIf { it.via != Identity.Via.CONFIRMED }?.via?.label,
+        reportedAs = identity?.reported?.takeIf { it.isNotBlank() },
         layoutOf = selectedModel?.name,
         sharedLayout = calibrationLayoutSiblings.size,
         printer = selectedDevice?.device?.displayName,
@@ -1777,7 +2175,53 @@ class ResetViewModel(
 
     fun clearLog() = log.clear()
 
-    fun exportLog(): String = log.joinToString("\n") { "${it.time}  [${it.level}] ${it.text}" }
+    /**
+     * The log for the clipboard, with the header a bug report otherwise has to ask for: what the
+     * app is, what it's running on, whether libusb loaded, and what it thinks it's talking to.
+     * Everything here is knowable without a printer being reachable, which is the case the header
+     * exists for. TRACE lines are always included, whether or not the panel is showing them.
+     */
+    fun exportLog(): String = buildString {
+        appendLine("# Epson Reset ${AppVersion.display}")
+        appendLine(
+            "# %s %s (%s), Java %s".format(
+                System.getProperty("os.name"),
+                System.getProperty("os.version"),
+                System.getProperty("os.arch"),
+                System.getProperty("java.version"),
+            ),
+        )
+        // Reading `instance` first is what forces the lazy load, so this can't report a library
+        // that was simply never asked for as one that failed.
+        appendLine("# libusb: " + if (LibUsb.instance != null) "loaded" else "not loaded — ${LibUsb.loadError}")
+        appendLine(
+            "# database: " + (
+                database?.let { "${it.size} models, ${it.source.name.lowercase()}" }
+                    ?: databaseError?.let { "failed — $it" }
+                    ?: "not loaded"
+                ),
+        )
+        counterSpecs?.let {
+            appendLine("# layouts: ${it.modelCount} models" + if (it.overlayLoaded) ", user overlay applied" else "")
+        }
+        appendLine(
+            "# printer: " + (
+                selectedDevice?.let { "${it.device.displayName} on ${it.device.link.kind} (${it.device.link.where})" }
+                    ?: "none selected"
+                ),
+        )
+        // Both names, when they differ: a mismatch between what the printer says it is and what
+        // the user picked is the first thing to suspect in a report about wrong values.
+        val chosen = selectedModel?.name
+        val reported = identifiedModel?.name
+        appendLine(
+            "# model: " + (chosen ?: "none") +
+                if (reported != null && reported != chosen) " (printer reports $reported)" else "",
+        )
+        appendLine("# mode: " + if (dryRun) "dry run" else "live")
+        appendLine()
+        log.joinTo(this, "\n") { "${it.time}  [${it.level}] ${it.text}" }
+    }
 
     private companion object {
         const val MAX_LOG_LINES = 4000

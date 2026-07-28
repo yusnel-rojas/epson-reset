@@ -48,6 +48,7 @@ fun App() {
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
             Column(Modifier.fillMaxSize()) {
                 TopBar(vm, updates)
+                SettingsDialog(vm, updates)
                 HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
 
                 when (vm.tab) {
@@ -105,6 +106,20 @@ private fun RememberedState(vm: ResetViewModel) {
         }
     }
 
+    LaunchedEffect(Unit) {
+        vm.crossCheckOverSnmp = PreferencesStore.current().crossCheckOverSnmp
+        snapshotFlow { vm.crossCheckOverSnmp }.collect { on ->
+            PreferencesStore.update { it.copy(crossCheckOverSnmp = on) }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        vm.checkForUpdates = PreferencesStore.current().checkForUpdates
+        snapshotFlow { vm.checkForUpdates }.collect { on ->
+            PreferencesStore.update { it.copy(checkForUpdates = on) }
+        }
+    }
+
     // The model is only restorable once the database it names exists. A name that no longer matches
     // an entry — a renamed model, a rolled-back database — is dropped in silence;
     LaunchedEffect(Unit) {
@@ -149,31 +164,20 @@ private fun TopBar(vm: ResetViewModel, updates: AppUpdates) {
         Tabs(vm)
         Spacer(Modifier.weight(1f))
 
-        TextButton(onClick = { vm.refreshDatabaseFromNetwork() }) { Text("Update database") }
-        UpdateAction(vm, updates)
-    }
-}
-
-/** The app's own update, next to the database's. */
-@Composable
-private fun UpdateAction(vm: ResetViewModel, updates: AppUpdates) {
-    val scope = rememberCoroutineScope()
-    val release = updates.available
-
-    if (release != null) {
-        TextButton(onClick = { updates.openReleasePage(vm) }) {
-            Text(
-                "Update available — ${release.version}",
-                color = StatusColors.good,
-                fontWeight = FontWeight.SemiBold,
-            )
+        // News, not a setting: a release that exists is worth saying without being asked. Running
+        // the check, and everything else that was along this row, is in the window behind the gear.
+        updates.available?.let { release ->
+            TextButton(onClick = { updates.openReleasePage(vm) }) {
+                Text(
+                    "Update available — ${release.version}",
+                    color = StatusColors.good,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
         }
-    } else {
-        TextButton(
-            enabled = !updates.checking,
-            onClick = { scope.launch { updates.check(vm, automatic = false) } },
-        ) {
-            Text(if (updates.checking) "Checking…" else "Check for updates")
+
+        TextButton(onClick = { vm.openSettings() }) {
+            Text("⚙", style = MaterialTheme.typography.titleMedium)
         }
     }
 }
@@ -199,7 +203,7 @@ private fun Tab(label: String, active: Boolean, onClick: () -> Unit) {
         label,
         style = MaterialTheme.typography.labelMedium,
         fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
-        color = if (active) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+        color = if (active) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier
             .clip(RoundedCornerShape(18.dp))
             .background(if (active) MaterialTheme.colorScheme.primary else Color.Transparent)

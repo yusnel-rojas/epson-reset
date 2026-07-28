@@ -20,6 +20,7 @@ class PreferencesTest {
             logCollapsed = true,
             checkForUpdates = false,
             lastUpdateCheck = 1_700_000_000_000,
+            crossCheckOverSnmp = false,
         )
 
         assertEquals(prefs, Preferences.parse(Preferences.format(prefs)))
@@ -34,6 +35,8 @@ class PreferencesTest {
         assertNull(prefs.windowX)
         assertNull(prefs.windowY)
         assertTrue(prefs.checkForUpdates)
+        // On by default: it costs nothing and answers the question a USB descriptor leaves open.
+        assertTrue(prefs.crossCheckOverSnmp)
     }
 
     @Test

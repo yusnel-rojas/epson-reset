@@ -32,12 +32,19 @@ object NetworkAddress {
         val cleanHost = host.trim().trimEnd('.')
         if (cleanHost.isEmpty() || cleanHost.any { it.isWhitespace() }) return null
 
-        val number = if (port.isBlank()) Link.RAW_PORT else port.trim().toIntOrNull() ?: return null
+        val number = if (port.isBlank()) Link.SNMP_PORT else port.trim().toIntOrNull() ?: return null
         if (number !in 1..65535) return null
 
-        return Link.Network(cleanHost, number)
+        // A port meant SNMP from the moment anything dialled one. Entries written before that —
+        // and anyone pasting the address off a printer's own status page — carry 9100, the raw
+        // printing port, which nothing here has ever connected to. Read it as "not set".
+        return Link.Network(cleanHost, if (number == Link.RAW_PORT) Link.SNMP_PORT else number)
     }
 
     /** The form [parse] round-trips, and the form [SavedPrinters] writes to disk. */
-    fun format(link: Link.Network): String = if (link.port == Link.RAW_PORT) link.host else "${link.host}:${link.port}"
+    fun format(link: Link.Network): String = if (link.port == Link.SNMP_PORT) {
+        link.host
+    } else {
+        "${link.host}:${link.port}"
+    }
 }

@@ -24,6 +24,12 @@ data class Preferences(
     val checkForUpdates: Boolean = true,
     /** Epoch millis of the last release check, which is what throttles it to once a day. */
     val lastUpdateCheck: Long = 0L,
+    /**
+     * Whether a USB printer may take its model from its own network entry. On by default: a USB
+     * descriptor names a family and SNMP names the unit inside it, and the match costs nothing —
+     * the network entry has already been queried by the time the two are compared.
+     */
+    val crossCheckOverSnmp: Boolean = true,
 ) {
 
     /** Clamps the stored geometry back into the range the app can actually render. */
@@ -69,6 +75,7 @@ data class Preferences(
                 logCollapsed = root.bool("logCollapsed") ?: defaults.logCollapsed,
                 checkForUpdates = root.bool("checkForUpdates") ?: defaults.checkForUpdates,
                 lastUpdateCheck = root.long("lastUpdateCheck") ?: defaults.lastUpdateCheck,
+                crossCheckOverSnmp = root.bool("crossCheckOverSnmp") ?: defaults.crossCheckOverSnmp,
             ).sanitised()
         }
 
@@ -84,6 +91,7 @@ data class Preferences(
                 put("logCollapsed", JsonPrimitive(p.logCollapsed))
                 put("checkForUpdates", JsonPrimitive(p.checkForUpdates))
                 put("lastUpdateCheck", JsonPrimitive(p.lastUpdateCheck))
+                put("crossCheckOverSnmp", JsonPrimitive(p.crossCheckOverSnmp))
             }
             return json.encodeToString(JsonObject.serializer(), obj) + "\n"
         }

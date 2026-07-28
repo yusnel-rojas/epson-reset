@@ -19,6 +19,13 @@ class AppUpdates {
     var available by mutableStateOf<UpdateCheck.Release?>(null)
         private set
 
+    /**
+     * How the last check went, in one line, for the settings window that started it — a check whose
+     * only answer is in the log behind the window has not answered the person who asked.
+     */
+    var lastResult by mutableStateOf<ResetViewModel.Outcome?>(null)
+        private set
+
     /** Runs a check and reports it into the log. */
     suspend fun check(log: ResetViewModel, automatic: Boolean) {
         if (checking) return
@@ -47,6 +54,10 @@ class AppUpdates {
         when (result) {
             is UpdateCheck.Result.Available -> {
                 available = result.release
+                lastResult = ResetViewModel.Outcome(
+                    "Version ${result.release.version} is available.",
+                    ok = true,
+                )
                 log.good(
                     "Version ${result.release.version} is available — you have " +
                         "${AppVersion.display}.",
@@ -55,14 +66,21 @@ class AppUpdates {
 
             UpdateCheck.Result.UpToDate -> {
                 available = null
+                lastResult = ResetViewModel.Outcome("Up to date — ${AppVersion.display}.", ok = true)
                 if (!automatic) log.info("Up to date — ${AppVersion.display}.")
             }
 
-            is UpdateCheck.Result.Unknown ->
+            // Plain in the window, specific in the log: an HTTP code names what the release feed
+            // did, which is not something the reader can do anything about.
+            is UpdateCheck.Result.Unknown -> {
+                lastResult = ResetViewModel.Outcome("Could not confirm the latest version.", ok = false)
                 if (!automatic) log.warn("Update check inconclusive — ${result.detail}.")
+            }
 
-            is UpdateCheck.Result.Failed ->
+            is UpdateCheck.Result.Failed -> {
+                lastResult = ResetViewModel.Outcome("Could not check for updates.", ok = false)
                 if (!automatic) log.warn("Update check failed — ${result.detail}.")
+            }
         }
     }
 

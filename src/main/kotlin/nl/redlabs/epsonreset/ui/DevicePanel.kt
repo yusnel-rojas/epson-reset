@@ -250,10 +250,23 @@ private fun DeviceCard(vm: ResetViewModel, entry: MatchedPrinter, selected: Bool
 
             is Link.Network -> {
                 Meta("Address", link.host)
-                Meta("Port", link.port.toString())
+                // No port at the default. "Network" in the corner already says how this is reached,
+                // and the number that used to sit here was the raw printing port — advertised by
+                // the printer, never dialled by this app, and so purely misleading.
+                if (link.port != Link.SNMP_PORT) Meta("SNMP port", link.port.toString())
             }
         }
-        entry.device.serial?.let { Meta("Serial", it) }
+        // The decoded form, because it is the one the same printer shows on its other link. The
+        // descriptor's own spelling stays visible underneath: it is what the device actually said.
+        entry.device.serial?.let { raw ->
+            val canonical = entry.device.canonicalSerial ?: raw
+            Meta("Serial", canonical)
+            if (!canonical.equals(raw, ignoreCase = true)) Meta("  as reported", raw)
+        }
+
+        entry.device.crossCheck?.let {
+            Meta("Model from", "${it.name} · SNMP at ${it.link.where}")
+        }
 
         Spacer(Modifier.height(8.dp))
 
@@ -264,6 +277,10 @@ private fun DeviceCard(vm: ResetViewModel, entry: MatchedPrinter, selected: Bool
             )
             MatchedPrinter.Confidence.LIKELY -> MatchTag(
                 "≈ ${entry.model?.name} — confirm",
+                StatusColors.warn,
+            )
+            MatchedPrinter.Confidence.CLASS_ONLY -> MatchTag(
+                "≈ one of ${entry.candidates.size} — pick the model",
                 StatusColors.warn,
             )
             MatchedPrinter.Confidence.NONE -> MatchTag(

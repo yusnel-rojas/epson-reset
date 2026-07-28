@@ -141,6 +141,41 @@ class DeviceMatcherTest {
         assertEquals(MatchedPrinter.Confidence.EXACT, matched.confidence)
     }
 
+    /**
+     * The load-bearing case. L310 and L3100 are one family name apart and read with different keys,
+     * so a printer that will only say "L310 Series" has not said which of them it is.
+     */
+    @Test
+    fun `a family name whose members disagree is not treated as an identification`() {
+        val matched = DeviceMatcher.match(device("EPSON L310 Series"), db)
+
+        assertEquals(MatchedPrinter.Confidence.CLASS_ONLY, matched.confidence)
+        assertTrue(matched.candidates.map { it.name }.containsAll(listOf("L310", "L3100")))
+        assertTrue(
+            matched.candidates.map { it.readKey }.distinct().size > 1,
+            "a candidate list that agrees on the read key would not be worth asking about",
+        )
+    }
+
+    /** The common case, which must stay free: eight L311x entries, one recipe between them. */
+    @Test
+    fun `a family whose members share a recipe resolves without asking`() {
+        val matched = DeviceMatcher.match(device("EPSON L3110 Series"), db)
+
+        assertEquals(MatchedPrinter.Confidence.EXACT, matched.confidence)
+        assertEquals("L3110", matched.model?.name)
+        assertTrue(matched.candidates.isEmpty())
+    }
+
+    /** A unit answering for itself is taken at its word, even where its family would not be. */
+    @Test
+    fun `a model naming itself is not second-guessed by its family`() {
+        val matched = DeviceMatcher.match(device("EPSON L3100"), db)
+
+        assertEquals(MatchedPrinter.Confidence.EXACT, matched.confidence)
+        assertEquals("L3100", matched.model?.name)
+    }
+
     @Test
     fun `a missing product string is reported rather than guessed`() {
         val matched = DeviceMatcher.match(device(null), db)
@@ -159,6 +194,6 @@ class DeviceMatcherTest {
     @Test
     fun `device identity is stable across rescans`() {
         assertEquals("usb:1:4", device("EPSON L3150 Series").id)
-        assertEquals("net:192.168.1.50:9100", Link.Network("192.168.1.50").id)
+        assertEquals("net:192.168.1.50:161", Link.Network("192.168.1.50").id)
     }
 }

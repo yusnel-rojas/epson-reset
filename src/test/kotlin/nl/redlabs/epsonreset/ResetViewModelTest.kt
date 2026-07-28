@@ -15,6 +15,7 @@ import nl.redlabs.epsonreset.db.PrinterModel
 import nl.redlabs.epsonreset.device.DetectedPrinter
 import nl.redlabs.epsonreset.device.Link
 import nl.redlabs.epsonreset.device.MatchedPrinter
+import nl.redlabs.epsonreset.device.ModelChoices
 import nl.redlabs.epsonreset.device.PrinterDiscovery
 import nl.redlabs.epsonreset.device.PrinterTransports
 import nl.redlabs.epsonreset.protocol.Executor
@@ -125,6 +126,46 @@ private val otherModel = PrinterModel(
     padGroups = listOf(PadGroup("Waste", "main", listOf(20, 21), listOf(0, 0))),
 )
 
+/**
+ * A printer that will only name its family, and a family whose two members share nothing that
+ * matters — which is what makes the question worth putting to the user.
+ */
+private fun classPrinter(product: String = "EPSON TEST Series") = MatchedPrinter(
+    device = DetectedPrinter(
+        link = Link.Usb(1, 4, 1, 0x81.toByte(), 0x02, true),
+        product = product,
+        serial = "X4KP0219",
+    ),
+    model = testModel,
+    confidence = MatchedPrinter.Confidence.CLASS_ONLY,
+    candidates = listOf(testModel, otherModel),
+)
+
+private fun usbDevice(serial: String? = null, product: String? = "EPSON TEST Series") = DetectedPrinter(
+    link = Link.Usb(1, 4, 1, 0x81.toByte(), 0x02, true),
+    product = product,
+    serial = serial,
+)
+
+/** A USB printer wearing the unit name its own network entry gave, which is what the join produces. */
+private fun crossCheckedPrinter(product: String = "EPSON TEST Series") = MatchedPrinter(
+    device = usbDevice(serial = "58414441303230323733", product = product).copy(
+        crossCheck = DetectedPrinter.CrossCheck("OTHER-9", Link.Network("192.168.2.39")),
+    ),
+    model = otherModel,
+    confidence = MatchedPrinter.Confidence.EXACT,
+)
+
+/** The two models above, as the database has to hold them for a remembered name to resolve. */
+private val classDatabase = PrinterDatabase.parse(
+    """
+    {"TEST-1": {"rkey": 1, "wkey": "Zvubnpsj",
+       "pad_groups": [{"kind": "main", "addresses": [58, 59], "reset": [0, 0]}]},
+     "OTHER-9": {"rkey": 99, "wkey": "Qwertyui",
+       "pad_groups": [{"kind": "main", "addresses": [20, 21], "reset": [0, 0]}]}}
+    """.trimIndent(),
+)
+
 private fun printer(
     serial: String? = null,
     link: Link = Link.Usb(1, 4, 1, 0x81.toByte(), 0x02, true),
@@ -146,12 +187,14 @@ private fun TestScope.viewModel(
     discover: () -> PrinterDiscovery.Result = { discovery() },
     backupDir: File = createTempDirectory("vm-test").toFile(),
     openFailure: PrinterTransports.OpenResult.Failed? = null,
+    choicesFile: File = File(createTempDirectory("vm-test").toFile(), "model-choices.txt"),
 ) = ResetViewModel(
     scope = this,
     io = UnconfinedTestDispatcher(testScheduler),
     transports = { openFailure ?: PrinterTransports.OpenResult.Ok(transport) },
     discover = discover,
     backupDir = { backupDir },
+    choicesFile = { choicesFile },
 )
 
 private val ResetViewModel.lastLine: String get() = log.last().text
@@ -627,6 +670,174 @@ class ViewModelModelLockTest {
         assertNull(vm.identifiedModel)
         assertNull(vm.writeBlockedReason)
         assertTrue(vm.canRun)
+    }
+
+    /**
+     * A printer that names its family has not named itself. The entry that name resolves to reads
+     * and writes like a printer that may not be this one, so the gate has to hold even though
+     * everything visible — a matched device, a selected model, no mismatch — looks settled.
+     */
+    @Test
+    fun `a family-level identification blocks a live run until it is settled`() = runTest {
+        val vm = viewModel()
+        vm.database = classDatabase
+
+        vm.select(classPrinter())
+        vm.dryRun = false
+
+        assertNotNull(vm.pendingClass)
+        assertNotNull(vm.writeBlockedReason)
+        assertFalse(vm.canRun)
+        assertTrue(vm.modelPickerExpanded)
+        assertTrue(vm.said("do not share a reset recipe"), vm.lastLine)
+    }
+
+    /** Same allowance the model mismatch gets: nothing is written, so nothing can be written wrong. */
+    @Test
+    fun `a dry run is still allowed while the family is unsettled`() = runTest {
+        val vm = viewModel()
+        vm.database = classDatabase
+
+        vm.select(classPrinter())
+        vm.dryRun = true
+
+        assertTrue(vm.canRun)
+    }
+
+    @Test
+    fun `picking a member settles the family and lifts the block`() = runTest {
+        val vm = viewModel()
+        vm.database = classDatabase
+
+        vm.select(classPrinter())
+        vm.selectModel(otherModel)
+        vm.dryRun = false
+        advanceUntilIdle()
+
+        assertNull(vm.pendingClass)
+        assertNull(vm.writeBlockedReason)
+        assertTrue(vm.canRun)
+        assertEquals("OTHER-9", assertNotNull(vm.identifiedModel).name)
+        // The name came from the user, and the card that shows it says so.
+        assertEquals("EPSON TEST Series", vm.confirmedClass)
+    }
+
+    @Test
+    fun `the answer is remembered for the next session`() = runTest {
+        val choices = File(createTempDirectory("vm-test").toFile(), "model-choices.txt")
+
+        val first = viewModel(choicesFile = choices)
+        first.database = classDatabase
+        first.select(classPrinter())
+        first.selectModel(otherModel)
+        advanceUntilIdle()
+
+        val second = viewModel(choicesFile = choices)
+        second.database = classDatabase
+        second.select(classPrinter())
+
+        assertNull(second.pendingClass)
+        assertNull(second.writeBlockedReason)
+        assertEquals("OTHER-9", assertNotNull(second.identifiedModel).name)
+        assertTrue(second.said("confirmed as OTHER-9 before"), second.lastLine)
+    }
+
+    /** A printer swapped onto the same port reports something else, and inherits nothing. */
+    @Test
+    fun `a remembered answer is not applied to a printer reporting a different family`() = runTest {
+        val choices = File(createTempDirectory("vm-test").toFile(), "model-choices.txt")
+
+        val first = viewModel(choicesFile = choices)
+        first.database = classDatabase
+        first.select(classPrinter())
+        first.selectModel(otherModel)
+        advanceUntilIdle()
+
+        val second = viewModel(choicesFile = choices)
+        second.database = classDatabase
+        second.select(classPrinter(product = "EPSON OTHER Series"))
+
+        assertNotNull(second.pendingClass)
+    }
+
+    /** A wrong answer has to be revocable, or the pin is worse than the guess it replaced. */
+    @Test
+    fun `forgetting the choice asks again`() = runTest {
+        val choices = File(createTempDirectory("vm-test").toFile(), "model-choices.txt")
+
+        val vm = viewModel(choicesFile = choices)
+        vm.database = classDatabase
+        vm.select(classPrinter())
+        vm.selectModel(otherModel)
+        advanceUntilIdle()
+
+        vm.forgetModelChoice()
+        advanceUntilIdle()
+
+        assertNull(vm.confirmedClass)
+        assertTrue(ModelChoices.load(choices).isEmpty())
+    }
+
+    /**
+     * The printer answering SNMP on its own network address is the one source that names the unit
+     * a USB descriptor only gestures at, so the family question never has to be put to the user.
+     */
+    @Test
+    fun `a name borrowed from the network entry settles the family and is cited as such`() = runTest {
+        val vm = viewModel()
+        vm.database = classDatabase
+
+        vm.select(crossCheckedPrinter())
+
+        val identity = assertNotNull(vm.identity)
+        assertEquals("OTHER-9", identity.model.name)
+        assertEquals(ResetViewModel.Identity.Via.SNMP_CROSS_LINK, identity.via)
+        assertNull(vm.pendingClass, "SNMP answered it, so there is nothing to ask")
+    }
+
+    /**
+     * The links disagreeing about what to write is not a refinement, it is a contradiction — and
+     * picking a side silently would be writing a key on a guess about which link is lying.
+     */
+    @Test
+    fun `links that disagree on the recipe stop rather than pick a side`() = runTest {
+        val vm = viewModel()
+        vm.database = classDatabase
+
+        // The descriptor resolves to TEST-1 (rkey 1); the network entry says OTHER-9 (rkey 99).
+        vm.select(crossCheckedPrinter(product = "TEST-1"))
+        vm.dryRun = false
+
+        assertNull(vm.identity, "neither name may stand while they contradict each other")
+        assertTrue(vm.modelPickerExpanded)
+        assertTrue(vm.said("do not write the same bytes"), vm.lastLine)
+    }
+
+    /** The pin is keyed on the serial, and a serial is the same serial in either spelling. */
+    @Test
+    fun `an answer given over USB is found again over the network`() = runTest {
+        val choices = File(createTempDirectory("vm-test").toFile(), "model-choices.txt")
+
+        val overUsb = viewModel(choicesFile = choices)
+        overUsb.database = classDatabase
+        overUsb.select(classPrinter().copy(device = usbDevice(serial = "58414441303230323733")))
+        overUsb.selectModel(otherModel)
+        advanceUntilIdle()
+
+        val overNetwork = viewModel(choicesFile = choices)
+        overNetwork.database = classDatabase
+        overNetwork.select(
+            classPrinter().copy(
+                device = DetectedPrinter(
+                    link = Link.Network("192.168.2.39"),
+                    product = "EPSON TEST Series",
+                    serial = "XADA020273",
+                ),
+            ),
+        )
+
+        assertNull(overNetwork.pendingClass, "the same printer, so the same answer")
+        assertEquals("OTHER-9", assertNotNull(overNetwork.identifiedModel).name)
     }
 
     /** The collapsed card asserts the selection is the printer's own answer. It must not lie. */
@@ -1213,11 +1424,11 @@ class ViewModelCalibrationTest {
     private fun scripted() = ScriptedPrinter(memory = mapOf(48 to 0x19, 49 to 0x0F))
 
     /** A read, then the form opened on it — which is the only way a user reaches this state. */
-    private fun TestScope.readied(dryRun: Boolean): ResetViewModel {
+    private fun TestScope.readied(dryRun: Boolean, product: String = "EPSON TEST-1"): ResetViewModel {
         val vm = viewModel(transport = scripted())
         vm.counterSpecs = CounterSpecs.loadBundled()
         vm.database = PrinterDatabase.loadBundled()
-        vm.select(printer().copy(model = et2820))
+        vm.select(printer(product = product).copy(model = et2820))
         vm.dryRun = dryRun
         vm.readCounters()
         advanceUntilIdle()
@@ -1271,6 +1482,28 @@ class ViewModelCalibrationTest {
 
         assertTrue(vm.calibrationApplied)
         assertEquals(100.0, assertNotNull(vm.percentShown(listOf(48, 49))), 0.005)
+    }
+
+    /**
+     * A maximum is the divisor behind every percentage for that counter, so applying a wrong one
+     * makes every reading of it wrong. Getting back out of that must not require knowing that a
+     * restart would have done it.
+     */
+    @Test
+    fun `a maximum applied to the session can be taken back off`() = runTest {
+        val vm = readied(dryRun = false)
+        val before = assertNotNull(vm.percentShown(listOf(48, 49)))
+
+        vm.setCalibrationServiceRequired(listOf(48, 49), true)
+        vm.applyCalibrationToSession()
+        assertEquals(100.0, assertNotNull(vm.percentShown(listOf(48, 49))), 0.005)
+
+        vm.revertSessionCalibration()
+        advanceUntilIdle()
+
+        assertFalse(vm.calibrationApplied)
+        assertEquals(before, assertNotNull(vm.percentShown(listOf(48, 49))), 0.005)
+        assertTrue(vm.said("back to what is on disk"), vm.lastLine)
     }
 
     /** A fresh reading invalidates whatever was typed against the previous one. */
@@ -1328,6 +1561,69 @@ class ViewModelCalibrationTest {
         assertContains(assertNotNull(vm.calibrationModelWarning), "names a family, not a unit")
     }
 
+    /**
+     * A USB printer is identified from its descriptor. SNMP is a network thing and is not involved,
+     * so citing it on the connection the resets actually run over was simply false.
+     */
+    @Test
+    fun `a USB identification is not attributed to SNMP`() = runTest {
+        val vm = readied(dryRun = false)
+
+        assertEquals(ResetViewModel.Identity.Via.USB_DESCRIPTOR, assertNotNull(vm.identity).via)
+
+        vm.calibrationModel = "ET-2825"
+        val warning = assertNotNull(vm.calibrationModelWarning)
+        assertContains(warning, "its USB descriptor")
+        assertFalse(warning.contains("SNMP"), "nothing here came over SNMP: $warning")
+    }
+
+    /**
+     * The case the descriptor actually produces. `ET-2820 Series` fills the box with `ET-2820`, and
+     * leaving it there files a unit's measurement under a family — so the doubt has to be raised
+     * while the box still holds the prefilled name, not only once it is edited.
+     */
+    @Test
+    fun `a family named by the descriptor is queried even when the prefilled name is kept`() = runTest {
+        val vm = readied(dryRun = false, product = "EPSON ET-2820 Series")
+
+        assertEquals("ET-2820", vm.calibrationModel)
+        val warning = assertNotNull(vm.calibrationModelWarning)
+        assertContains(warning, "EPSON ET-2820 Series")
+        assertContains(warning, "its USB descriptor")
+        assertContains(warning, "covers several units")
+    }
+
+    /** Correcting a family-derived name is the point of the field, not an override of a good answer. */
+    @Test
+    fun `correcting a family-derived name is not reported as overriding the printer`() = runTest {
+        val vm = readied(dryRun = false, product = "EPSON ET-2820 Series")
+
+        vm.calibrationModel = "ET-2825"
+        val warning = assertNotNull(vm.calibrationModelWarning)
+        assertContains(warning, "is a family rather than a unit")
+        assertContains(warning, "better name to file")
+        assertFalse(warning.contains("overrides"), "the descriptor named no unit to override: $warning")
+    }
+
+    /**
+     * A unit the user settled by hand fills the form the same way a printer-named one does, but it
+     * is not the firmware's word and the form must not say it is — that field decides what the
+     * submission is worth to whoever reviews it.
+     */
+    @Test
+    fun `a hand-confirmed unit is not passed off as the printer's own answer`() = runTest {
+        val vm = readied(dryRun = false)
+        vm.select(classPrinter().copy(model = et2820))
+        vm.selectModel(et2820)
+        advanceUntilIdle()
+        vm.openCalibration()
+
+        vm.calibrationModel = "ET-2825"
+        val warning = assertNotNull(vm.calibrationModelWarning)
+        assertContains(warning, "You confirmed this printer as ET-2820")
+        assertFalse(warning.contains("SNMP"), "the printer named a family, not a unit: $warning")
+    }
+
     @Test
     fun `nothing can be filed without a model name`() = runTest {
         val vm = readied(dryRun = false)
@@ -1336,5 +1632,53 @@ class ViewModelCalibrationTest {
 
         vm.calibrationModel = "  "
         assertFalse(vm.canSubmitCalibration)
+    }
+}
+
+/** What lands on the clipboard when someone is filing a bug report. */
+class ViewModelLogExportTest {
+
+    /**
+     * The header is the whole reason for the export: a pasted log has to say what it came from
+     * even when no printer was ever reachable, which is exactly the report worth filing.
+     */
+    @Test
+    fun `the export carries the environment even with nothing selected`() = runTest {
+        val vm = viewModel()
+
+        val export = vm.exportLog()
+
+        assertContains(export, "# Epson Reset")
+        assertContains(export, System.getProperty("os.name"))
+        assertContains(export, "# libusb:")
+        assertContains(export, "# printer: none selected")
+        assertContains(export, "# model: none")
+        assertContains(export, "# mode: dry run")
+    }
+
+    @Test
+    fun `the export names the printer, the model and the mode in force`() = runTest {
+        val vm = viewModel()
+        vm.select(printer())
+        vm.dryRun = false
+
+        val export = vm.exportLog()
+
+        assertContains(export, "# printer: EPSON TEST-1 on USB (bus 1.4)")
+        assertContains(export, "# model: TEST-1")
+        assertContains(export, "# mode: live")
+    }
+
+    /** The trace is the point of copying, so hiding it in the panel must not drop it here. */
+    @Test
+    fun `trace lines are exported whether or not the panel shows them`() = runTest {
+        val vm = viewModel()
+        vm.info("an ordinary line")
+        vm.trace("-> 1B 01 40 45 4A 4C")
+
+        val export = vm.exportLog()
+
+        assertContains(export, "[TRACE] -> 1B 01 40 45 4A 4C")
+        assertContains(export, "[INFO] an ordinary line")
     }
 }

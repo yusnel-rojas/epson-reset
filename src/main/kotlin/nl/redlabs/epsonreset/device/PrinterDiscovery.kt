@@ -27,7 +27,7 @@ object PrinterDiscovery {
     }
 
     /** Scans the USB bus, browses for advertised printers, and adds the saved addresses. */
-    fun scan(includeNetwork: Boolean = true, browseTimeoutMs: Long = 2500): Result {
+    fun scan(includeNetwork: Boolean = true, browseTimeoutMs: Long = 2500, crossCheck: Boolean = true): Result {
         val usb = UsbPrinterScanner.scan()
         val usbPrinters = (usb as? UsbPrinterScanner.ScanResult.Ok)?.printers.orEmpty()
 
@@ -53,11 +53,40 @@ object PrinterDiscovery {
                 NetworkOutcome.Unavailable(browsed.detail, browsed.hint)
         }
 
-        return Result(usbPrinters + discovered + saved, usb, outcome)
+        val network = discovered + saved
+        val onUsb = if (crossCheck) crossChecked(usbPrinters, network) else usbPrinters
+
+        return Result(onUsb + network, usb, outcome)
+    }
+
+    /** [usbPrinters], each given the better name its own network entry has, where there is one. */
+    fun crossChecked(usbPrinters: List<DetectedPrinter>, network: List<DetectedPrinter>): List<DetectedPrinter> =
+        usbPrinters.map { crossChecked(it, network) }
+
+    /**
+     * A USB printer that is also on the network can borrow the better of the two names.
+     *
+     * Over USB the descriptor says `EPSON ET-2820 Series` — a family covering several units, which
+     * is all the descriptor ever gives. The same printer answers SNMP with `ET-2825`, the unit. The
+     * serial is what proves they are one machine, once both are spelled the same way; see [Serials].
+     */
+    private fun crossChecked(printer: DetectedPrinter, network: List<DetectedPrinter>): DetectedPrinter {
+        val serial = printer.canonicalSerial ?: return printer
+
+        // Only worth borrowing when it answers the question the descriptor left open.
+        if (printer.product?.let { DeviceMatcher.namesAClass(it) } != true) return printer
+
+        val peer = network.firstOrNull {
+            Serials.same(it.serial, serial) && it.product?.let { name -> !DeviceMatcher.namesAClass(name) } == true
+        } ?: return printer
+
+        return printer.copy(crossCheck = DetectedPrinter.CrossCheck(peer.product.orEmpty(), peer.link))
     }
 
     private fun fromService(service: MdnsDiscovery.Service) = identified(
-        link = Link.Network(service.host, service.port),
+        // Deliberately not service.port: what is advertised is the raw printing port, and this app
+        // talks SNMP. Taking it would record a port nothing dials.
+        link = Link.Network(service.host),
         // usb_MDL is the USB model string republished — the same value the USB path matches on,
         // and the same limitation: it names the family, not the unit. SNMP knows better.
         fallbackProduct = service.model,
@@ -79,7 +108,7 @@ object PrinterDiscovery {
         manufacturer: String?,
         noteWhenAnonymous: String? = null,
     ): DetectedPrinter {
-        val identity = SnmpTransport.identify(link.host)
+        val identity = SnmpTransport.identify(link.host, port = link.port)
 
         return DetectedPrinter(
             link = link,

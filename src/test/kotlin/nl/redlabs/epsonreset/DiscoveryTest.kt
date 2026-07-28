@@ -1,7 +1,11 @@
 package nl.redlabs.epsonreset
 
 import nl.redlabs.epsonreset.db.PrinterDatabase
+import nl.redlabs.epsonreset.device.DetectedPrinter
 import nl.redlabs.epsonreset.device.DeviceMatcher
+import nl.redlabs.epsonreset.device.Link
+import nl.redlabs.epsonreset.device.PrinterDiscovery
+import nl.redlabs.epsonreset.device.Serials
 import nl.redlabs.epsonreset.net.MdnsDiscovery
 import nl.redlabs.epsonreset.protocol.DeviceId
 import nl.redlabs.epsonreset.protocol.Transport
@@ -302,5 +306,78 @@ class DeviceIdTest {
         }
 
         assertNull(DeviceId.query(dead))
+    }
+}
+
+/**
+ * One printer, two links, two spellings of one serial. The join is what lets the app tell that the
+ * ET-2820 on USB and the ET-2825 on the network are the same machine — and take the better name.
+ */
+class CrossLinkTest {
+
+    private val usbSerial = "58414441303230323733"
+    private val netSerial = "XADA020273"
+
+    private fun onUsb(product: String? = "EPSON ET-2820 Series", serial: String? = usbSerial) = DetectedPrinter(
+        link = Link.Usb(1, 4, 1, 0x81.toByte(), 0x02, true),
+        product = product,
+        serial = serial,
+    )
+
+    private fun onNetwork(product: String? = "ET-2825", serial: String? = netSerial) =
+        DetectedPrinter(link = Link.Network("192.168.2.39"), product = product, serial = serial)
+
+    @Test
+    fun `a hex encoded descriptor serial is the same serial the network reports`() {
+        assertEquals(netSerial, Serials.canonical(usbSerial))
+        assertTrue(Serials.same(usbSerial, netSerial))
+    }
+
+    /** A serial that only looks like hex must not be rewritten into nonsense. */
+    @Test
+    fun `serials that are not encoded are left exactly as they came`() {
+        assertEquals("12345678", Serials.canonical("12345678"))
+        assertEquals("X4KP0219", Serials.canonical("X4KP0219"))
+        assertEquals("ABCD", Serials.canonical("ABCD"))
+        assertNull(Serials.canonical(null))
+        assertNull(Serials.canonical("   "))
+    }
+
+    @Test
+    fun `a USB printer takes the unit name from its own network entry`() {
+        val joined = PrinterDiscovery.crossChecked(listOf(onUsb()), listOf(onNetwork())).single()
+
+        assertEquals("ET-2825", assertNotNull(joined.crossCheck).name)
+    }
+
+    /** The serial is the whole proof. Another printer of the same family must not lend its name. */
+    @Test
+    fun `a different serial does not lend its name`() {
+        val other = onNetwork(serial = "XADA999999")
+        assertNull(PrinterDiscovery.crossChecked(listOf(onUsb()), listOf(other)).single().crossCheck)
+    }
+
+    /** Nothing to gain where the descriptor already named a unit, so nothing is borrowed. */
+    @Test
+    fun `a descriptor that already names a unit is left alone`() {
+        val usb = onUsb(product = "EPSON ET-2825")
+        assertNull(PrinterDiscovery.crossChecked(listOf(usb), listOf(onNetwork())).single().crossCheck)
+    }
+
+    /** Two family names are no better than one, so a network entry that also hedges is no help. */
+    @Test
+    fun `a network entry naming a family is not borrowed from`() {
+        val vague = onNetwork(product = "EPSON ET-2820 Series")
+        assertNull(PrinterDiscovery.crossChecked(listOf(onUsb()), listOf(vague)).single().crossCheck)
+    }
+
+    @Test
+    fun `the borrowed name is what the database match runs on`() {
+        val db = PrinterDatabase.load()
+        val joined = PrinterDiscovery.crossChecked(listOf(onUsb()), listOf(onNetwork())).single()
+
+        assertEquals("ET-2825", DeviceMatcher.match(joined, db).model?.name)
+        // Without the join the same descriptor lands on the family's own entry.
+        assertEquals("ET-2820", DeviceMatcher.match(onUsb(), db).model?.name)
     }
 }

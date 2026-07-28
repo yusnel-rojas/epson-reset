@@ -45,6 +45,11 @@ fun ModelPicker(vm: ResetViewModel, modifier: Modifier = Modifier) {
             OverrideWarning(vm, identified)
         }
 
+        vm.pendingClass?.let { pending ->
+            Spacer(Modifier.height(10.dp))
+            ClassChoice(vm, pending)
+        }
+
         Spacer(Modifier.height(10.dp))
 
         OutlinedTextField(
@@ -81,6 +86,63 @@ fun ModelPicker(vm: ResetViewModel, modifier: Modifier = Modifier) {
     }
 }
 
+/**
+ * The printer named its family and the family disagrees with itself. The whole database is still
+ * below — this is the shortlist, with the numbers that differ shown, because "one of these eight"
+ * is a question a person can answer off the label on the printer and "one of 1588" is not.
+ */
+@Composable
+private fun ClassChoice(vm: ResetViewModel, pending: ResetViewModel.PendingClass) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(StatusColors.warn.copy(alpha = 0.10f))
+            .border(1.dp, StatusColors.warn.copy(alpha = 0.35f), RoundedCornerShape(8.dp))
+            .padding(10.dp),
+    ) {
+        Text(
+            "This printer reports \"${pending.reported}\" — a family, not a model.",
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.SemiBold,
+            color = StatusColors.warn,
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            "Its ${pending.candidates.size} members do not share a reset recipe, so the right one " +
+                "has to come off the label on the printer. The choice is remembered.",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+
+        Spacer(Modifier.height(8.dp))
+
+        pending.candidates.forEach { model ->
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(6.dp))
+                    .clickable { vm.selectModel(model) }
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    model.name,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Spacer(Modifier.weight(1f))
+                Text(
+                    "rkey ${model.readKey} · ${model.writeCount} writes",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontFamily = FontFamily.Monospace,
+                    color = StatusColors.muted,
+                )
+            }
+        }
+    }
+}
+
 /** What the printer says it is, with the way back to it. */
 @Composable
 private fun OverrideWarning(vm: ResetViewModel, identified: PrinterModel) {
@@ -96,7 +158,12 @@ private fun OverrideWarning(vm: ResetViewModel, identified: PrinterModel) {
             .padding(10.dp),
     ) {
         Text(
-            mismatch ?: "This printer reports itself as ${identified.name}.",
+            mismatch
+                // Same rule as the collapsed card: a name the user supplied is not the printer's word.
+                ?: vm.confirmedClass?.let {
+                    "You confirmed this printer as ${identified.name}. It reports only \"$it\"."
+                }
+                ?: "This printer reports itself as ${identified.name}.",
             style = MaterialTheme.typography.labelSmall,
             color = if (mismatch == null) MaterialTheme.colorScheme.onSurfaceVariant else tone,
         )
@@ -144,8 +211,11 @@ fun SelectedModelCard(vm: ResetViewModel, modifier: Modifier = Modifier) {
                 fontWeight = FontWeight.SemiBold,
             )
             Spacer(Modifier.height(4.dp))
+            // The card asserts where the name came from, so a name the user supplied must not be
+            // dressed up as one the printer gave.
             Text(
-                "✓ named by the printer",
+                vm.confirmedClass?.let { "✓ confirmed by you — the printer says only \"$it\"" }
+                    ?: "✓ named by the printer",
                 style = MaterialTheme.typography.labelSmall,
                 color = StatusColors.good,
             )
@@ -161,6 +231,11 @@ fun SelectedModelCard(vm: ResetViewModel, modifier: Modifier = Modifier) {
         Spacer(Modifier.height(4.dp))
         TextButton(onClick = { vm.manualModelRequested = true }) {
             Text("Choose a different model", style = MaterialTheme.typography.labelSmall)
+        }
+        vm.confirmedClass?.let {
+            TextButton(onClick = { vm.forgetModelChoice() }) {
+                Text("Forget this choice", style = MaterialTheme.typography.labelSmall)
+            }
         }
     }
 }

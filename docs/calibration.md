@@ -39,11 +39,40 @@ counter and gets a different maximum, that is the evidence for splitting the gro
 works if both submissions name the unit they came from. Two measurements against `ET-2820 Series`
 say nothing at all.
 
-So the field starts from the strongest identification available — what the printer named itself over
-SNMP, which is the only source anywhere that gives the unit — and the picker lists the models
-sharing this layout, its own series first. It says so when the name is a family, when it isn't in
-the database, and when it overrides what the printer reported. The report records all three, so a
-maintainer can see how the name was arrived at rather than taking it on trust.
+So the field starts from the strongest identification available, and says which one that was. They
+are not equal. SNMP reads the model out of the Epson MIB and gives the unit — including
+[borrowed onto a USB printer](architecture.md#the-other-link-usually-knows) from its own network
+entry, which is the best case, since the printer settles it and nobody has to be asked; a USB
+descriptor on its own almost always gives the family, which is how `ET-2820 Series` ends up
+prefilling the box as `ET-2820`; and where the family's members disagree, the name is one
+[you confirmed by hand](architecture.md#families-and-why-a-match-is-not-always-an-identification)
+rather than anything the printer said. The form names the channel and quotes what it answered, so
+"the printer says so" is never claimed on behalf of a source that said something weaker.
+
+That changes what the warnings mean. Correcting a name derived from a family is not an override —
+it is the field doing its job, and the form says so rather than defending the prefilled value. The
+prefilled value is queried too, because leaving `ET-2820` in place is exactly how a unit's
+measurement gets filed under eight of them.
+
+The picker lists the models sharing this layout, its own series first, and captions each with why
+it is there. The report carries the channel, the verbatim answer and the filed name, so a maintainer
+can see how it was arrived at rather than taking it on trust.
+
+## Applying one, and taking it back off
+
+A maximum is the divisor behind every percentage for that counter, so a wrong one makes every
+reading of it wrong — which makes how to undo it part of the feature rather than a footnote. There
+are two ways to apply one, and they differ in exactly the way that matters afterwards:
+
+| | Lasts | Undone by |
+|---|---|---|
+| **Use this maximum now**, on the form | This session | **Undo**, next to it — or quitting the app |
+| **counters-overlay.json**, saved into the data directory by hand | Until the file is deleted | **Settings → Counter maxima → Delete the overlay file** |
+
+Settings states which of the two is in force, if either, so "my percentages look wrong" has an
+answer that does not involve knowing that a restart would have cleared half of it. Nothing in the
+app writes the overlay file: it is copied out of the form and saved deliberately, and it is the only
+one of the two that survives a restart.
 
 ## What the submission is
 

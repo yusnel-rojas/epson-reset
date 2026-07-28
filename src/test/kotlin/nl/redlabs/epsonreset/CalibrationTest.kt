@@ -360,6 +360,68 @@ class CalibrationTest {
         assertContains(report, "filed it as `ET-2821` instead")
     }
 
+    /**
+     * A unit settled by the contributor is not the firmware's word, and the report is what a
+     * maintainer weighs the submission by. Claiming SNMP named a unit it never named would put the
+     * strongest identification the project has behind a name somebody typed.
+     */
+    @Test
+    fun `a unit confirmed by hand is reported as the contributor's answer, not the firmware's`() {
+        val measured = measure(et2820(listOf(48, 49)), 6346, Calibration.Basis.ServiceRequired)
+        val report = Calibration.report(
+            Calibration.Context(
+                model = "L3100",
+                identifiedAs = "L3100",
+                confirmedAgainst = "EPSON L310 Series",
+                sharedLayout = 9,
+            ),
+            listOf(measured),
+        )
+
+        assertContains(report, "names only `EPSON L310 Series`, which is a family")
+        assertContains(report, "confirmed the unit as `L3100`")
+        assertFalse(report.contains("SNMP"), "the firmware named no unit, so SNMP must not be cited")
+    }
+
+    /**
+     * A name off a USB descriptor and one off SNMP are not worth the same, and the descriptor is the
+     * one that usually gives a family. The report has to say which answered, and what it said.
+     */
+    @Test
+    fun `the report names the channel the identification came from`() {
+        val measured = measure(et2820(listOf(48, 49)), 6346, Calibration.Basis.ServiceRequired)
+        val report = Calibration.report(
+            Calibration.Context(
+                model = "ET-2825",
+                identifiedAs = "ET-2820",
+                identifiedVia = "its USB descriptor",
+                reportedAs = "EPSON ET-2820 Series",
+            ),
+            listOf(measured),
+        )
+
+        assertContains(report, "via its USB descriptor")
+        assertContains(report, "which answered `EPSON ET-2820 Series`")
+        assertFalse(report.contains("SNMP"), "the descriptor answered, not SNMP")
+    }
+
+    /** Both facts survive together: what was confirmed, and that something else was filed. */
+    @Test
+    fun `filing against something other than the confirmed unit keeps both on the report`() {
+        val measured = measure(et2820(listOf(48, 49)), 6346, Calibration.Basis.ServiceRequired)
+        val report = Calibration.report(
+            Calibration.Context(
+                model = "L3101",
+                identifiedAs = "L3100",
+                confirmedAgainst = "EPSON L310 Series",
+            ),
+            listOf(measured),
+        )
+
+        assertContains(report, "confirmed the unit as `L3100`")
+        assertContains(report, "filed it as `L3101` instead")
+    }
+
     @Test
     fun `the entry's note counts the siblings it is deliberately not claiming`() {
         val measured = measure(et2820(listOf(48, 49)), 6346, Calibration.Basis.ServiceRequired)

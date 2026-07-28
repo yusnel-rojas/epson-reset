@@ -26,16 +26,24 @@ sealed interface Link {
         override val where: String get() = "bus $busNumber.$deviceAddress"
     }
 
-    data class Network(val host: String, val port: Int = RAW_PORT) : Link {
+    /** [port] is the SNMP port, because SNMP is the only thing this app ever speaks over a network. */
+    data class Network(val host: String, val port: Int = SNMP_PORT) : Link {
         override val id: String get() = "net:$host:$port"
         override val kind: String get() = "Network"
 
         // Just the host at the default port.
-        override val where: String get() = if (port == RAW_PORT) host else "$host:$port"
+        override val where: String get() = if (port == SNMP_PORT) host else "$host:$port"
     }
 
     companion object {
-        /** Raw ("JetDirect") printing — the port a printer advertises `_pdl-datastream._tcp` on. */
+        /** Where every network read in this app goes: identity, status, counters, the passthrough. */
+        const val SNMP_PORT = 161
+
+        /**
+         * Raw ("JetDirect") printing — what a printer advertises `_pdl-datastream._tcp` on, and
+         * what this field used to be filled with. Nothing here ever connected to it, so a stored
+         * 9100 means "never set" rather than "ask SNMP on 9100"; see [nl.redlabs.epsonreset.net.NetworkAddress].
+         */
         const val RAW_PORT = 9100
     }
 }

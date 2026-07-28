@@ -6,13 +6,14 @@ A desktop app (macOS, Windows, Linux) for reading and resetting the waste ink pa
 
 <img src="docs/images/screenshot-01.png" alt="The Reset tab: a connected ET-2820 matched to its database entry, its waste counters decoded, and the Live write confirmation" width="900" />
 
-- Finds printers on the USB bus **and on the network** (over SNMP, which names the exact model),
-  matching both against a database of 1588 models
-- Reads counters, decoding grouped addresses into real values (`[48,49]` → `3865`)
-- Resets counters, verifying each write's `:42:OK;` acknowledgement
-- Dry-runs the whole sequence against a simulated EEPROM without touching hardware
-- Inspects unknown printers read-only, to work out their counter layout
-- Shows a hex trace of every packet, for bug reports
+- **Finds your printer** — on USB, or on the network over SNMP, which reports the exact model
+- **Identifies it** — against a database of 1588 models, browsable in the app before you plug anything in
+- **Reads the waste ink counters** — grouped addresses decoded into real values (`[48,49]` → `3865`)
+- **Resets them** — each write checked for the printer's `:42:OK;` acknowledgement
+- **Backs up first** — the bytes a live run is about to overwrite are saved, and can be compared and restored
+- **Dry run** — the whole sequence against a simulated EEPROM, touching no hardware. It's the default
+- **Inspect** — read-only probing of a printer that isn't in the database, to work out its counter layout
+- **Hex trace of every packet** — in the log panel, copied to the clipboard in one click for a bug report
 
 ## Before you use this
 
@@ -35,34 +36,31 @@ If that is not a trade you want to make, stay in dry run: it writes nothing.
 ./gradlew run
 ```
 
-Headless self-check — environment, database, USB scan, dry run:
-
-```bash
-./gradlew diagnose --args="ET-2825"
-```
-
-Installer for the machine you're on (dmg / exe / deb):
+Or build an installer for the machine you're on (dmg / exe / deb):
 
 ```bash
 ./gradlew packageDistributionForCurrentOS
 ```
+
+Everything the app does is in the window. The headless tools behind it — a self-check, the USB and
+network probes, the restore tool — are in [Command line](docs/command-line.md).
 
 ## Requirements
 
 Nothing, for a network printer — no driver, no library, no wrestling with the OS for the interface.
 What a network printer will *let* you do varies; see [Network printers](docs/network-printers.md).
 
-For USB, libusb-1.0:
+USB needs libusb-1.0, and needs the OS print subsystem to let go of the printer first:
 
-```bash
-brew install libusb            # macOS
-sudo apt install libusb-1.0-0  # Debian/Ubuntu
-```
+| | Library | Releasing the printer |
+|---|---|---|
+| macOS | `brew install libusb` | Remove it under System Settings → Printers & Scanners |
+| Debian/Ubuntu | `sudo apt install libusb-1.0-0` | Automatic, or stop CUPS |
+| Windows | `libusb-1.0.dll` next to the app or on `PATH` | Bind the device to WinUSB with [Zadig](https://zadig.akeo.ie/) |
 
-Without it the app still runs — network printers, database browser and dry runs all work — but USB
-detection is off. On Windows the printer must be bound to a libusb-compatible driver (Zadig). The
-OS print subsystem also has to release the interface first, which differs per platform:
-[USB connections](docs/usb-connection.md).
+Without the library the app still runs — network printers, the database browser and dry runs all
+work — but USB detection is off. Details and remedies: [USB connections](docs/usb-connection.md)
+and [Troubleshooting](docs/troubleshooting.md).
 
 ## Safety
 
@@ -91,6 +89,7 @@ That and every other standing limit is in [Field notes](docs/field-notes.md#stan
 
 | | |
 |---|---|
+| [Troubleshooting](docs/troubleshooting.md) | Where things usually stop, in order — starting with the printer the OS won't let go of |
 | [Field notes](docs/field-notes.md) | What worked and what didn't against real hardware, including the wrong turn that damaged a printer |
 | [Network printers](docs/network-printers.md) | SNMP identity, the command passthrough, the write gate, refusals, `netProbe` |
 | [USB connections](docs/usb-connection.md) | libusb, claiming the interface, per-platform remedies |
@@ -99,9 +98,18 @@ That and every other standing limit is in [Field notes](docs/field-notes.md#stan
 | [Measuring a maximum](docs/calibration.md) | Where a percentage comes from, and how to contribute one |
 | [Printers not in the database](docs/inspect.md) | The read-only Inspect tab |
 | [Preferences](docs/preferences.md) | `preferences.json`, window placement, the update check |
+| [Command line](docs/command-line.md) | The headless tasks behind the window: `diagnose`, `restore`, the probes |
 | [Architecture](docs/architecture.md) · [Implementation notes](docs/implementation-notes.md) · [Tests](docs/testing.md) · [Formatting](docs/formatting.md) · [Builds and releases](docs/releases.md) | Working on the app itself |
 
-## Credit
+## Credits
 
-Protocol ported from [RxNaison/Epson-Waste-Reset](https://github.com/RxNaison/Epson-Waste-Reset) (C++,
-Apache-2.0); printer waste reset database comes from [reinkpy](https://codeberg.org/atufi/reinkpy) (AGPL-3.0).
+**Protocol** — ported from [RxNaison/Epson-Waste-Reset](https://github.com/RxNaison/Epson-Waste-Reset)
+(C++, [Apache-2.0](LICENSES/Apache-2.0.txt)). The packet framing, the key handling and the reset
+sequence all come from there.
+
+**Printer data** — from [reinkpy](https://codeberg.org/atufi/reinkpy) (AGPL-3.0), whose maintainers
+have collected counter layouts and write keys for far more models than any one household could test.
+A [scheduled workflow](.github/workflows/sync-printer-data.yml) re-fetches their `epson.toml` every
+month, converts it into the two JSON files this app ships, runs the test suite and a dry run against
+the result, and opens a pull request listing the models that moved — so the database keeps up with
+theirs without anyone hand-editing it. See [Counter database](docs/counter-database.md).

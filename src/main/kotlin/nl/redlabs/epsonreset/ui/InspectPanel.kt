@@ -299,7 +299,7 @@ private fun StepCard(
                     "$number",
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Bold,
-                    color = if (enabled) androidx.compose.ui.graphics.Color.White else StatusColors.muted,
+                    color = if (enabled) MaterialTheme.colorScheme.onPrimary else StatusColors.muted,
                 )
             }
             Spacer(Modifier.width(10.dp))

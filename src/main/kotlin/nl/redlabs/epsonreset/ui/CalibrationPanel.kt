@@ -202,7 +202,10 @@ private fun ModelField(vm: ResetViewModel) {
 
 /** Why a candidate is in the list, when there is a reason worth stating. */
 private fun label(vm: ResetViewModel, name: String): String? = when (name) {
-    vm.identifiedModel?.name -> "the printer names itself this"
+    // Same distinction the form's warning draws: a name the firmware gave carries more than one
+    // the user supplied, and the two must not be captioned alike.
+    vm.identifiedModel?.name ->
+        if (vm.confirmedClass == null) "reported by the printer" else "confirmed by you"
     vm.selectedModel?.name -> "selected on the Reset tab"
     else -> null
 }
@@ -430,8 +433,14 @@ private fun Actions(vm: ResetViewModel, copy: (AnnotatedString) -> Unit) {
                 enabled = enabled,
             ) { Text("Open an issue") }
             Spacer(Modifier.width(8.dp))
+            // Named for what it changes, not for what it reveals: it replaces the divisor behind
+            // every percentage on this model, and "Show it now" reads like a preview.
             OutlinedButton(onClick = { vm.applyCalibrationToSession() }, enabled = enabled) {
-                Text(if (vm.calibrationApplied) "Applied" else "Show it now")
+                Text(if (vm.calibrationApplied) "Applied" else "Use this maximum now")
+            }
+            if (vm.calibrationApplied) {
+                Spacer(Modifier.width(8.dp))
+                OutlinedButton(onClick = { vm.revertSessionCalibration() }) { Text("Undo") }
             }
             Spacer(Modifier.weight(1f))
             TextButton(onClick = { vm.calibrationDialogOpen = false }) { Text("Close") }
@@ -455,10 +464,12 @@ private fun Actions(vm: ResetViewModel, copy: (AnnotatedString) -> Unit) {
         if (vm.calibrationApplied) {
             Spacer(Modifier.height(6.dp))
             Hint(
-                "Applied to this session. Save the overlay as counters-overlay.json next to the " +
-                    "database cache (${nl.redlabs.epsonreset.AppPaths.counterOverlay}) to keep " +
-                    "it after a restart — and file the issue, so nobody with this model has to " +
-                    "measure it again.",
+                "Every percentage for this model is now divided by the maximum above, for this " +
+                    "session only — Undo puts it back, and so does restarting. To keep it, save " +
+                    "the overlay as counters-overlay.json in the data directory " +
+                    "(${nl.redlabs.epsonreset.AppPaths.counterOverlay}); that one survives a " +
+                    "restart and is undone only by deleting the file, which Settings can do. " +
+                    "And file the issue, so nobody with this model has to measure it again.",
                 StatusColors.good,
             )
         }

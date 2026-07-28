@@ -304,8 +304,22 @@ object Calibration {
     /** What the app knows about the printer the reading came from. */
     data class Context(
         val model: String,
-        /** What the printer named itself, when it did. The only source that gives a unit. */
+        /** The unit this printer is taken to be — see [confirmedAgainst] for where that came from. */
         val identifiedAs: String? = null,
+        /**
+         * Set when [identifiedAs] is the contributor's answer rather than the firmware's: the family
+         * string the printer *would* give, which named no unit. A reviewer weighs the two
+         * differently, so the report must not present one as the other.
+         */
+        val confirmedAgainst: String? = null,
+        /**
+         * The channel [identifiedAs] arrived on — "SNMP", "its USB descriptor", and so on. A USB
+         * descriptor names a family far more often than a unit, so which one answered decides how
+         * much the name is worth; the report used to assert SNMP regardless.
+         */
+        val identifiedVia: String? = null,
+        /** What that channel said verbatim, which is where a family name shows itself. */
+        val reportedAs: String? = null,
         /** The database entry whose layout was read — often the family, not the unit. */
         val layoutOf: String? = null,
         /** How many models share that layout. */
@@ -320,6 +334,20 @@ object Calibration {
         val statusFields: List<Pair<String, String>> = emptyList(),
         val note: String = "",
     )
+
+    /**
+     * How the printer's own name arrived, and what it said. A reviewer needs both: `ET-2820` off a
+     * USB descriptor reading `ET-2820 Series` is a family standing in for a unit, and nothing else
+     * on the report would show that.
+     */
+    private fun via(context: Context): String {
+        val channel = context.identifiedVia ?: return ""
+        val verbatim = context.reportedAs
+            ?.takeIf { !it.equals(context.identifiedAs, ignoreCase = true) }
+            ?.let { ", which answered `$it`" }
+            .orEmpty()
+        return " — via $channel$verbatim"
+    }
 
     /** The report to file. */
     fun report(context: Context, measured: List<Measured>): String = buildString {
@@ -337,12 +365,24 @@ object Calibration {
                 context.identifiedAs == null ->
                     "- The printer never named itself, so the model above is the contributor's, " +
                         "not the firmware's"
+
+                // The firmware named a family and a person named the unit. That is a weaker claim
+                // than SNMP giving the unit outright and a stronger one than a free-typed name, and
+                // it is the only way a unit is ever established for these printers.
+                context.confirmedAgainst != null ->
+                    "- The printer names only `${context.confirmedAgainst}`, which is a family; " +
+                        "the contributor confirmed the unit as `${context.identifiedAs}`" +
+                        if (context.identifiedAs.equals(context.model, ignoreCase = true)) {
+                            ""
+                        } else {
+                            ", then filed it as `${context.model}` instead"
+                        }
+
                 context.identifiedAs.equals(context.model, ignoreCase = true) ->
-                    "- The printer names itself `${context.identifiedAs}` — SNMP, which gives the " +
-                        "unit rather than the family"
+                    "- The printer names itself `${context.identifiedAs}`" + via(context)
                 else ->
-                    "- **The printer names itself `${context.identifiedAs}`**, and the contributor " +
-                        "filed it as `${context.model}` instead"
+                    "- **The printer names itself `${context.identifiedAs}`**" + via(context) +
+                        ", and the contributor filed it as `${context.model}` instead"
             },
         )
         context.printer?.let { appendLine("- USB/DNS-SD descriptor: `$it`") }

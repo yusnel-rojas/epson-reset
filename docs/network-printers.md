@@ -1,8 +1,17 @@
 # Network printers
 
-A printer on Wi-Fi or Ethernet is reached over **SNMP**, not over the print port — see
+A printer on Wi-Fi or Ethernet is reached over **SNMP**, on UDP 161 and nothing else — see
 [Field notes](field-notes.md#what-went-wrong) for how that was arrived at, and what it cost. What
 the app can do there depends on the printer, and it asks rather than assumes.
+
+An address takes an optional `:port`, and that port is the SNMP one. Printers advertise 9100 — the
+raw printing port — and it is what a saved address written by an older build carries, so a stored or
+typed 9100 is read as "not set" rather than as somewhere to send SNMP. Only a port that is neither
+absent nor 9100 is shown on the device card, since at the default there is nothing to say.
+
+A network printer also improves the same printer plugged in over USB: SNMP names the unit where a
+USB descriptor names only the family, and matching serials is what proves the two are one machine.
+See [the other link usually knows](architecture.md#the-other-link-usually-knows).
 
 Nothing needs installing for a network printer: no driver, no library, no wrestling with the OS for
 an interface.

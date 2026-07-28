@@ -82,7 +82,7 @@ object ConnectionTest {
     }
 
     private fun overNetwork(link: Link.Network, model: PrinterModel?): Result {
-        val opened = SnmpTransport.open(link)
+        val opened = SnmpTransport.open(link, port = link.port)
         if (opened is SnmpTransport.OpenResult.Failed) {
             return Result(
                 opened = false,
@@ -99,12 +99,13 @@ object ConnectionTest {
 
         // Identity first, straight from the MIB — no command channel needed, so this works even on
         // firmware that refuses everything below.
-        val identity = SnmpTransport.string(host, EpsonMib.DEVICE_ID)?.let {
+        val port = link.port
+        val identity = SnmpTransport.string(host, EpsonMib.DEVICE_ID, port = port)?.let {
             DeviceId.parse(it.toByteArray(Charsets.ISO_8859_1))
         }
-        val reportedModel = SnmpTransport.string(host, EpsonMib.MODEL)
-        val firmware = SnmpTransport.string(host, EpsonMib.FIRMWARE)
-        val status = SnmpTransport.bytes(host, EpsonMib.STATUS)?.let { Status.parse(it) }
+        val reportedModel = SnmpTransport.string(host, EpsonMib.MODEL, port = port)
+        val firmware = SnmpTransport.string(host, EpsonMib.FIRMWARE, port = port)
+        val status = SnmpTransport.bytes(host, EpsonMib.STATUS, port = port)?.let { Status.parse(it) }
 
         val answered = identity != null || status != null
         if (!answered) {

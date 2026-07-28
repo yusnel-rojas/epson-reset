@@ -20,6 +20,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -32,7 +33,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.DialogWindow
+import androidx.compose.ui.window.rememberDialogState
 import nl.redlabs.epsonreset.db.PadKind
 import nl.redlabs.epsonreset.db.PrinterModel
 import nl.redlabs.epsonreset.protocol.Executor
@@ -225,41 +229,19 @@ private fun RunControls(
     val running = vm.runState is ResetViewModel.RunState.Running
 
     Column {
-        if (!vm.dryRun) {
-            Callout(
-                "A live reset is yours to own",
-                "This clears the printer's record of the ink its pad has absorbed. The ink is " +
-                    "still in the pad, and a pad at the end of its life still needs servicing. " +
-                    "Whether to do that is your decision, and what follows from it is yours to " +
-                    "carry: this software comes with no warranty, and its authors are not " +
-                    "accountable for what happens to your printer.",
-                StatusColors.bad,
-            )
-            Spacer(Modifier.height(12.dp))
-        }
-
+        // Nothing is inserted here when Live is switched on. A warning that displaces the controls
+        // it is about trains people to scroll past it, and by the time the button is clicked it has
+        // been on screen long enough to have stopped being read — so it lives on the act instead,
+        // in ResetConfirmation.
         Row(verticalAlignment = Alignment.CenterVertically) {
-            DryRunToggle(vm.dryRun, enabled = !running && !vm.reading) { vm.dryRun = it }
+            DryRunToggle(vm.dryRun, enabled = !running && !vm.reading) {
+                vm.dryRun = it
+                onConfirmChange(false)
+            }
             Spacer(Modifier.weight(1f))
 
             if (running || vm.reading) {
                 OutlinedButton(onClick = { vm.cancel() }) { Text("Cancel") }
-            } else if (confirming && !vm.dryRun) {
-                Text(
-                    "Write to ${vm.selectedDevice?.device?.displayName ?: "printer"}?",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = StatusColors.warn,
-                )
-                Spacer(Modifier.width(10.dp))
-                OutlinedButton(onClick = { onConfirmChange(false) }) { Text("Back") }
-                Spacer(Modifier.width(8.dp))
-                Button(
-                    onClick = {
-                        onConfirmChange(false)
-                        vm.run()
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = StatusColors.bad),
-                ) { Text("Yes, write EEPROM") }
             } else {
                 // Reading never writes, so it sits outside the confirmation gate.
                 OutlinedButton(onClick = { vm.readCounters() }, enabled = vm.canRead) {
@@ -328,6 +310,18 @@ private fun RunControls(
             }
         }
 
+        if (confirming && !vm.dryRun) {
+            ResetConfirmation(
+                vm = vm,
+                model = model,
+                onDismiss = { onConfirmChange(false) },
+                onConfirm = {
+                    onConfirmChange(false)
+                    vm.run()
+                },
+            )
+        }
+
         if (running || vm.reading) {
             Spacer(Modifier.height(10.dp))
             LinearProgressIndicator(
@@ -376,7 +370,9 @@ private fun SegmentButton(label: String, active: Boolean, enabled: Boolean, onCl
         style = MaterialTheme.typography.labelMedium,
         fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
         color = when {
-            active -> Color.White
+            // The Live segment fills with `bad` rather than `primary`, so it takes that fill's label.
+            active && label == "Live" -> StatusColors.onBad
+            active -> MaterialTheme.colorScheme.onPrimary
             enabled -> MaterialTheme.colorScheme.onSurfaceVariant
             else -> StatusColors.muted
         },
@@ -461,7 +457,7 @@ private fun RestoreOffer(vm: ResetViewModel) {
                             ?: vm.bad("Could not read ${file.name} — it is missing or not a valid backup.")
                         confirming = false
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = StatusColors.warn),
+                    colors = cautionButtonColors(),
                 ) { Text("Write the old bytes back") }
                 Spacer(Modifier.width(8.dp))
                 OutlinedButton(onClick = { confirming = false }) { Text("Cancel") }
@@ -470,6 +466,92 @@ private fun RestoreOffer(vm: ResetViewModel) {
             }
         }
     }
+}
+
+/**
+ * The last thing between a decision and an EEPROM write, and the only place the terms of one are
+ * put. It names the *model* as well as the printer: a printer that reports only its family was
+ * settled by hand somewhere upstream, and this is the last look anyone gets at that answer before
+ * its key goes into the hardware.
+ */
+@Composable
+private fun ResetConfirmation(vm: ResetViewModel, model: PrinterModel, onDismiss: () -> Unit, onConfirm: () -> Unit) {
+    val printer = vm.selectedDevice?.device?.displayName ?: "the printer"
+
+    DialogWindow(
+        onCloseRequest = onDismiss,
+        state = rememberDialogState(size = DpSize(560.dp, 460.dp)),
+        title = "Reset counters — ${model.name}",
+    ) {
+        Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+            Column(Modifier.fillMaxSize().padding(20.dp)) {
+                Text(
+                    "Write ${model.name}'s key to ${model.writeCount} " +
+                        "address${if (model.writeCount == 1) "" else "es"} on $printer.",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "rkey ${model.readKey} · ${model.writeCount} writes",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontFamily = FontFamily.Monospace,
+                    color = StatusColors.muted,
+                )
+
+                // Only where the name above was a person's answer rather than the printer's, which
+                // is exactly where a last look at it is worth prompting for.
+                vm.confirmedClass?.let {
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        "This printer reports only \"$it\". ${model.name} is the model you " +
+                            "confirmed it to be — a near neighbour's key is not the same key, so " +
+                            "it is worth checking against the label on the printer.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = StatusColors.warn,
+                    )
+                }
+
+                Spacer(Modifier.height(16.dp))
+                Paragraph(
+                    "This clears the printer's record of the ink its pad has absorbed. The ink is " +
+                        "still in the pad, and a pad at the end of its life still needs servicing.",
+                )
+                Spacer(Modifier.height(10.dp))
+                Paragraph(
+                    "The bytes about to be overwritten are saved to a snapshot first, and the run " +
+                        "stops rather than proceeding if that cannot be done.",
+                )
+                Spacer(Modifier.height(10.dp))
+                Paragraph(
+                    "Whether to do this is your decision, and what follows from it is yours to " +
+                        "carry: this software comes with no warranty, and its authors are not " +
+                        "accountable for what happens to your printer.",
+                )
+
+                Spacer(Modifier.weight(1f))
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Spacer(Modifier.weight(1f))
+                    OutlinedButton(onClick = onDismiss) { Text("Back") }
+                    Spacer(Modifier.width(8.dp))
+                    Button(
+                        onClick = onConfirm,
+                        colors = dangerButtonColors(),
+                    ) { Text("Yes, write EEPROM") }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun Paragraph(text: String) {
+    Text(
+        text,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
 }
 
 @Composable

@@ -7,10 +7,12 @@ to run it; everything below is the detail behind it.
 
 | Page | What's in it |
 |---|---|
+| [Troubleshooting](troubleshooting.md) | Where things usually stop, in order: opening the app, seeing the printer, reading it, resetting it |
 | [USB connections](usb-connection.md) | libusb, claiming the interface away from the print subsystem, per-platform remedies |
 | [Network printers](network-printers.md) | SNMP identity, the command passthrough, the write gate, refusals, discovery, `netProbe` |
 | [Backup and recovery](backup-and-restore.md) | Snapshots, the Snapshots tab, comparison, restoring, where a restore is allowed to land |
 | [Preferences](preferences.md) | `preferences.json`, window placement, the update check |
+| [Command line](command-line.md) | The headless tasks behind the window: `diagnose`, `restore`, the probes |
 
 ## The data
 
