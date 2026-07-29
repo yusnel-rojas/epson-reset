@@ -1,4 +1,5 @@
-# Epson Reset
+<h1><img src="docs/images/logo.svg" alt="" width="56" valign="middle" /> Epson Reset</h1>
+
 [![Build & package](https://github.com/yusnel-rojas/epson-reset/actions/workflows/build.yml/badge.svg)](https://github.com/yusnel-rojas/epson-reset/actions/workflows/build.yml)
 [![Platforms](https://img.shields.io/badge/platforms-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey)](#requirements)
 
@@ -41,6 +42,8 @@ Or build an installer for the machine you're on (dmg / exe / deb):
 ```bash
 ./gradlew packageDistributionForCurrentOS
 ```
+
+Linux releases also include portable x86_64 and arm64 AppImages, which run without installation.
 
 Everything the app does is in the window. The headless tools behind it — a self-check, the USB and
 network probes, the restore tool — are in [Command line](docs/command-line.md).

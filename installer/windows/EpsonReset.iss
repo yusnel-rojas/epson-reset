@@ -38,8 +38,7 @@ DefaultGroupName={#AppName}
 DisableProgramGroupPage=no
 OutputDir={#OutputDir}
 OutputBaseFilename=EpsonReset-windows-x64
-; No SetupIconFile: this project ships no icon assets yet. Add src\main\resources\icon.ico and a
-; SetupIconFile line here (plus windows.iconFile in build.gradle.kts) when it does.
+SetupIconFile=..\..\src\main\icons\windows\EpsonReset.ico
 UninstallDisplayIcon={app}\{#AppExeName}
 Compression=lzma2/ultra64
 SolidCompression=yes

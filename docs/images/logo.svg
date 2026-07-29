@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+  <title id="title">Epson Reset </title>
+  <desc id="desc">A compact printer with a maintenance counter resting at zero.</desc>
+  <defs>
+    <linearGradient id="background" x1="180" y1="120" x2="850" y2="920" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1F2A31" offset=""/>
+      <stop offset="1" stop-color="#10161A"/>
+    </linearGradient>
+    <linearGradient id="printer" x1="235" y1="336" x2="792" y2="742" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#5BB8D4" offset=""/>
+      <stop offset="1" stop-color="#1B7F9E"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Keep the artwork inside a generous safe area for macOS masks and small launchers. -->
+  <rect x="64" y="64" width="896" height="896" rx="224" fill="url(#background)"/>
+  <rect x="77" y="77" width="870" height="870" rx="211" fill="none" stroke="#334750" stroke-width="14"/>
+
+  <!-- Paper and printer body. -->
+  <path d="M326 178h340c31 0 56 25 56 56v151H270V234c0-31 25-56 56-56Z" fill="#EAF3F6"/>
+  <path d="M334 246h324" fill="none" stroke="#8FB8C6" stroke-width="28" stroke-linecap="round"/>
+  <path d="M221 344h582c55 0 100 45 100 100v260c0 55-45 100-100 100H221c-55 0-100-45-100-100V444c0-55 45-100 100-100Z" fill="url(#printer)"/>
+  <circle cx="787" cy="457" r="29" fill="#EAF3F6"/>
+  <rect x="248" y="514" width="528" height="106" rx="53" fill="#10161A" opacity=".9"/>
+  <path d="M322 610h380v166c0 39-31 70-70 70H392c-39 0-70-31-70-70V610Z" fill="#EAF3F6"/>
+  <path d="M391 693h242" fill="none" stroke="#8FB8C6" stroke-width="26" stroke-linecap="round"/>
+
+  <!-- Counter badge: the open arc and stop mark read as a gauge at zero. -->
+  <g transform="translate(234 24)">
+    <circle cx="512" cy="700" r="156" fill="#10161A" stroke="#EAF3F6" stroke-width="28"/>
+    <path d="M415 756a112 112 0 1 1 194 0" fill="none" stroke="#5BB8D4" stroke-width="46" stroke-linecap="round"/>
+    <path d="M512 700 432 762" fill="none" stroke="#E8B84B" stroke-width="34" stroke-linecap="round"/>
+    <circle cx="512" cy="700" r="30" fill="#EAF3F6"/>
+    <circle cx="414" cy="775" r="20" fill="#E8B84B"/>
+  </g>
+</svg>

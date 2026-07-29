@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Epson Reset
+Comment=Read and reset Epson waste ink pad counters
+Exec=EpsonReset
+Icon=epsonreset
+Terminal=false
+Categories=Utility;
+X-AppImage-Name=Epson Reset

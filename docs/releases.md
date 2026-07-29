@@ -2,16 +2,31 @@
 
 `ci.yml` runs `./gradlew test` plus the headless self-check on every push and PR — no hardware, no
 libusb. `build.yml` runs on `v*` tags and manual dispatch, packaging macOS arm64 `.dmg`, Windows
-x64 `.exe` and Linux x64/arm64 `.deb` and attaching them to a GitHub Release. jpackage can't
-cross-compile, so each installer is built on its own runner; Windows wraps the jpackage app image
-with Inno Setup (`installer/windows/EpsonReset.iss`).
+x64 `.exe`, and Linux x64/arm64 `.deb` and `.AppImage` files, then attaching them to a GitHub
+Release. jpackage can't cross-compile, so each package is built on its own runner; Windows wraps the
+jpackage app image with Inno Setup (`installer/windows/EpsonReset.iss`), while Linux wraps the same
+app image in an AppDir and runs `appimagetool` (`scripts/package-appimage.sh`).
 Assets get version-less names so `releases/latest/download/<name>` links stay valid.
+
+The app icon is authored as [`docs/images/logo.svg`](images/logo.svg). Generated platform assets
+live under `src/main/icons/`, with the shared Linux/window PNG in
+`src/main/composeResources/drawable/icon.png`.
 
 An installer for the machine you're on:
 
 ```bash
 ./gradlew packageDistributionForCurrentOS
 ```
+
+On Linux, build the portable AppImage after creating the Compose app image:
+
+```bash
+./gradlew createDistributable
+./scripts/package-appimage.sh "$(uname -m)" 1.0.0
+```
+
+The script accepts `x86_64` and `aarch64`, downloads the matching official `appimagetool`, verifies
+its pinned SHA-256 checksum, and writes the result under `build/appimage/`.
 
 Tag and push to cut a release:
 
@@ -21,7 +36,7 @@ git tag v1.0.0 && git push origin v1.0.0
 
 `APP_VERSION` is the tag with the `v` stripped; untagged runs build `1.0.0`.
 
-That produces a **draft** release, not a public one. The four installers are built and attached,
+That produces a **draft** release, not a public one. The six packages are built and attached,
 and nothing else happens until you press Publish — which is when the release notes get written.
 GitHub's auto-generated notes are assembled from merged pull requests, and the work here lands as
 direct commits to `main`, so what it generates is close to empty; treat it as a placeholder to

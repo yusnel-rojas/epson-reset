@@ -45,6 +45,7 @@ kotlin {
 dependencies {
     implementation(compose.desktop.currentOs)
     implementation(compose.material3)
+    implementation(compose.components.resources)
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.0")
 
     // USB transport. usb4java ships no darwin-aarch64 native, so libusb is bound directly through
@@ -56,6 +57,10 @@ dependencies {
     // instead of sleeping and hoping. Pinned to the version Compose already puts on the classpath.
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.0")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+}
+
+compose.resources {
+    packageOfResClass = "nl.redlabs.epsonreset.resources"
 }
 
 tasks.test {
@@ -212,12 +217,18 @@ compose.desktop {
             vendor = "redlabs"
 
             linux {
+                iconFile.set(project.file("src/main/composeResources/drawable/icon.png"))
                 appCategory = "Utility"
                 menuGroup = "Epson Reset"
                 shortcut = true
             }
 
+            windows {
+                iconFile.set(project.file("src/main/icons/windows/EpsonReset.ico"))
+            }
+
             macOS {
+                iconFile.set(project.file("src/main/icons/macos/EpsonReset.icns"))
                 bundleID = "nl.redlabs.epsonreset"
                 appCategory = "public.app-category.utilities"
                 dockName = "Epson Reset"

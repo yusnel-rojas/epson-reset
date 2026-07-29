@@ -1,0 +1,7 @@
+#!/bin/sh
+set -eu
+
+appdir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+export APPDIR="$appdir"
+
+exec "$appdir/usr/bin/EpsonReset" "$@"

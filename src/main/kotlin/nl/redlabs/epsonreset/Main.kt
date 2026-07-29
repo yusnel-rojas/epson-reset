@@ -17,13 +17,18 @@ import kotlinx.coroutines.flow.collectLatest
 import nl.redlabs.epsonreset.prefs.Preferences
 import nl.redlabs.epsonreset.prefs.PreferencesStore
 import nl.redlabs.epsonreset.prefs.ScreenFit
+import nl.redlabs.epsonreset.resources.Res
+import nl.redlabs.epsonreset.resources.icon
 import nl.redlabs.epsonreset.ui.App
+import org.jetbrains.compose.resources.painterResource
+import kotlin.time.Duration.Companion.milliseconds
 
 /** How long the window has to hold still before its geometry is worth a disk write. */
 private const val GEOMETRY_SETTLE_MS = 600L
 
 fun main() = application {
     val prefs = remember { PreferencesStore.current() }
+    val appIcon = painterResource(Res.drawable.icon)
     val state = rememberWindowState(
         size = DpSize(prefs.windowWidth.dp, prefs.windowHeight.dp),
         position = remember {
@@ -37,7 +42,7 @@ fun main() = application {
     // A drag emits a position every frame.
     LaunchedEffect(state) {
         snapshotFlow { Geometry.of(state) }.collectLatest { geometry ->
-            delay(GEOMETRY_SETTLE_MS)
+            delay(GEOMETRY_SETTLE_MS.milliseconds)
             PreferencesStore.update { geometry.applyTo(it) }
         }
     }
@@ -50,6 +55,7 @@ fun main() = application {
             exitApplication()
         },
         title = "Epson Reset",
+        icon = appIcon,
         state = state,
     ) {
         App()
