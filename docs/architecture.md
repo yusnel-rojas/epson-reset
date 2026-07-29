@@ -28,9 +28,10 @@ prefs/      Preferences + PreferencesStore (what survives a launch), ScreenFit �
             remembered window position still lands on a screen that exists
 update/     AppVersion (stamped into the jar at build time), UpdateCheck — is there a newer
             release than this one
-ui/         Compose screens — Reset, Models, Inspect, Maintenance, Snapshots — and the shared
-            ResetViewModel core; CalibrationState, InspectState, SnapshotState and
-            MaintenanceState own their area's state and actions
+ui/         Compose screens — Reset, Models, Inspect, Maintenance, Snapshots — with one app-wide
+            printer-and-model target in the top bar; the shared ResetViewModel core coordinates
+            them, while CalibrationState, InspectState, SnapshotState and MaintenanceState own
+            their area's state and actions
 tools/      convert_reinkpy.py — regenerates counters.json and database.json from upstream
 installer/  windows/EpsonReset.iss — Inno Setup script the Windows CI job compiles
 .github/    ci.yml (tests per push), build.yml (installers on tags), sync-printer-data.yml
@@ -50,6 +51,12 @@ larger area is constructed from narrow getters and callbacks into that core, wit
 a back-reference to the whole view model. UI call sites make the boundary visible (`vm.snapshot`,
 `vm.calibration`, `vm.inspect`, `vm.maintenance`).
 
+Printer and model form one target with the same application scope. The top-bar chip shows both on
+every tab and opens their only selector: exact identifications choose the model automatically, a
+family exposes only its possible units, and no printer leaves the complete model search available
+for dry runs. Changing printers clears the previous model before resolving the new one. Reset is
+therefore full-width, while Snapshots retains its separate file selector.
+
 ## Families, and why a match is not always an identification
 
 Printers name themselves the way the sticker on the box does: `MDL:L3110 Series;`. That is a family,
@@ -63,7 +70,7 @@ entries that extend a name (`ET-1810` also starting `ET-18100`, two unrelated pr
 differing only in the last digit (`ET-2820` for any of ET-2820…ET-2828, which is how Epson actually
 numbers the units inside one advertised series). If everything in that set writes the same bytes the
 report is acted on as an exact match, which is the usual outcome. If they disagree, `DeviceMatcher`
-answers `CLASS_ONLY`: the sidebar asks which one it is, listing that set and the read keys that
+answers `CLASS_ONLY`: the target menu asks which one it is, listing that set and the read keys that
 separate them, and a live run is blocked until it's answered. A unit that names itself outright is
 taken at its word regardless.
 

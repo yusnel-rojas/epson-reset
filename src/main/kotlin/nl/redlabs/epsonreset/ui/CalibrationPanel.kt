@@ -208,7 +208,7 @@ private fun label(vm: ResetViewModel, name: String): String? = when (name) {
     // the user supplied, and the two must not be captioned alike.
     vm.identifiedModel?.name ->
         if (vm.confirmedClass == null) "reported by the printer" else "confirmed by you"
-    vm.selectedModel?.name -> "selected on the Reset tab"
+    vm.selectedModel?.name -> "selected in the target"
     else -> null
 }
 

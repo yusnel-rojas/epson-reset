@@ -73,6 +73,11 @@ private fun SnapshotList(vm: ResetViewModel, modifier: Modifier = Modifier) {
             ) { Text("Refresh") }
         }
 
+        Spacer(Modifier.height(10.dp))
+        CreateSnapshotControl(vm)
+
+        Spacer(Modifier.height(10.dp))
+
         Text(
             "${vm.snapshot.snapshots.size} saved · ${vm.snapshot.snapshotDir}",
             style = MaterialTheme.typography.labelSmall,
@@ -86,9 +91,8 @@ private fun SnapshotList(vm: ResetViewModel, modifier: Modifier = Modifier) {
                 if (vm.snapshot.loadingSnapshots) {
                     "Looking…"
                 } else {
-                    "Nothing saved yet. Read the counters on the Reset tab and press Save " +
-                        "snapshot — or run a live reset, which takes one for itself before it " +
-                        "writes anything."
+                    "Nothing saved yet. Use Read & save above — or run a live reset, which " +
+                        "takes one for itself before it writes anything."
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = StatusColors.muted,
@@ -105,6 +109,52 @@ private fun SnapshotList(vm: ResetViewModel, modifier: Modifier = Modifier) {
                 )
             }
         }
+    }
+}
+
+/** A fresh read from the shared printer-and-model target, saved without visiting Reset. */
+@Composable
+private fun CreateSnapshotControl(vm: ResetViewModel) {
+    val device = vm.selectedDevice?.device
+    val model = vm.selectedModel
+    val blocked = vm.snapshot.createSnapshotBlockedReason
+
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(MaterialTheme.colorScheme.surface)
+            .border(1.dp, MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(8.dp))
+            .padding(10.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    "Create snapshot",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    listOfNotNull(device?.displayName, model?.name).joinToString(" · ")
+                        .ifBlank { "No target selected" },
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (blocked == null) StatusColors.good else StatusColors.warn,
+                )
+            }
+            Spacer(Modifier.width(8.dp))
+            Button(
+                onClick = { vm.snapshot.readAndSaveSnapshot() },
+                enabled = vm.snapshot.canCreateSnapshot,
+            ) { Text(if (vm.reading) "Reading…" else "Read & save") }
+        }
+
+        Spacer(Modifier.height(6.dp))
+        Text(
+            blocked ?: "Takes a fresh read from the printer and saves the reset/recovery " +
+                "addresses. Nothing is written.",
+            style = MaterialTheme.typography.labelSmall,
+            color = if (blocked == null) StatusColors.muted else StatusColors.warn,
+        )
     }
 }
 
@@ -465,8 +515,8 @@ private fun SnapshotHeader(vm: ResetViewModel, fileName: String, backup: EepromB
         Field("Addresses", "${backup.entries.size}")
         Field("Differ", "${backup.changedByReset} are not at their reset value")
 
-        // The selection lives on the Reset tab and decides which write key a restore would use, so
-        // it is part of this screen whether or not the user came from there.
+        // The application-wide target decides which write key a restore would use, so it belongs
+        // here even though the snapshot keeps its own recorded model.
         val selected = vm.selectedModel
         if (selected == null || !selected.name.equals(backup.model, ignoreCase = true)) {
             Spacer(Modifier.height(12.dp))

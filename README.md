@@ -5,7 +5,7 @@
 
 A desktop app (macOS, Windows, Linux) for reading and resetting the waste ink pad counters on Epson printers.
 
-<img src="docs/images/screenshot-01.png" alt="The Reset tab: a connected ET-2820 matched to its database entry, its waste counters decoded, and the Live write confirmation" width="900" />
+<img src="docs/images/screenshot-01.png" alt="The full-width Reset tab with an ET-2820 and its ET-2825 model in the app-wide target chip" width="900" />
 
 - **Finds your printer** — on USB, or on the network over SNMP, which reports the exact model
 - **Identifies it** — against a database of 1588 models, browsable in the app before you plug anything in

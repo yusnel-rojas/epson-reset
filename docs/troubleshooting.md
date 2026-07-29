@@ -22,8 +22,8 @@ Install it: `brew install libusb` (macOS), `sudo apt install libusb-1.0-0` (Debi
 [USB connections](usb-connection.md).
 
 **Over the network, nothing is found.** Discovery is mDNS, which many networks drop across subnets
-or with multicast filtered. The address box is always there for that reason — type the printer's IP
-in directly. See [Network printers](network-printers.md).
+or with multicast filtered. Open the printer menu in the top bar and choose **Add printer by IP
+address…** to type it in directly. See [Network printers](network-printers.md).
 
 ## The printer is listed but won't open
 
@@ -87,9 +87,10 @@ flagged rather than trusted.
 
 **The app won't run live until you pick a model, though it already found one.** Your printer named
 its family rather than itself — "L310 Series" covers L310 and L3100…L3109, and those do not share a
-read key. Pick the model printed on the printer itself, from the shortlist in the sidebar; the
-choice is kept in `model-choices.txt` against the printer's serial and isn't asked again. Dry runs
-work throughout. Most families never raise this, because their members write identical bytes.
+read key. Open the target in the top bar and pick the printed model from its series shortlist; the
+choice is kept in `model-choices.txt` against the printer's serial and isn't asked again. The target
+has no effective model until this is settled, even for a dry run. Most families never raise this,
+because their members write identical bytes.
 
 **`:42:NG;` — the write was rejected.** The key doesn't match the model. The run aborts there
 rather than hammering the EEPROM. Check the model matched in the app is actually your printer;

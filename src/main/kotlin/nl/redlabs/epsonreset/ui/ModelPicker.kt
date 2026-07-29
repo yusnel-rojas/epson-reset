@@ -8,12 +8,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -28,10 +25,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import nl.redlabs.epsonreset.db.PrinterModel
 
-/** Sidebar half two: pick the model. Device selection sits above it. */
+/** Model half of the app-wide target menu. */
 @Composable
-fun ModelPicker(vm: ResetViewModel, modifier: Modifier = Modifier) {
-    Column(modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+fun ModelPicker(vm: ResetViewModel, modifier: Modifier = Modifier, onModelSelected: () -> Unit = {}) {
+    Column(modifier.padding(vertical = 12.dp)) {
         Text(
             "Printer model",
             style = MaterialTheme.typography.titleMedium,
@@ -45,9 +42,13 @@ fun ModelPicker(vm: ResetViewModel, modifier: Modifier = Modifier) {
             OverrideWarning(vm, identified)
         }
 
-        vm.pendingClass?.let { pending ->
+        val scopedChoice = vm.pendingClass ?: vm.confirmedClass?.takeIf { vm.manualModelRequested }?.let { reported ->
+            ResetViewModel.PendingClass(reported, vm.scopedModelCandidates)
+        }
+        scopedChoice?.let { pending ->
             Spacer(Modifier.height(10.dp))
-            ClassChoice(vm, pending)
+            ClassChoice(vm, pending, onModelSelected)
+            return@Column
         }
 
         Spacer(Modifier.height(10.dp))
@@ -75,24 +76,31 @@ fun ModelPicker(vm: ResetViewModel, modifier: Modifier = Modifier) {
 
         Spacer(Modifier.height(6.dp))
 
-        LazyColumn(
-            Modifier.fillMaxSize(),
+        // DropdownMenu asks its contents for intrinsic width. LazyColumn is built on
+        // SubcomposeLayout, which deliberately cannot answer intrinsic measurements and crashes
+        // as soon as printer selection recomposes this menu. The menu already owns bounded
+        // scrolling, and database search caps this list at 200, so a plain column belongs here.
+        Column(
+            Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(3.dp),
         ) {
-            items(results, key = { it.name }) { model ->
-                ModelRow(model, model.name == vm.selectedModel?.name) { vm.selectModel(model) }
+            results.forEach { model ->
+                ModelRow(model, model.name == vm.selectedModel?.name) {
+                    vm.selectModel(model)
+                    onModelSelected()
+                }
             }
         }
     }
 }
 
 /**
- * The printer named its family and the family disagrees with itself. The whole database is still
- * below — this is the shortlist, with the numbers that differ shown, because "one of these eight"
- * is a question a person can answer off the label on the printer and "one of 1588" is not.
+ * The printer named its family and the family disagrees with itself. Only this shortlist is shown:
+ * "one of these eight" is a question a person can answer off the label on the printer, while "one
+ * of 1588" is not.
  */
 @Composable
-private fun ClassChoice(vm: ResetViewModel, pending: ResetViewModel.PendingClass) {
+private fun ClassChoice(vm: ResetViewModel, pending: ResetViewModel.PendingClass, onModelSelected: () -> Unit) {
     Column(
         Modifier
             .fillMaxWidth()
@@ -122,7 +130,10 @@ private fun ClassChoice(vm: ResetViewModel, pending: ResetViewModel.PendingClass
                 Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(6.dp))
-                    .clickable { vm.selectModel(model) }
+                    .clickable {
+                        vm.selectModel(model)
+                        onModelSelected()
+                    }
                     .padding(horizontal = 8.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -188,7 +199,7 @@ fun SelectedModelCard(vm: ResetViewModel, modifier: Modifier = Modifier) {
     // Only reached with the two in agreement — `modelPickerExpanded` opens the list otherwise.
     val model = vm.identifiedModel ?: return
 
-    Column(modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+    Column(modifier.padding(vertical = 12.dp)) {
         Text(
             "Printer model",
             style = MaterialTheme.typography.titleMedium,
@@ -228,11 +239,11 @@ fun SelectedModelCard(vm: ResetViewModel, modifier: Modifier = Modifier) {
             )
         }
 
-        Spacer(Modifier.height(4.dp))
-        TextButton(onClick = { vm.manualModelRequested = true }) {
-            Text("Choose a different model", style = MaterialTheme.typography.labelSmall)
-        }
         vm.confirmedClass?.let {
+            Spacer(Modifier.height(4.dp))
+            TextButton(onClick = { vm.manualModelRequested = true }) {
+                Text("Choose another in this series…", style = MaterialTheme.typography.labelSmall)
+            }
             TextButton(onClick = { vm.forgetModelChoice() }) {
                 Text("Forget this choice", style = MaterialTheme.typography.labelSmall)
             }

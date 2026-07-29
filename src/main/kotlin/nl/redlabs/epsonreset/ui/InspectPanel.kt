@@ -253,7 +253,7 @@ private fun Target(vm: ResetViewModel) {
 
     if (device == null) {
         Note(
-            "No printer detected. Plug the printer in and press Rescan on the Reset tab — this " +
+            "No printer detected. Plug the printer in, click No printer above, and rescan — this " +
                 "tab works on real hardware only.",
             StatusColors.warn,
         )

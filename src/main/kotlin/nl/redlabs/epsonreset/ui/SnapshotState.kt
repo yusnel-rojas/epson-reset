@@ -33,6 +33,7 @@ class SnapshotState(
     private val selectedModel: () -> PrinterModel?,
     private val selectedDevice: () -> MatchedPrinter?,
     private val dryRun: () -> Boolean,
+    private val targetModelBlockedReason: () -> String?,
     private val writeBlockedReason: () -> String?,
     private val busy: () -> Boolean,
     private val reading: () -> Boolean,
@@ -195,20 +196,64 @@ class SnapshotState(
 
     fun loadBackup(file: File): EepromBackup? = EepromBackup.load(file)
 
+    /** Why a fresh snapshot cannot be read from the application-wide target. */
+    val createSnapshotBlockedReason: String?
+        get() = when {
+            selectedDevice() == null -> "Select a printer from the target above."
+            selectedModel() == null -> "Choose the printer's model in the target above."
+            targetModelBlockedReason() != null -> targetModelBlockedReason()
+            else -> null
+        }
+
+    val canCreateSnapshot: Boolean
+        get() = !busy() && !reading() && createSnapshotBlockedReason == null
+
+    /** Takes a fresh real-printer reading, then saves it. This action never reuses an old report. */
+    fun readAndSaveSnapshot() {
+        val model = selectedModel() ?: return
+        val device = selectedDevice() ?: return
+        createSnapshotBlockedReason?.let {
+            bad("Nothing saved — $it")
+            return
+        }
+
+        scope.launch {
+            performRead(model, device, false)
+            val currentModel = selectedModel()
+            val currentDevice = selectedDevice()
+            val report = readReport()
+            when {
+                currentDevice?.device?.id != device.device.id ->
+                    bad("Nothing saved — the target printer changed while it was being read.")
+                currentModel?.name != model.name ->
+                    bad("Nothing saved — the target model changed while the printer was being read.")
+                report == null -> bad("Nothing saved — the printer produced no reading.")
+                else -> snapshotBlockedReason(model, report)?.let {
+                    bad("Nothing saved — $it.")
+                } ?: saveSnapshotNow(model, report)
+            }
+        }
+    }
+
     /** Why the counters currently on screen cannot be saved, or null when they can. */
     val snapshotBlockedReason: String?
         get() {
+            val model = selectedModel()
             val report = readReport()
-            return when {
-                selectedModel() == null -> "pick the model these counters belong to first"
-                report == null -> "read the counters first — a snapshot stores bytes that were actually read"
-                readWasSimulated() ->
-                    "these values came from the simulated EEPROM of a dry run, not from a printer. " +
-                        "Switch to Live and read again"
-                report.answered == 0 -> "nothing answered the last read, so there is nothing to save"
-                else -> null
-            }
+            return snapshotBlockedReason(model, report)
         }
+
+    private fun snapshotBlockedReason(model: PrinterModel?, report: CounterReader.Report?): String? = when {
+        model == null -> "pick the model these counters belong to first"
+        report == null -> "read the counters first — a snapshot stores bytes that were actually read"
+        !report.model.equals(model.name, ignoreCase = true) ->
+            "the last reading belongs to ${report.model}, not ${model.name}; read again"
+        readWasSimulated() ->
+            "these values came from the simulated EEPROM of a dry run, not from a printer. " +
+                "Switch to Live and read again"
+        report.answered == 0 -> "nothing answered the last read, so there is nothing to save"
+        else -> null
+    }
 
     val canSaveSnapshot: Boolean get() = !busy() && snapshotBlockedReason == null
 
@@ -222,40 +267,42 @@ class SnapshotState(
             return
         }
 
-        scope.launch {
-            val capture = EepromBackup.capture(
-                model = model.name,
-                sequence = SequenceGenerator.generate(model),
-                readings = report.readings,
-                printerSerial = identifyingSerial(selectedDevice()),
-            )
+        scope.launch { saveSnapshotNow(model, report) }
+    }
 
-            when (capture) {
-                is Capture.NothingToWrite ->
-                    bad("${model.name} has no resettable addresses, so a snapshot would have nothing to put back.")
+    private suspend fun saveSnapshotNow(model: PrinterModel, report: CounterReader.Report) {
+        val capture = EepromBackup.capture(
+            model = model.name,
+            sequence = SequenceGenerator.generate(model),
+            readings = report.readings,
+            printerSerial = identifyingSerial(selectedDevice()),
+        )
 
-                is Capture.Incomplete -> {
-                    val shown = capture.missing.take(8).joinToString(", ")
-                    val more = if (capture.missing.size > 8) " +${capture.missing.size - 8} more" else ""
-                    bad(
-                        "Nothing saved: ${capture.missing.size} of the addresses a reset would write " +
-                            "did not answer the read ($shown$more), so a restore could not put them " +
-                            "back. Reads are unprivileged and safe to retry.",
+        when (capture) {
+            is Capture.NothingToWrite ->
+                bad("${model.name} has no resettable addresses, so a snapshot would have nothing to put back.")
+
+            is Capture.Incomplete -> {
+                val shown = capture.missing.take(8).joinToString(", ")
+                val more = if (capture.missing.size > 8) " +${capture.missing.size - 8} more" else ""
+                bad(
+                    "Nothing saved: ${capture.missing.size} of the addresses a reset would write " +
+                        "did not answer the read ($shown$more), so a restore could not put them " +
+                        "back. Reads are unprivileged and safe to retry.",
+                )
+            }
+
+            is Capture.Ready -> {
+                val saved = withContext(io) { runCatching { capture.backup.save(backupDir()) } }
+                saved.onSuccess { file ->
+                    good(
+                        "Snapshot saved as ${file.name} — ${capture.backup.entries.size} addresses, " +
+                            "${capture.backup.changedByReset} differ from their reset value.",
                     )
-                }
-
-                is Capture.Ready -> {
-                    val saved = withContext(io) { runCatching { capture.backup.save(backupDir()) } }
-                    saved.onSuccess { file ->
-                        good(
-                            "Snapshot saved as ${file.name} — ${capture.backup.entries.size} addresses, " +
-                                "${capture.backup.changedByReset} differ from their reset value.",
-                        )
-                        refreshNow()
-                        selectedSnapshot = snapshots.firstOrNull { it.file == file }
-                    }.onFailure { e ->
-                        bad("Snapshot not saved: ${e.message ?: e::class.simpleName}.")
-                    }
+                    refreshNow()
+                    selectedSnapshot = snapshots.firstOrNull { it.file == file }
+                }.onFailure { e ->
+                    bad("Snapshot not saved: ${e.message ?: e::class.simpleName}.")
                 }
             }
         }
@@ -326,12 +373,14 @@ class SnapshotState(
         get() {
             val backup = selectedSnapshot?.backup ?: return "Select a snapshot first."
             val model = selectedModel()
-                ?: return "Select ${backup.model} on the Reset tab so there is a model to read."
+                ?: return "Choose ${backup.model} in the target above so there is a model to read."
             if (!model.name.equals(backup.model, ignoreCase = true)) {
                 return "This snapshot is a ${backup.model} but ${model.name} is selected. The same " +
                     "address is a different counter on each, so there is nothing to compare."
             }
-            if (selectedDevice() == null) return "No printer is selected — connect one on the Reset tab."
+            if (selectedDevice() == null) {
+                return "No printer is selected — choose one from the printer menu above."
+            }
             if (dryRun()) {
                 return "Dry run invents a byte for every address, so comparing against it would " +
                     "show differences that are not real. Switch to Live to read this printer."
@@ -434,14 +483,14 @@ class SnapshotState(
             }
         }
 
-    /** Snapshots taken from the model currently selected on the Reset tab, newest first. */
+    /** Snapshots taken from the model in the application-wide target, newest first. */
     val snapshotsForSelectedModel: List<SavedSnapshot>
         get() {
             val model = selectedModel() ?: return emptyList()
             return snapshots.filter { it.backup?.model.equals(model.name, ignoreCase = true) }
         }
 
-    /** True when the reading on the Reset tab could be compared against something on disk. */
+    /** True when the current live reading could be compared against something on disk. */
     val canOfferComparison: Boolean
         get() = readReport()?.answered?.let { it > 0 } == true &&
             !readWasSimulated() &&
@@ -460,7 +509,7 @@ class SnapshotState(
         get() {
             val backup = selectedSnapshot?.backup ?: return "Select a snapshot."
             val model = selectedModel()
-                ?: return "Select ${backup.model} on the Reset tab — a restore needs its write key."
+                ?: return "Choose ${backup.model} in the target above — a restore needs its write key."
             if (!model.name.equals(backup.model, ignoreCase = true)) {
                 return "This snapshot is a ${backup.model}; ${model.name} is selected. " +
                     "Switch the selection before writing one model's bytes into another."
@@ -468,7 +517,7 @@ class SnapshotState(
             return if (dryRun()) null else writeBlockedReason()
         }
 
-    /** Puts the Reset tab's selection on the model the selected snapshot came from. */
+    /** Puts the application-wide target on the model the selected snapshot came from. */
     fun useSnapshotModel() {
         val backup = selectedSnapshot?.backup ?: return
         val model = database()?.get(backup.model) ?: run {

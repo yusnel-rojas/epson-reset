@@ -58,7 +58,8 @@ class MaintenanceState(
     /** Why no maintenance operation should start now, or null when the target is ready to check. */
     val blockedReason: String?
         get() {
-            val device = selectedDevice()?.device ?: return "Select a connected printer on the Reset tab first."
+            val device = selectedDevice()?.device
+                ?: return "Select a connected printer from the printer menu above first."
             if (device.isNetwork) {
                 return "Maintenance commands are ESC/P2 print data and currently run over USB only. " +
                     "The network connection exposes the SNMP control channel, which can parse these " +
@@ -93,7 +94,7 @@ class MaintenanceState(
     /** Runs one confirmed operation, using a fresh USB transport for every protocol phase. */
     fun run(operation: Maintenance.Operation) {
         val target = selectedDevice()?.device ?: run {
-            bad("Select a connected printer on the Reset tab first.")
+            bad("Select a connected printer from the printer menu above first.")
             return
         }
 

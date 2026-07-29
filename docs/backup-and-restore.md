@@ -1,9 +1,10 @@
 # Backup and recovery
 
 A reset is one-way — the printer offers no undo — so before the first write of any live run the app
-saves the bytes that run is about to overwrite. **Save snapshot** on the Reset tab writes the same
+saves the bytes that run is about to overwrite. After a live read, **Save snapshot** writes the same
 file whenever you ask for one, off the counters currently on screen — so a recovery point can exist
-before you decide to reset anything, rather than only as a side effect of deciding to. Both land in:
+before you decide to reset anything, rather than only as a side effect of deciding to. **Read &
+save** on the Snapshots tab performs a fresh real-printer read first. All three paths land in:
 
 ```
 ~/Library/Application Support/EpsonReset/backups/     macOS
@@ -19,20 +20,27 @@ construction. A snapshot taken on demand is captured against the sequence a rese
 for the same reason — a file wider than that could not be written back, and a snapshot that cannot
 be restored is a screenshot with extra steps. If any of those addresses didn't answer the read, the
 run (or the save) is refused rather than proceeding with a gap — nothing has been written at that
-point, and reads are unprivileged, so retrying costs nothing. Dry runs never block.
+point, and reads are unprivileged, so retrying costs nothing. A reset dry run needs no snapshot and
+is never blocked by this rule.
 
 A snapshot can only be taken from values that came off a printer. A dry read's values are invented
 by `FakeTransport`, and the resulting file would be indistinguishable from a real capture — one a
-restore would happily write into an EEPROM. So **Save snapshot** is refused in dry run and says why.
+restore would happily write into an EEPROM. So **Save snapshot** is refused for a dry reading;
+**Read & save** is explicitly a fresh hardware read and never uses the simulated EEPROM.
 
 ## The Snapshots tab
 
-It lists everything saved, newest first. Selecting one reads it back: the bytes are in the file, so
-the counters, the percentages and the address table are rendered with no printer involved and
-nothing that can fail — a dry read in the literal sense. It goes through `CounterReader.Reading`
-rather than a renderer of its own, so saved bytes decode with exactly the code that decodes live
-ones. Files that won't parse are listed as unreadable rather than hidden: a recovery point that
-isn't one is precisely the thing worth knowing about.
+It can create a snapshot directly from the printer-and-model target shown in the top bar, without a
+trip through Reset. The action reads only the reset/recovery addresses and writes nothing to the
+printer. The model is automatic when the printer identifies itself exactly; an ambiguous family is
+settled from its constrained shortlist in the same target menu.
+
+The tab lists everything saved, newest first. Selecting one reads it back: the bytes are in the
+file, so the counters, the percentages and the address table are rendered with no printer involved
+and nothing that can fail — a dry read in the literal sense. It goes through
+`CounterReader.Reading` rather than a renderer of its own, so saved bytes decode with exactly the
+code that decodes live ones. Files that won't parse are listed as unreadable rather than hidden: a
+recovery point that isn't one is precisely the thing worth knowing about.
 
 ## Comparing two samples
 

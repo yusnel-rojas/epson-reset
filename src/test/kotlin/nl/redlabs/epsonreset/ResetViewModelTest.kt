@@ -777,16 +777,18 @@ class ViewModelModelLockTest {
         assertTrue(vm.said("do not share a reset recipe"), vm.lastLine)
     }
 
-    /** Same allowance the model mismatch gets: nothing is written, so nothing can be written wrong. */
+    /** A family has no effective model until the user picks the unit printed on the label. */
     @Test
-    fun `a dry run is still allowed while the family is unsettled`() = runTest {
+    fun `an unsettled family does not stage a guessed model even for a dry run`() = runTest {
         val vm = viewModel()
         vm.database = classDatabase
 
         vm.select(classPrinter())
         vm.dryRun = true
 
-        assertTrue(vm.canRun)
+        assertNull(vm.selectedModel)
+        assertFalse(vm.canRun)
+        assertEquals(listOf("TEST-1", "OTHER-9"), vm.scopedModelCandidates.map { it.name })
     }
 
     @Test
@@ -1023,11 +1025,54 @@ class ViewModelModelLockTest {
 
         assertNull(vm.selectedDevice)
         assertNull(vm.identifiedModel)
+        assertNull(vm.selectedModel)
+    }
+
+    @Test
+    fun `an unmatched printer does not inherit the previous printer model or reading`() = runTest {
+        val vm = viewModel()
+        vm.select(printer())
+        vm.dryRun = true
+        vm.readCounters()
+        advanceUntilIdle()
+        assertNotNull(vm.selectedModel)
+        assertNotNull(vm.readReport)
+
+        val unknown = printer(product = "EPSON Mystery").copy(
+            model = null,
+            confidence = MatchedPrinter.Confidence.NONE,
+        )
+        vm.select(unknown)
+
+        assertNull(vm.selectedModel)
+        assertNull(vm.readReport)
+        assertTrue(vm.modelPickerExpanded)
     }
 }
 
 /** Snapshots taken because someone asked, rather than because a reset was about to write. */
 class ViewModelSnapshotTest {
+
+    @Test
+    fun `the snapshots tab takes a fresh live reading before it saves`() = runTest {
+        val hardware = ScriptedPrinter(serial = "UNIT-A", memory = mapOf(58 to 0x19, 59 to 0x0F))
+        val dir = createTempDirectory("vm-test").toFile()
+        val vm = viewModel(transport = hardware, backupDir = dir)
+
+        vm.select(printer())
+        vm.dryRun = true
+
+        assertTrue(vm.snapshot.canCreateSnapshot, vm.snapshot.createSnapshotBlockedReason ?: "")
+        assertNull(vm.readReport)
+        vm.snapshot.readAndSaveSnapshot()
+        advanceUntilIdle()
+
+        val saved = assertNotNull(dir.listFiles()?.singleOrNull()?.let(EepromBackup::load))
+        assertEquals(listOf(0x19, 0x0F), saved.entries.map { it.value })
+        assertFalse(vm.readWasSimulated, "the explicit snapshot action reads the real printer")
+        assertTrue(hardware.packets > 0)
+        assertTrue(hardware.writes.isEmpty())
+    }
 
     @Test
     fun `saves what the last live read returned, and never writes to do it`() = runTest {

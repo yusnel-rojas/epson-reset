@@ -41,7 +41,7 @@ import nl.redlabs.epsonreset.db.PadKind
 import nl.redlabs.epsonreset.db.PrinterModel
 import nl.redlabs.epsonreset.protocol.Executor
 
-/** The main pane: everything about the model currently selected in the sidebar. */
+/** The full-width Reset screen for the model in the application-wide target. */
 @Composable
 fun ModelPanel(vm: ResetViewModel, modifier: Modifier = Modifier) {
     var confirming by remember { mutableStateOf(false) }
@@ -133,10 +133,9 @@ private fun EmptyState(vm: ResetViewModel, modifier: Modifier = Modifier) {
             Spacer(Modifier.height(8.dp))
             Text(
                 if (vm.devices.isEmpty()) {
-                    "Scan for a connected printer, or search the model list on the left."
+                    "Open the target above to scan for a printer or choose a model for a dry run."
                 } else {
-                    "Pick your printer on the left to match it automatically, " +
-                        "or search the model list."
+                    "Open the target above to choose a printer and resolve its model."
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = StatusColors.muted,

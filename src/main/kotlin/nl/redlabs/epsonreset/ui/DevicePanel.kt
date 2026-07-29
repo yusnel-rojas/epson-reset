@@ -19,6 +19,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -35,10 +36,22 @@ import androidx.compose.ui.unit.dp
 import nl.redlabs.epsonreset.device.Link
 import nl.redlabs.epsonreset.device.MatchedPrinter
 
-/** Left rail: what's reachable, over USB or the network, and what each device resolved to. */
+/** Contents of the top-bar printer menu. */
 @Composable
-fun DevicePanel(vm: ResetViewModel, modifier: Modifier = Modifier) {
+fun PrinterSelectorContent(
+    vm: ResetViewModel,
+    modifier: Modifier = Modifier,
+    onPrinterSelected: () -> Unit = {},
+    onModelSelected: () -> Unit = {},
+) {
     Column(modifier.padding(16.dp)) {
+        // The explicit IP action is its own short task. Replacing the picker keeps the field at the
+        // point of attention instead of making the user find it underneath an arbitrary list.
+        if (vm.addByAddressRequested) {
+            AddByAddress(vm, dismissible = true)
+            return@Column
+        }
+
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 "Printers",
@@ -53,19 +66,13 @@ fun DevicePanel(vm: ResetViewModel, modifier: Modifier = Modifier) {
 
         Spacer(Modifier.height(12.dp))
 
-        // Scanning both buses is the path; the two manual ones hang off the chevron. See
-        // [SplitButton] for why they are no longer on permanent display.
+        // Scanning both buses is the path; manual network entry hangs off the chevron.
         SplitButton(
             label = if (vm.devices.isEmpty()) "Scan USB and network" else "Rescan",
             primaryEnabled = vm.scanState !is ResetViewModel.ScanState.Scanning,
             onPrimary = { vm.scan() },
             actions = listOf(
                 SplitAction("Add printer by IP address…") { vm.addByAddressRequested = true },
-                SplitAction(
-                    label = "Choose the model by hand…",
-                    // Already the state of the sidebar when nothing has named itself.
-                    enabled = !vm.modelPickerExpanded,
-                ) { vm.manualModelRequested = true },
             ),
             modifier = Modifier.fillMaxWidth(),
         )
@@ -96,7 +103,7 @@ fun DevicePanel(vm: ResetViewModel, modifier: Modifier = Modifier) {
                     tone = StatusColors.muted,
                 )
             } else {
-                DeviceList(vm)
+                DeviceList(vm, onPrinterSelected)
             }
 
             else -> Notice(
@@ -119,14 +126,23 @@ fun DevicePanel(vm: ResetViewModel, modifier: Modifier = Modifier) {
             }
         }
 
-        // Shown on request, and unprompted when a scan came up empty — see [AddByAddress].
+        // After an empty scan, manual entry remains an inline fallback. The explicit action above
+        // gets the focused view instead.
         val scanning = vm.scanState is ResetViewModel.ScanState.Scanning
         val nothingFound = vm.devices.isEmpty() && !scanning &&
             vm.scanState !is ResetViewModel.ScanState.Idle
 
-        if (vm.addByAddressRequested || nothingFound) {
+        if (nothingFound) {
             Spacer(Modifier.height(16.dp))
-            AddByAddress(vm, dismissible = vm.addByAddressRequested && !nothingFound)
+            AddByAddress(vm, dismissible = false)
+        }
+
+        Spacer(Modifier.height(16.dp))
+        HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
+        if (vm.modelPickerExpanded) {
+            ModelPicker(vm, Modifier.fillMaxWidth(), onModelSelected)
+        } else {
+            SelectedModelCard(vm, Modifier.fillMaxWidth())
         }
     }
 }
@@ -143,7 +159,7 @@ private fun AddByAddress(vm: ResetViewModel, dismissible: Boolean) {
             )
             if (dismissible) {
                 Spacer(Modifier.weight(1f))
-                TextButton(onClick = { vm.addByAddressRequested = false }) { Text("Hide") }
+                TextButton(onClick = { vm.addByAddressRequested = false }) { Text("Back") }
             }
         }
         Spacer(Modifier.height(6.dp))
@@ -157,13 +173,21 @@ private fun AddByAddress(vm: ResetViewModel, dismissible: Boolean) {
                 textStyle = MaterialTheme.typography.bodySmall,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                 keyboardActions = KeyboardActions(
-                    onDone = { if (vm.canAddNetworkPrinter) vm.addNetworkPrinter() },
+                    onDone = {
+                        if (vm.canAddNetworkPrinter) {
+                            vm.addByAddressRequested = false
+                            vm.addNetworkPrinter()
+                        }
+                    },
                 ),
                 modifier = Modifier.weight(1f),
             )
             Spacer(Modifier.width(8.dp))
             Button(
-                onClick = { vm.addNetworkPrinter() },
+                onClick = {
+                    vm.addByAddressRequested = false
+                    vm.addNetworkPrinter()
+                },
                 enabled = vm.canAddNetworkPrinter,
             ) {
                 Text("Add")
@@ -180,18 +204,21 @@ private fun AddByAddress(vm: ResetViewModel, dismissible: Boolean) {
 }
 
 /**
- * A plain column, not a lazy one: there are only ever a handful of printers, and a lazy list here
- * would compete with the model picker below it for the sidebar's vertical space.
+ * A plain column, not a lazy one: there are only ever a handful of printers, and the menu provides
+ * its own bounded scrolling when its contents grow taller than the window.
  */
 @Composable
-private fun DeviceList(vm: ResetViewModel) {
+private fun DeviceList(vm: ResetViewModel, onPrinterSelected: () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         for (entry in vm.devices) {
             DeviceCard(
                 vm = vm,
                 entry = entry,
                 selected = vm.selectedDevice?.device?.id == entry.device.id,
-                onClick = { vm.select(entry) },
+                onClick = {
+                    vm.select(entry)
+                    onPrinterSelected()
+                },
             )
         }
     }

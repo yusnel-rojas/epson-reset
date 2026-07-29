@@ -70,7 +70,8 @@ need different things said:
 | **Added by address** | Type an IP (or paste the printer's web-page URL). It identifies itself over SNMP immediately, and is saved to `network-printers.txt` next to the database cache. |
 
 Discovery is a convenience, not a requirement — a guest network, a VPN, or a sandbox that won't
-pass multicast each break it without stopping SNMP working. So the address box is always there.
+pass multicast each break it without stopping SNMP working. So **Add printer by IP address…** is
+always available from the printer menu in the top bar.
 
 ## Probing one from the command line
 

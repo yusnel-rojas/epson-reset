@@ -4,7 +4,7 @@
 ./gradlew test
 ```
 
-433 of them, no hardware and no network required. What they cover is the software; what a printer
+435 of them, no hardware and no network required. What they cover is the software; what a printer
 has actually been observed doing is in [Field notes](field-notes.md).
 
 Worth knowing what the harder ones cover:
@@ -16,6 +16,9 @@ Worth knowing what the harder ones cover:
   discovery and backup directory as constructor parameters so these can be reached at all. The
   same file drives the extracted `CalibrationState`, `SnapshotState` and `MaintenanceState` through
   `vm.calibration`, `vm.snapshot` and `vm.maintenance`; the split changes ownership, not assertions.
+- **The shared target and snapshots.** Changing to an unmatched printer drops the previous model and
+  reading; an unresolved family stages no guessed model. Creating a snapshot from its own tab is
+  pinned to a fresh real-printer read and never writes to the scripted EEPROM.
 - **The maintenance safety flow.** A scripted idle printer proves that cleaning stays unreachable
   until a nozzle-check pattern is answered “gaps,” while “no gaps,” a busy status, and a network
   target all keep it closed. The same test pins maintenance trace output to the shared log.

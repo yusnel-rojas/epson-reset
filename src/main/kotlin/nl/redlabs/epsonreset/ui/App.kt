@@ -5,7 +5,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -16,7 +15,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
@@ -53,25 +51,8 @@ fun App() {
 
                 when (vm.tab) {
                     ResetViewModel.Tab.RESET ->
-                        Row(Modifier.fillMaxWidth().weight(1f)) {
-                            // Sidebar = choosing what to work on: which printer, then which model.
-                            // The main pane is only ever about the current selection.
-                            Column(Modifier.width(340.dp).fillMaxHeight()) {
-                                DevicePanel(vm, Modifier.fillMaxWidth())
-                                HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
-                                // The search list fills what is left; the collapsed card is a few
-                                // lines and would look adrift stretched to the same height.
-                                if (vm.modelPickerExpanded) {
-                                    ModelPicker(vm, Modifier.fillMaxWidth().weight(1f))
-                                } else {
-                                    SelectedModelCard(vm, Modifier.fillMaxWidth())
-                                    Spacer(Modifier.weight(1f))
-                                }
-                            }
-
-                            VerticalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
-                            ModelPanel(vm, Modifier.weight(1f).fillMaxHeight())
-                        }
+                        // Printer and model now form one application-scoped target in the top bar.
+                        ModelPanel(vm, Modifier.fillMaxWidth().weight(1f))
 
                     // The matrix is about the database rather than one printer, so it takes the
                     // whole width — there is no selection for a sidebar to show.
@@ -167,6 +148,9 @@ private fun TopBar(vm: ResetViewModel, updates: AppUpdates) {
         Spacer(Modifier.width(28.dp))
         Tabs(vm)
         Spacer(Modifier.weight(1f))
+
+        PrinterChip(vm)
+        Spacer(Modifier.width(10.dp))
 
         // News, not a setting: a release that exists is worth saying without being asked. Running
         // the check, and everything else that was along this row, is in the window behind the gear.

@@ -74,8 +74,8 @@ class ResetViewModel(
         private set
 
     /**
-     * What the selected printer is taken to be, and how that was arrived at — not the model the user
-     * picked on the Reset tab, which is [selectedModel].
+     * What the selected printer is taken to be, and how that was arrived at — distinct from the
+     * effective [selectedModel], which can also be chosen for a dry run with no printer attached.
      *
      * The two travel together because everything downstream cites the identification when it acts on
      * it, and a citation that names the wrong source is worse than none: a USB descriptor and an
@@ -100,6 +100,12 @@ class ResetViewModel(
      * instead of reading as a mismatch with a name the printer never claimed.
      */
     val confirmedClass: String? get() = identity?.takeIf { it.via == Identity.Via.CONFIRMED }?.reported
+
+    /** Model choices that belong to the selected printer's reported family, never the whole database. */
+    val scopedModelCandidates: List<PrinterModel>
+        get() = pendingClass?.candidates ?: confirmedClass?.let { reported ->
+            database?.let { DeviceMatcher.resolve(reported, it).candidates }
+        }.orEmpty()
 
     /** What the printer would only say, and everything it could have meant. */
     data class PendingClass(val reported: String, val candidates: List<PrinterModel>)
@@ -172,7 +178,7 @@ class ResetViewModel(
     /** The user asked to pick the model by hand, over the top of a printer that named itself. */
     var manualModelRequested by mutableStateOf(false)
 
-    /** Whether the sidebar shows the model search list rather than the one selected model. */
+    /** Whether the app-wide target menu shows model choices rather than one settled model. */
     val modelPickerExpanded: Boolean
         get() = manualModelRequested || identifiedModel == null || modelMismatch != null ||
             pendingClass != null
@@ -341,6 +347,7 @@ class ResetViewModel(
         selectedModel = { selectedModel },
         selectedDevice = { selectedDevice },
         dryRun = { dryRun },
+        targetModelBlockedReason = { targetModelBlockedReason },
         writeBlockedReason = { writeBlockedReason },
         busy = { busy },
         reading = { reading },
@@ -479,21 +486,23 @@ class ResetViewModel(
                 "a ${said.name}."
         }
 
+    /** Why the model half of the current target is not settled, independent of transport limits. */
+    val targetModelBlockedReason: String?
+        get() {
+            pendingClass?.let {
+                return "This printer reports itself as \"${it.reported}\", which names a family of " +
+                    "${it.candidates.size} models that do not share a reset recipe. Choose the " +
+                    "model printed on the printer."
+            }
+            return modelMismatch
+        }
+
     /** Why a live write to the selected printer is not allowed, or null when it is. */
     val writeBlockedReason: String?
         get() {
-            // First, because it is the one gate that fires while everything visible still looks
-            // agreed: a family name resolves to *a* database entry, and the entry it resolves to
-            // reads and writes like a printer that may not be this one.
-            pendingClass?.let {
-                return "This printer reports itself as \"${it.reported}\", which names a family of " +
-                    "${it.candidates.size} models that do not share a reset recipe. Pick the model " +
-                    "printed on the printer before running live."
-            }
-
             // Ahead of the link question, and on both links: writing one model's bytes into
             // another is wrong over USB for exactly the same reason it is wrong over SNMP.
-            modelMismatch?.let { return it }
+            targetModelBlockedReason?.let { return it }
 
             if (selectedDevice?.device?.isNetwork != true) return null
 
@@ -520,7 +529,7 @@ class ResetViewModel(
     fun start() {
         scope.launch {
             loadDatabaseNow()
-            // Before the scan, because the Reset tab offers a comparison the moment a read lands
+            // Before the scan, because a current reading can offer a comparison the moment it lands
             // and that offer depends on knowing what is already on disk. Reading a directory is
             // cheap;
             snapshot.refreshNow()
@@ -643,8 +652,20 @@ class ResetViewModel(
         usbNote?.let { warn("$it Dry runs still work.") }
         networkNote?.let { warn("Network discovery unavailable — $it") }
 
+        val hadSelectedDevice = selectedDevice != null
         selectedDevice = selectedDevice?.let { previous ->
             matched.firstOrNull { it.device.id == previous.device.id }
+        }
+        if (hadSelectedDevice && selectedDevice == null) {
+            status = null
+            readReport = null
+            beforeReport = null
+            readWasSimulated = false
+            identity = null
+            pendingClass = null
+            manualModelRequested = false
+            selectedModel = null
+            query = ""
         }
         refreshIdentity()
 
@@ -661,15 +682,20 @@ class ResetViewModel(
     fun select(device: MatchedPrinter) {
         selectedDevice = device
         lastTest = null
-        // All three belong to the printer that was selected before this one, not to this one.
+        // These all belong to the printer that was selected before this one, not to this one. In
+        // particular, never let an unmatched printer inherit the previous printer's model.
         status = null
+        readReport = null
+        beforeReport = null
+        readWasSimulated = false
         identity = null
         pendingClass = null
         manualModelRequested = false
+        selectedModel = null
+        query = ""
         refreshIdentity()
         device.model?.let {
-            selectedModel = it
-            query = it.name
+            stageModel(it)
             val how = when (device.confidence) {
                 MatchedPrinter.Confidence.EXACT -> "matched exactly"
                 MatchedPrinter.Confidence.LIKELY -> "matched (likely — please confirm)"
@@ -714,6 +740,9 @@ class ResetViewModel(
         }
 
         identity = Identity(fromPeer, Identity.Via.SNMP_CROSS_LINK, cross.name)
+        stageModel(fromPeer)
+        pendingClass = null
+        manualModelRequested = false
         info(
             "The same serial answers SNMP at ${cross.link.where} as ${fromPeer.name}. Using that: " +
                 "the descriptor says only \"${device.device.product}\", which names a family.",
@@ -731,14 +760,15 @@ class ResetViewModel(
         rememberedModel(reported)?.let { remembered ->
             pendingClass = null
             identity = Identity(remembered, Identity.Via.CONFIRMED, reported)
-            selectedModel = remembered
-            query = remembered.name
+            stageModel(remembered)
             info("\"$reported\" names a family; this printer was confirmed as ${remembered.name} before.")
             return
         }
 
         identity = null
         pendingClass = PendingClass(reported, candidates)
+        selectedModel = null
+        query = ""
         warn(
             "This printer reports \"$reported\", which covers ${candidates.size} models that do not " +
                 "share a reset recipe. Pick the model printed on the printer itself — another " +
@@ -791,6 +821,9 @@ class ResetViewModel(
             },
             reported = device.device.product.orEmpty(),
         )
+        stageModel(fromScan)
+        pendingClass = null
+        manualModelRequested = false
     }
 
     /** Adds a printer by address, then immediately asks it what it is. */
@@ -870,6 +903,10 @@ class ResetViewModel(
                     val via =
                         if (result.overNetwork) Identity.Via.SNMP else Identity.Via.USB_EJL
                     identity = Identity(it, via, reported)
+                    stageModel(it)
+                    pendingClass = null
+                    manualModelRequested = false
+                    info("Matched to ${it.name} from what the printer reported.")
                 }
             }
             if (resolution.confidence == MatchedPrinter.Confidence.CLASS_ONLY) {
@@ -877,18 +914,30 @@ class ResetViewModel(
             }
             // Not while a family is outstanding: filling the selection in with one member and
             // saying it was matched is the sentence the prompt exists to stop being said.
-            if (selectedModel == null && pendingClass == null) {
+            if (resolution.confidence != MatchedPrinter.Confidence.EXACT &&
+                selectedModel == null && pendingClass == null
+            ) {
                 resolution.model?.let {
-                    selectedModel = it
-                    query = it.name
+                    stageModel(it)
                     info("Matched to ${it.name} from what the printer reported.")
                 }
             }
         }
     }
 
-    fun selectModel(model: PrinterModel) {
+    private fun stageModel(model: PrinterModel) {
+        val changed = selectedModel?.name != model.name
         selectedModel = model
+        query = model.name
+        if (changed) {
+            readReport = null
+            beforeReport = null
+            readWasSimulated = false
+        }
+    }
+
+    fun selectModel(model: PrinterModel) {
+        stageModel(model)
 
         val pending = pendingClass
         val settled = confirmedClass
@@ -934,6 +983,11 @@ class ResetViewModel(
         val key = printerKeys.firstOrNull()
 
         identity = null
+        selectedModel = null
+        query = ""
+        readReport = null
+        beforeReport = null
+        readWasSimulated = false
         scope.launch {
             if (key != null) withContext(io) { ModelChoices.forget(choicesFile(), key) }
             val candidates = DeviceMatcher.resolve(reported, db).candidates
@@ -949,8 +1003,7 @@ class ResetViewModel(
     /** Puts back the model the last session ended on. */
     fun restoreModel(model: PrinterModel) {
         if (selectedModel != null || identifiedModel != null) return
-        selectedModel = model
-        query = model.name
+        stageModel(model)
     }
 
     /** Puts the selection back on what the printer said it was, and re-locks the picker. */
@@ -958,8 +1011,7 @@ class ResetViewModel(
         val model = identifiedModel ?: return
         manualModelRequested = false
         if (selectedModel?.name != model.name) {
-            selectedModel = model
-            query = model.name
+            stageModel(model)
             if (runState is RunState.Finished) runState = RunState.Idle
             info("Back to ${model.name}, which is what this printer reports itself as.")
         }
