@@ -4,7 +4,7 @@
 ./gradlew test
 ```
 
-338 of them, no hardware and no network required. What they cover is the software; what a printer
+433 of them, no hardware and no network required. What they cover is the software; what a printer
 has actually been observed doing is in [Field notes](field-notes.md).
 
 Worth knowing what the harder ones cover:
@@ -13,7 +13,12 @@ Worth knowing what the harder ones cover:
   can be told to misbehave: an address that answers no read (the run must stop before the first
   write), a backup directory it cannot write to (likewise), and a printer that acknowledges every
   write and commits none (the read-back must catch it). `ResetViewModel` takes its transport,
-  discovery and backup directory as constructor parameters so these can be reached at all.
+  discovery and backup directory as constructor parameters so these can be reached at all. The
+  same file drives the extracted `CalibrationState`, `SnapshotState` and `MaintenanceState` through
+  `vm.calibration`, `vm.snapshot` and `vm.maintenance`; the split changes ownership, not assertions.
+- **The maintenance safety flow.** A scripted idle printer proves that cleaning stays unreachable
+  until a nozzle-check pattern is answered “gaps,” while “no gaps,” a busy status, and a network
+  target all keep it closed. The same test pins maintenance trace output to the shared log.
 - **The network path**, against a loopback SNMP agent — including
   [the write gate](network-printers.md#the-write-gate) from both sides: a write refused before any
   read has succeeded, and allowed after one has.

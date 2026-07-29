@@ -9,6 +9,11 @@ db/         PrinterModel, PrinterDatabase (reset data) + CounterSpec, CounterSpe
 protocol/   EpsonD4 constants, SequenceGenerator, Executor, CounterReader, DeviceId
             EscpRemote — the command inside a 1284.4 packet, for links that aren't USB
             FactoryReply — telling a refusal apart from a rejection and from an answer
+            Maintenance — nozzle check and cleaning: the one path that fills the pad rather
+            than reading or clearing its counter
+            RemoteMode — the ESC/P2 print-data form of a command, for the actions the
+            control channel parses but declines to perform
+            Alignment — DT/DA/SV: print the patterns, submit a choice per pass, persist
 backup/     EepromBackup — the snapshot (taken before a write, or on request), the gate that
             blocks a run without one, and the read-back that makes a saved one viewable
             SnapshotComparison — two samples and what moved between them, at the counter
@@ -23,7 +28,9 @@ prefs/      Preferences + PreferencesStore (what survives a launch), ScreenFit �
             remembered window position still lands on a screen that exists
 update/     AppVersion (stamped into the jar at build time), UpdateCheck — is there a newer
             release than this one
-ui/         Compose screens and the view model — Reset, Models, Inspect, Snapshots
+ui/         Compose screens — Reset, Models, Inspect, Maintenance, Snapshots — and the shared
+            ResetViewModel core; CalibrationState, InspectState, SnapshotState and
+            MaintenanceState own their area's state and actions
 tools/      convert_reinkpy.py — regenerates counters.json and database.json from upstream
 installer/  windows/EpsonReset.iss — Inno Setup script the Windows CI job compiles
 .github/    ci.yml (tests per push), build.yml (installers on tags), sync-printer-data.yml
@@ -36,6 +43,12 @@ Two things about that seam are load-bearing elsewhere: `SnmpTransport` carries
 [the write gate](network-printers.md#the-write-gate), and `FakeTransport`'s invented bytes are why
 snapshots, comparisons and calibrations are all refused in a dry run — a fabricated reading is
 indistinguishable from a measured one once it's in a file.
+
+`ResetViewModel` owns only state shared across screens: database loading, discovery and selection,
+transport opening, settings, cancellation, the tab, and the common log/progress facilities. Each
+larger area is constructed from narrow getters and callbacks into that core, with no holder keeping
+a back-reference to the whole view model. UI call sites make the boundary visible (`vm.snapshot`,
+`vm.calibration`, `vm.inspect`, `vm.maintenance`).
 
 ## Families, and why a match is not always an identification
 

@@ -19,9 +19,12 @@ import nl.redlabs.epsonreset.device.ModelChoices
 import nl.redlabs.epsonreset.device.PrinterDiscovery
 import nl.redlabs.epsonreset.device.PrinterTransports
 import nl.redlabs.epsonreset.protocol.Executor
+import nl.redlabs.epsonreset.protocol.Maintenance
 import nl.redlabs.epsonreset.protocol.Status
 import nl.redlabs.epsonreset.protocol.Transport
+import nl.redlabs.epsonreset.ui.MaintenanceState
 import nl.redlabs.epsonreset.ui.ResetViewModel
+import nl.redlabs.epsonreset.ui.SnapshotState
 import nl.redlabs.epsonreset.usb.UsbPrinterScanner
 import java.io.File
 import kotlin.io.path.createTempDirectory
@@ -483,7 +486,7 @@ class ViewModelRestoreGateTest {
     fun `refuses a backup belonging to another model`() = runTest {
         val vm = ready()
 
-        vm.restore(backup(model = "OTHER-9"))
+        vm.snapshot.restore(backup(model = "OTHER-9"))
 
         assertEquals(ResetViewModel.RunState.Idle, vm.runState)
         assertTrue(vm.said("Refusing to write one model's bytes to another"), vm.lastLine)
@@ -493,7 +496,7 @@ class ViewModelRestoreGateTest {
     fun `refuses when the printer reports a different serial`() = runTest {
         val vm = ready(deviceSerial = "UNIT-B")
 
-        vm.restore(backup(serial = "UNIT-A"))
+        vm.snapshot.restore(backup(serial = "UNIT-A"))
 
         assertEquals(ResetViewModel.RunState.Idle, vm.runState)
         assertTrue(vm.said("came from UNIT-A"), vm.lastLine)
@@ -503,7 +506,7 @@ class ViewModelRestoreGateTest {
     fun `writes when the serials agree`() = runTest {
         val vm = ready(deviceSerial = "UNIT-A")
 
-        vm.restore(backup(serial = "UNIT-A"))
+        vm.snapshot.restore(backup(serial = "UNIT-A"))
         advanceUntilIdle()
 
         assertIs<ResetViewModel.RunState.Finished>(vm.runState)
@@ -518,7 +521,7 @@ class ViewModelRestoreGateTest {
     fun `allows an unconfirmable unit but says so`() = runTest {
         val vm = ready(deviceSerial = null)
 
-        vm.restore(backup(serial = null))
+        vm.snapshot.restore(backup(serial = null))
         advanceUntilIdle()
 
         assertIs<ResetViewModel.RunState.Finished>(vm.runState)
@@ -531,7 +534,7 @@ class ViewModelRestoreGateTest {
         vm.selectModel(testModel)
         vm.dryRun = false
 
-        vm.restore(backup())
+        vm.snapshot.restore(backup())
 
         assertEquals(ResetViewModel.RunState.Idle, vm.runState)
         assertTrue(vm.said("Select the printer to restore to first"), vm.lastLine)
@@ -550,7 +553,7 @@ class ViewModelRestoreGateTest {
         advanceUntilIdle()
         assertEquals("UNIT-A", assertNotNull(vm.status).serial)
 
-        vm.restore(backup(serial = "UNIT-B"))
+        vm.snapshot.restore(backup(serial = "UNIT-B"))
 
         assertEquals(ResetViewModel.RunState.Idle, vm.runState)
         assertTrue(vm.said("came from UNIT-B"), vm.lastLine)
@@ -563,11 +566,93 @@ class ViewModelRestoreGateTest {
         vm.selectModel(testModel)
         vm.dryRun = true
 
-        vm.restore(backup(model = "OTHER-9"))
+        vm.snapshot.restore(backup(model = "OTHER-9"))
         advanceUntilIdle()
 
         assertIs<ResetViewModel.RunState.Finished>(vm.runState)
         assertTrue(vm.said("A live run would refuse"))
+    }
+}
+
+/** The UI safety sequence in front of ink-spending maintenance. */
+class ViewModelMaintenanceTest {
+
+    @Test
+    fun `cleaning is reachable only after a nozzle pattern with gaps`() = runTest {
+        val hardware = ScriptedPrinter(state = Status.STATE_IDLE)
+        val vm = viewModel(transport = hardware)
+        vm.select(printer())
+
+        assertFalse(vm.maintenance.cleaningEnabled)
+        assertFalse(vm.maintenance.canRun(Maintenance.Operation.HEAD_CLEANING))
+
+        vm.maintenance.run(Maintenance.Operation.NOZZLE_CHECK)
+        advanceUntilIdle()
+
+        assertEquals(
+            MaintenanceState.PatternAssessment.AWAITING_ANSWER,
+            vm.maintenance.patternAssessment,
+        )
+        assertTrue(vm.log.any { it.level == ResetViewModel.Level.TRACE }, "maintenance must reach the shared trace log")
+
+        vm.maintenance.answerNozzleCheck(hasGaps = false)
+        assertFalse(vm.maintenance.cleaningEnabled)
+
+        vm.maintenance.run(Maintenance.Operation.NOZZLE_CHECK)
+        advanceUntilIdle()
+        vm.maintenance.answerNozzleCheck(hasGaps = true)
+
+        assertTrue(vm.maintenance.cleaningEnabled)
+        vm.maintenance.run(Maintenance.Operation.HEAD_CLEANING)
+        advanceUntilIdle()
+        assertTrue(vm.maintenance.cleaningCompleted)
+    }
+
+    @Test
+    fun `nozzle evidence does not enable cleaning on another printer`() = runTest {
+        val vm = viewModel(transport = ScriptedPrinter(state = Status.STATE_IDLE))
+        vm.select(printer(serial = "UNIT-A"))
+        vm.maintenance.run(Maintenance.Operation.NOZZLE_CHECK)
+        advanceUntilIdle()
+        vm.maintenance.answerNozzleCheck(hasGaps = true)
+        assertTrue(vm.maintenance.cleaningEnabled)
+
+        vm.select(printer(serial = "UNIT-B", link = Link.Usb(1, 5, 1, 0x81.toByte(), 0x02, true)))
+
+        assertEquals(
+            MaintenanceState.PatternAssessment.NOT_CHECKED,
+            vm.maintenance.patternAssessment,
+        )
+        assertFalse(vm.maintenance.cleaningEnabled)
+    }
+
+    @Test
+    fun `network maintenance is refused with a USB explanation before opening the printer`() = runTest {
+        val hardware = ScriptedPrinter(state = Status.STATE_IDLE)
+        val vm = viewModel(transport = hardware)
+        vm.select(printer(link = Link.Network("192.168.1.50")))
+
+        val reason = assertNotNull(vm.maintenance.blockedReason)
+        assertContains(reason, "USB only")
+        assertContains(reason, "SNMP control channel")
+
+        vm.maintenance.run(Maintenance.Operation.NOZZLE_CHECK)
+        advanceUntilIdle()
+
+        assertEquals(0, hardware.packets)
+        assertTrue(vm.said("Connect this printer over USB"), vm.lastLine)
+    }
+
+    @Test
+    fun `the printer status busy gate is shown before maintenance`() = runTest {
+        val vm = viewModel(transport = ScriptedPrinter(state = Status.STATE_CLEANING))
+        vm.select(printer())
+        vm.dryRun = false
+        vm.readCounters()
+        advanceUntilIdle()
+
+        assertContains(assertNotNull(vm.maintenance.blockedReason), "cleaning")
+        assertFalse(vm.maintenance.canRun(Maintenance.Operation.NOZZLE_CHECK))
     }
 }
 
@@ -604,7 +689,7 @@ class ViewModelModelLockTest {
         vm.dryRun = false
 
         // Belongs to the model that is selected, so only the printer's own answer can refuse it.
-        vm.restore(
+        vm.snapshot.restore(
             EepromBackup(
                 model = "OTHER-9",
                 createdAt = "20260727T004500Z",
@@ -955,8 +1040,8 @@ class ViewModelSnapshotTest {
         vm.readCounters()
         advanceUntilIdle()
 
-        assertTrue(vm.canSaveSnapshot, vm.snapshotBlockedReason ?: "")
-        vm.saveSnapshot()
+        assertTrue(vm.snapshot.canSaveSnapshot, vm.snapshot.snapshotBlockedReason ?: "")
+        vm.snapshot.saveSnapshot()
         advanceUntilIdle()
 
         val file = assertNotNull(dir.listFiles()?.singleOrNull { it.name.endsWith(".json") })
@@ -965,7 +1050,7 @@ class ViewModelSnapshotTest {
         assertEquals(listOf(0x19, 0x0F), saved.entries.map { it.value })
         assertEquals("UNIT-A", saved.printerSerial)
         assertTrue(hardware.writes.isEmpty(), "a snapshot writes a file, not EEPROM")
-        assertEquals(file, assertNotNull(vm.selectedSnapshot).file)
+        assertEquals(file, assertNotNull(vm.snapshot.selectedSnapshot).file)
     }
 
     /** The load-bearing one for this feature. */
@@ -980,9 +1065,9 @@ class ViewModelSnapshotTest {
         advanceUntilIdle()
 
         assertNotNull(vm.readReport)
-        assertFalse(vm.canSaveSnapshot)
+        assertFalse(vm.snapshot.canSaveSnapshot)
 
-        vm.saveSnapshot()
+        vm.snapshot.saveSnapshot()
         advanceUntilIdle()
 
         assertTrue(dir.listFiles().orEmpty().isEmpty(), "nothing may be saved from a simulated read")
@@ -1000,7 +1085,7 @@ class ViewModelSnapshotTest {
         vm.readCounters()
         advanceUntilIdle()
 
-        vm.saveSnapshot()
+        vm.snapshot.saveSnapshot()
         advanceUntilIdle()
 
         assertTrue(dir.listFiles().orEmpty().isEmpty())
@@ -1021,13 +1106,13 @@ class ViewModelSnapshotTest {
         vm.dryRun = false
         vm.readCounters()
         advanceUntilIdle()
-        vm.saveSnapshot()
+        vm.snapshot.saveSnapshot()
         advanceUntilIdle()
 
         val quiet = hardware.packets
-        vm.selectSnapshot(vm.snapshots.single())
+        vm.snapshot.selectSnapshot(vm.snapshot.snapshots.single())
 
-        val report = assertNotNull(vm.snapshotReport)
+        val report = assertNotNull(vm.snapshot.snapshotReport)
         assertEquals(listOf(58, 59), report.readings.map { it.address })
         assertEquals(listOf(0x19, 0x0F), report.readings.map { it.value })
         assertEquals(2, report.answered)
@@ -1041,10 +1126,10 @@ class ViewModelSnapshotTest {
         File(dir, "TEST-1-20260727T004500Z.json").writeText("{ not a backup")
         val vm = viewModel(backupDir = dir)
 
-        vm.refreshSnapshots()
+        vm.snapshot.refreshSnapshots()
         advanceUntilIdle()
 
-        assertNull(vm.snapshots.single().backup)
+        assertNull(vm.snapshot.snapshots.single().backup)
     }
 
     /** The restore gate reaches this screen too. */
@@ -1058,8 +1143,8 @@ class ViewModelSnapshotTest {
         vm.readCounters()
         advanceUntilIdle()
 
-        vm.selectSnapshot(
-            ResetViewModel.SavedSnapshot(
+        vm.snapshot.selectSnapshot(
+            SnapshotState.SavedSnapshot(
                 file = File(dir, "OTHER-9.json"),
                 backup = EepromBackup(
                     model = "OTHER-9",
@@ -1070,9 +1155,9 @@ class ViewModelSnapshotTest {
             ),
         )
 
-        assertContains(assertNotNull(vm.snapshotRestoreBlockedReason), "OTHER-9")
+        assertContains(assertNotNull(vm.snapshot.snapshotRestoreBlockedReason), "OTHER-9")
 
-        vm.restoreSelectedSnapshot()
+        vm.snapshot.restoreSelectedSnapshot()
         advanceUntilIdle()
 
         assertEquals(ResetViewModel.RunState.Idle, vm.runState)
@@ -1107,14 +1192,14 @@ class ViewModelComparisonTest {
         vm.dryRun = false
         vm.readCounters()
         advanceUntilIdle()
-        vm.saveSnapshot()
+        vm.snapshot.saveSnapshot()
         advanceUntilIdle()
 
         val quiet = hardware.packets
-        vm.selectSnapshot(vm.snapshots.single())
+        vm.snapshot.selectSnapshot(vm.snapshot.snapshots.single())
 
-        assertEquals(ResetViewModel.CompareTarget.None, vm.compareTarget)
-        assertNull(vm.comparison)
+        assertEquals(SnapshotState.CompareTarget.None, vm.snapshot.compareTarget)
+        assertNull(vm.snapshot.comparison)
         assertEquals(quiet, hardware.packets, "opening a snapshot must send nothing")
     }
 
@@ -1132,9 +1217,9 @@ class ViewModelComparisonTest {
         vm.dryRun = false
         vm.readCounters()
         advanceUntilIdle()
-        vm.saveSnapshot()
+        vm.snapshot.saveSnapshot()
         advanceUntilIdle()
-        val taken = assertNotNull(vm.selectedSnapshot)
+        val taken = assertNotNull(vm.snapshot.selectedSnapshot)
 
         vm.run()
         advanceUntilIdle()
@@ -1144,10 +1229,10 @@ class ViewModelComparisonTest {
         advanceUntilIdle()
         assertNull(vm.beforeReport)
 
-        vm.selectSnapshot(taken)
-        vm.compareWithCurrentReading()
+        vm.snapshot.selectSnapshot(taken)
+        vm.snapshot.compareWithCurrentReading()
 
-        val result = assertNotNull(vm.comparison)
+        val result = assertNotNull(vm.snapshot.comparison)
         assertTrue(result.afterIsAtResetValue, result.summary)
         assertEquals(0x19, result.bytes.first { it.address == 58 }.before)
         assertEquals(0x00, result.bytes.first { it.address == 58 }.after)
@@ -1164,14 +1249,14 @@ class ViewModelComparisonTest {
         vm.dryRun = true
         vm.readCounters()
         advanceUntilIdle()
-        vm.refreshSnapshots()
+        vm.snapshot.refreshSnapshots()
         advanceUntilIdle()
 
-        vm.selectSnapshot(vm.snapshots.single())
-        vm.compareWithCurrentReading()
+        vm.snapshot.selectSnapshot(vm.snapshot.snapshots.single())
+        vm.snapshot.compareWithCurrentReading()
 
-        assertEquals(ResetViewModel.CompareTarget.None, vm.compareTarget)
-        assertNull(vm.comparison)
+        assertEquals(SnapshotState.CompareTarget.None, vm.snapshot.compareTarget)
+        assertNull(vm.snapshot.comparison)
         assertTrue(vm.said("simulated EEPROM"), vm.lastLine)
     }
 
@@ -1184,12 +1269,12 @@ class ViewModelComparisonTest {
 
         vm.select(printer())
         vm.dryRun = true
-        vm.refreshSnapshots()
+        vm.snapshot.refreshSnapshots()
         advanceUntilIdle()
-        vm.selectSnapshot(vm.snapshots.single())
+        vm.snapshot.selectSnapshot(vm.snapshot.snapshots.single())
 
-        assertContains(assertNotNull(vm.compareReadBlockedReason), "Dry run")
-        assertFalse(vm.canReadForComparison)
+        assertContains(assertNotNull(vm.snapshot.compareReadBlockedReason), "Dry run")
+        assertFalse(vm.snapshot.canReadForComparison)
     }
 
     /**
@@ -1203,23 +1288,23 @@ class ViewModelComparisonTest {
         val newer = saved("20260727T004500Z", 0x20).save(dir)
         val vm = viewModel(backupDir = dir)
 
-        vm.refreshSnapshots()
+        vm.snapshot.refreshSnapshots()
         advanceUntilIdle()
 
         // Selected newer, compared against older: the older one is still "before".
-        vm.selectSnapshot(vm.snapshots.first { it.file == newer })
-        vm.compareWithSnapshot(older)
+        vm.snapshot.selectSnapshot(vm.snapshot.snapshots.first { it.file == newer })
+        vm.snapshot.compareWithSnapshot(older)
 
-        val forward = assertNotNull(vm.comparison)
+        val forward = assertNotNull(vm.snapshot.comparison)
         assertEquals(older.name, forward.before.label)
         assertEquals(0x10, forward.bytes.first { it.address == 58 }.before)
         assertEquals(0x20, forward.bytes.first { it.address == 58 }.after)
 
         // And the other way round, which must produce exactly the same comparison.
-        vm.selectSnapshot(vm.snapshots.first { it.file == older })
-        vm.compareWithSnapshot(newer)
+        vm.snapshot.selectSnapshot(vm.snapshot.snapshots.first { it.file == older })
+        vm.snapshot.compareWithSnapshot(newer)
 
-        val reverse = assertNotNull(vm.comparison)
+        val reverse = assertNotNull(vm.snapshot.comparison)
         assertEquals(older.name, reverse.before.label)
         assertEquals(0x20, reverse.bytes.first { it.address == 58 }.after)
     }
@@ -1232,16 +1317,16 @@ class ViewModelComparisonTest {
         saved("20260727T004500Z", 0x20).save(dir)
         val vm = viewModel(backupDir = dir)
 
-        vm.refreshSnapshots()
+        vm.snapshot.refreshSnapshots()
         advanceUntilIdle()
-        vm.selectSnapshot(vm.snapshots.first())
-        vm.compareWithSnapshot(older)
-        assertNotNull(vm.comparison)
+        vm.snapshot.selectSnapshot(vm.snapshot.snapshots.first())
+        vm.snapshot.compareWithSnapshot(older)
+        assertNotNull(vm.snapshot.comparison)
 
-        vm.selectSnapshot(vm.snapshots.last())
+        vm.snapshot.selectSnapshot(vm.snapshot.snapshots.last())
 
-        assertEquals(ResetViewModel.CompareTarget.None, vm.compareTarget)
-        assertNull(vm.comparison)
+        assertEquals(SnapshotState.CompareTarget.None, vm.snapshot.compareTarget)
+        assertNull(vm.snapshot.comparison)
     }
 
     /** Only snapshots of the same model are offered — the rest are not comparable at all. */
@@ -1257,11 +1342,11 @@ class ViewModelComparisonTest {
         ).save(dir)
         val vm = viewModel(backupDir = dir)
 
-        vm.refreshSnapshots()
+        vm.snapshot.refreshSnapshots()
         advanceUntilIdle()
-        vm.selectSnapshot(vm.snapshots.first { it.backup?.model == "TEST-1" })
+        vm.snapshot.selectSnapshot(vm.snapshot.snapshots.first { it.backup?.model == "TEST-1" })
 
-        assertTrue(vm.compareCandidates.isEmpty(), "${vm.compareCandidates.map { it.file.name }}")
+        assertTrue(vm.snapshot.compareCandidates.isEmpty(), "${vm.snapshot.compareCandidates.map { it.file.name }}")
     }
 
     /**
@@ -1279,17 +1364,17 @@ class ViewModelComparisonTest {
         advanceUntilIdle()
 
         // Nothing saved yet.
-        assertFalse(vm.canOfferComparison)
+        assertFalse(vm.snapshot.canOfferComparison)
 
-        vm.saveSnapshot()
+        vm.snapshot.saveSnapshot()
         advanceUntilIdle()
 
-        assertTrue(vm.canOfferComparison)
+        assertTrue(vm.snapshot.canOfferComparison)
 
-        vm.compareCurrentReadingWithNewestSnapshot()
+        vm.snapshot.compareCurrentReadingWithNewestSnapshot()
         assertEquals(ResetViewModel.Tab.SNAPSHOTS, vm.tab)
-        assertEquals(ResetViewModel.CompareTarget.CurrentReading, vm.compareTarget)
-        assertNotNull(vm.comparison)
+        assertEquals(SnapshotState.CompareTarget.CurrentReading, vm.snapshot.compareTarget)
+        assertNotNull(vm.snapshot.comparison)
     }
 }
 
@@ -1432,7 +1517,7 @@ class ViewModelCalibrationTest {
         vm.dryRun = dryRun
         vm.readCounters()
         advanceUntilIdle()
-        vm.openCalibration()
+        vm.calibration.open()
         return vm
     }
 
@@ -1440,13 +1525,13 @@ class ViewModelCalibrationTest {
     fun `a dry run cannot be calibrated from`() = runTest {
         val vm = readied(dryRun = true)
 
-        assertContains(assertNotNull(vm.calibrationBlockedReason), "simulated EEPROM")
+        assertContains(assertNotNull(vm.calibration.blockedReason), "simulated EEPROM")
 
-        vm.setCalibrationServiceRequired(listOf(48, 49), true)
-        assertFalse(vm.canSubmitCalibration)
+        vm.calibration.setServiceRequired(listOf(48, 49), true)
+        assertFalse(vm.calibration.canSubmit)
 
-        vm.applyCalibrationToSession()
-        assertFalse(vm.calibrationApplied, "invented bytes must not become a maximum")
+        vm.calibration.applyToSession()
+        assertFalse(vm.calibration.applied, "invented bytes must not become a maximum")
     }
 
     private fun ResetViewModel.percentShown(addresses: List<Int>): Double? =
@@ -1460,10 +1545,10 @@ class ViewModelCalibrationTest {
     fun `a live reading re-derives the maximum this model was calibrated with`() = runTest {
         val vm = readied(dryRun = false)
 
-        assertNull(vm.calibrationBlockedReason)
-        vm.setCalibrationPercent(listOf(48, 49), "60.90")
+        assertNull(vm.calibration.blockedReason)
+        vm.calibration.setPercent(listOf(48, 49), "60.90")
 
-        val measured = vm.calibrationMeasurements.single()
+        val measured = vm.calibration.measurements.single()
         assertEquals(3865L, measured.value)
         assertEquals(6346, measured.max)
     }
@@ -1477,10 +1562,10 @@ class ViewModelCalibrationTest {
         val vm = readied(dryRun = false)
         assertEquals(60.90, assertNotNull(vm.percentShown(listOf(48, 49))), 0.005)
 
-        vm.setCalibrationServiceRequired(listOf(48, 49), true)
-        vm.applyCalibrationToSession()
+        vm.calibration.setServiceRequired(listOf(48, 49), true)
+        vm.calibration.applyToSession()
 
-        assertTrue(vm.calibrationApplied)
+        assertTrue(vm.calibration.applied)
         assertEquals(100.0, assertNotNull(vm.percentShown(listOf(48, 49))), 0.005)
     }
 
@@ -1494,14 +1579,14 @@ class ViewModelCalibrationTest {
         val vm = readied(dryRun = false)
         val before = assertNotNull(vm.percentShown(listOf(48, 49)))
 
-        vm.setCalibrationServiceRequired(listOf(48, 49), true)
-        vm.applyCalibrationToSession()
+        vm.calibration.setServiceRequired(listOf(48, 49), true)
+        vm.calibration.applyToSession()
         assertEquals(100.0, assertNotNull(vm.percentShown(listOf(48, 49))), 0.005)
 
-        vm.revertSessionCalibration()
+        vm.calibration.revertSession()
         advanceUntilIdle()
 
-        assertFalse(vm.calibrationApplied)
+        assertFalse(vm.calibration.applied)
         assertEquals(before, assertNotNull(vm.percentShown(listOf(48, 49))), 0.005)
         assertTrue(vm.said("back to what is on disk"), vm.lastLine)
     }
@@ -1510,22 +1595,22 @@ class ViewModelCalibrationTest {
     @Test
     fun `re-reading clears the form`() = runTest {
         val vm = readied(dryRun = false)
-        vm.setCalibrationPercent(listOf(48, 49), "60.90")
-        assertTrue(vm.canSubmitCalibration)
+        vm.calibration.setPercent(listOf(48, 49), "60.90")
+        assertTrue(vm.calibration.canSubmit)
 
         vm.readCounters()
         advanceUntilIdle()
 
-        assertFalse(vm.canSubmitCalibration)
-        assertEquals("", vm.calibrationInput(listOf(48, 49)).percent)
+        assertFalse(vm.calibration.canSubmit)
+        assertEquals("", vm.calibration.input(listOf(48, 49)).percent)
     }
 
     @Test
     fun `the entry names the model on the form and carries the measured maximum`() = runTest {
         val vm = readied(dryRun = false)
-        vm.setCalibrationServiceRequired(listOf(48, 49), true)
+        vm.calibration.setServiceRequired(listOf(48, 49), true)
 
-        val entry = vm.calibrationEntry()
+        val entry = vm.calibration.entry()
         assertContains(entry, """"models": ["ET-2820"]""")
         assertContains(entry, """"max": 3865""")
         assertContains(entry, """"at": "service required"""")
@@ -1540,25 +1625,25 @@ class ViewModelCalibrationTest {
         val vm = readied(dryRun = false)
 
         // select() matched EXACTLY, so this printer named itself — the strongest identification.
-        assertEquals("ET-2820", vm.calibrationModel)
-        assertNull(vm.calibrationModelWarning)
+        assertEquals("ET-2820", vm.calibration.model)
+        assertNull(vm.calibration.modelWarning)
 
         // Every model on this layout is on offer, its own series first.
-        assertTrue(vm.calibrationLayoutSiblings.size > 100, "the ET-2820 layout is widely shared")
-        assertContains(vm.calibrationModelCandidates, "ET-2825")
+        assertTrue(vm.calibration.layoutSiblings.size > 100, "the ET-2820 layout is widely shared")
+        assertContains(vm.calibration.modelCandidates, "ET-2825")
 
-        vm.setCalibrationServiceRequired(listOf(48, 49), true)
-        vm.calibrationModel = "ET-2825"
-        assertContains(vm.calibrationEntry(), """"models": ["ET-2825"]""")
-        assertContains(assertNotNull(vm.calibrationModelWarning), "names itself ET-2820")
+        vm.calibration.setServiceRequired(listOf(48, 49), true)
+        vm.calibration.model = "ET-2825"
+        assertContains(vm.calibration.entry(), """"models": ["ET-2825"]""")
+        assertContains(assertNotNull(vm.calibration.modelWarning), "names itself ET-2820")
     }
 
     @Test
     fun `a family name is refused as the thing being calibrated`() = runTest {
         val vm = readied(dryRun = false)
-        vm.calibrationModel = "ET-2820 Series"
+        vm.calibration.model = "ET-2820 Series"
 
-        assertContains(assertNotNull(vm.calibrationModelWarning), "names a family, not a unit")
+        assertContains(assertNotNull(vm.calibration.modelWarning), "names a family, not a unit")
     }
 
     /**
@@ -1571,8 +1656,8 @@ class ViewModelCalibrationTest {
 
         assertEquals(ResetViewModel.Identity.Via.USB_DESCRIPTOR, assertNotNull(vm.identity).via)
 
-        vm.calibrationModel = "ET-2825"
-        val warning = assertNotNull(vm.calibrationModelWarning)
+        vm.calibration.model = "ET-2825"
+        val warning = assertNotNull(vm.calibration.modelWarning)
         assertContains(warning, "its USB descriptor")
         assertFalse(warning.contains("SNMP"), "nothing here came over SNMP: $warning")
     }
@@ -1586,8 +1671,8 @@ class ViewModelCalibrationTest {
     fun `a family named by the descriptor is queried even when the prefilled name is kept`() = runTest {
         val vm = readied(dryRun = false, product = "EPSON ET-2820 Series")
 
-        assertEquals("ET-2820", vm.calibrationModel)
-        val warning = assertNotNull(vm.calibrationModelWarning)
+        assertEquals("ET-2820", vm.calibration.model)
+        val warning = assertNotNull(vm.calibration.modelWarning)
         assertContains(warning, "EPSON ET-2820 Series")
         assertContains(warning, "its USB descriptor")
         assertContains(warning, "covers several units")
@@ -1598,8 +1683,8 @@ class ViewModelCalibrationTest {
     fun `correcting a family-derived name is not reported as overriding the printer`() = runTest {
         val vm = readied(dryRun = false, product = "EPSON ET-2820 Series")
 
-        vm.calibrationModel = "ET-2825"
-        val warning = assertNotNull(vm.calibrationModelWarning)
+        vm.calibration.model = "ET-2825"
+        val warning = assertNotNull(vm.calibration.modelWarning)
         assertContains(warning, "is a family rather than a unit")
         assertContains(warning, "better name to file")
         assertFalse(warning.contains("overrides"), "the descriptor named no unit to override: $warning")
@@ -1616,10 +1701,10 @@ class ViewModelCalibrationTest {
         vm.select(classPrinter().copy(model = et2820))
         vm.selectModel(et2820)
         advanceUntilIdle()
-        vm.openCalibration()
+        vm.calibration.open()
 
-        vm.calibrationModel = "ET-2825"
-        val warning = assertNotNull(vm.calibrationModelWarning)
+        vm.calibration.model = "ET-2825"
+        val warning = assertNotNull(vm.calibration.modelWarning)
         assertContains(warning, "You confirmed this printer as ET-2820")
         assertFalse(warning.contains("SNMP"), "the printer named a family, not a unit: $warning")
     }
@@ -1627,11 +1712,11 @@ class ViewModelCalibrationTest {
     @Test
     fun `nothing can be filed without a model name`() = runTest {
         val vm = readied(dryRun = false)
-        vm.setCalibrationServiceRequired(listOf(48, 49), true)
-        assertTrue(vm.canSubmitCalibration)
+        vm.calibration.setServiceRequired(listOf(48, 49), true)
+        assertTrue(vm.calibration.canSubmit)
 
-        vm.calibrationModel = "  "
-        assertFalse(vm.canSubmitCalibration)
+        vm.calibration.model = "  "
+        assertFalse(vm.calibration.canSubmit)
     }
 }
 

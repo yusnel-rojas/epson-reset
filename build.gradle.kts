@@ -185,6 +185,16 @@ tasks.register<JavaExec>("netProbe") {
     classpath = sourceSets["main"].runtimeClasspath
 }
 
+// Hardware experiment: find out whether a printer accepts the maintenance commands (nozzle check,
+// cleaning, alignment). Sends nothing without --live, because the live answer costs ink. See
+// debug/MaintenanceProbe.kt.
+tasks.register<JavaExec>("maintenanceProbe") {
+    group = "debug"
+    description = "Preview or run one maintenance operation against a connected printer"
+    mainClass.set("nl.redlabs.epsonreset.debug.MaintenanceProbe")
+    classpath = sourceSets["main"].runtimeClasspath
+}
+
 // Hardware experiment: ask the printer for its own status (ink levels, maintenance/waste state)
 // instead of computing a percentage against a maximum nobody publishes. Read-only.
 tasks.register<JavaExec>("statusProbe") {

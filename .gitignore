@@ -3,3 +3,4 @@ build/
 .idea/
 *.log
 local.properties
+.DS_Store

@@ -57,10 +57,11 @@ object Status {
         val errorCode: Int? get() = get(TYPE_ERROR)?.value?.firstOrNull()?.toInt()?.and(0xFF)
 
         /**
-         * Why the printer's own account of itself argues against writing to its EEPROM now, or null
-         * when it doesn't.
+         * Why the printer's own account of itself argues against giving it anything to do now, or
+         * null when it doesn't. Phrased without naming the operation, since every caller's answer
+         * to a busy printer is the same one.
          */
-        val writeBlocker: String?
+        val busyReason: String?
             get() {
                 val code = state ?: return null
                 if (code == STATE_IDLE) return null
@@ -69,6 +70,9 @@ object Status {
                 return "The printer reports it is " +
                     (STATES[code] ?: "in state 0x%02X".format(code)) + (detail ?: "") + "."
             }
+
+        /** Why writing to the EEPROM now is a bad idea, or null when it isn't. */
+        val writeBlocker: String? get() = busyReason
 
         override fun equals(other: Any?) = other is Report && fields == other.fields && raw.contentEquals(other.raw)
 
@@ -104,15 +108,23 @@ object Status {
     /** The one state a reset is allowed to run in. Confirmed: an idle ET-2820 reports 0x04. */
     const val STATE_IDLE = 0x04
 
+    /** Printing its own test pattern — what a nozzle check puts it into. */
+    const val STATE_SELF_TEST = 0x01
+
+    const val STATE_BUSY = 0x02
+
+    /** Running a cleaning cycle — what a cleaning command puts it into, and the one to wait out. */
+    const val STATE_CLEANING = 0x07
+
     /** States field 0x01 can report, phrased for the refusal they produce. */
     private val STATES = mapOf(
         0x00 to "reporting an error",
-        0x01 to "printing a self-test page",
-        0x02 to "busy",
+        STATE_SELF_TEST to "printing a self-test page",
+        STATE_BUSY to "busy",
         0x03 to "waiting",
         STATE_IDLE to "idle",
         0x05 to "paused",
-        0x07 to "cleaning the print head",
+        STATE_CLEANING to "cleaning the print head",
         0x08 to "in its factory-shipment state",
         0x0A to "shutting down",
     )

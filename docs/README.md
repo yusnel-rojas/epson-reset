@@ -11,6 +11,7 @@ to run it; everything below is the detail behind it.
 | [USB connections](usb-connection.md) | libusb, claiming the interface away from the print subsystem, per-platform remedies |
 | [Network printers](network-printers.md) | SNMP identity, the command passthrough, the write gate, refusals, discovery, `netProbe` |
 | [Backup and recovery](backup-and-restore.md) | Snapshots, the Snapshots tab, comparison, restoring, where a restore is allowed to land |
+| [Maintenance operations](maintenance.md) | Nozzle check and head cleaning — the one path that *fills* the pad, what is proven about it, and how to ask a printer |
 | [Preferences](preferences.md) | `preferences.json`, window placement, the update check |
 | [Command line](command-line.md) | The headless tasks behind the window: `diagnose`, `restore`, the probes |
 

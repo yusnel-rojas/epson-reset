@@ -82,6 +82,10 @@ fun App() {
                     ResetViewModel.Tab.INSPECT ->
                         InspectPanel(vm, Modifier.fillMaxWidth().weight(1f))
 
+                    // Also a guided sequence: establish need before the ink-spending operation.
+                    ResetViewModel.Tab.MAINTENANCE ->
+                        MaintenancePanel(vm, Modifier.fillMaxWidth().weight(1f))
+
                     // Its own selection — a file, not a printer — so it brings its own sidebar.
                     ResetViewModel.Tab.SNAPSHOTS ->
                         SnapshotPanel(vm, Modifier.fillMaxWidth().weight(1f))
@@ -193,6 +197,7 @@ private fun Tabs(vm: ResetViewModel) {
         Tab("Reset", vm.tab == ResetViewModel.Tab.RESET) { vm.tab = ResetViewModel.Tab.RESET }
         Tab("Models", vm.tab == ResetViewModel.Tab.MODELS) { vm.tab = ResetViewModel.Tab.MODELS }
         Tab("Inspect", vm.tab == ResetViewModel.Tab.INSPECT) { vm.tab = ResetViewModel.Tab.INSPECT }
+        Tab("Maintenance", vm.tab == ResetViewModel.Tab.MAINTENANCE) { vm.tab = ResetViewModel.Tab.MAINTENANCE }
         Tab("Snapshots", vm.tab == ResetViewModel.Tab.SNAPSHOTS) { vm.tab = ResetViewModel.Tab.SNAPSHOTS }
     }
 }

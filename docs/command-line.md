@@ -18,6 +18,7 @@ All of them take their arguments through Gradle's `--args`, quoted as one string
 | `netProbe` | Staged network probe of one address: is SNMP answering, what does it say it is, does the command passthrough exist, and `--read` for whether the firmware allows an EEPROM read — [Network printers](network-printers.md#probing-one-from-the-command-line). |
 | `readProbe` | Dumps every exchange of the USB D4 handshake and tries several read-command shapes, to find which one the firmware answers. Takes a model name, `ET-2825` by default. |
 | `statusProbe` | Asks a USB printer for its own maintenance status, instead of computing a percentage against a maximum nobody publishes. |
+| `maintenanceProbe` | Previews the nozzle-check and cleaning commands, and with `--live` runs one as ESC/P2 remote-mode print data — [Maintenance operations](maintenance.md). `--control` uses the 1284.4 channel instead, `--params=00,10` varies the parameter bytes, and `--no-precheck` skips the normal busy/error check. It never polls status after sending because doing so can interrupt the active print job. `align` runs head alignment in its three steps (`--choose=`, `--save`). The only probe that can spend ink, so it sends nothing without `--live`. |
 | `test` | The suite — [Tests](testing.md). |
 | `ktlintFormat` · `installGitHooks` | Formatting and the pre-commit hook — [Formatting](formatting.md). |
 | `packageDistributionForCurrentOS` | Installer for the machine you're on: dmg, exe or deb — [Builds and releases](releases.md). |

@@ -48,7 +48,7 @@ import nl.redlabs.epsonreset.protocol.CounterReader
 @Composable
 fun SnapshotPanel(vm: ResetViewModel, modifier: Modifier = Modifier) {
     // Entering the tab is the moment the list can be stale — a run may have written one since.
-    LaunchedEffect(Unit) { vm.refreshSnapshots() }
+    LaunchedEffect(Unit) { vm.snapshot.refreshSnapshots() }
 
     Row(modifier) {
         SnapshotList(vm, Modifier.width(380.dp).fillMaxHeight())
@@ -68,22 +68,22 @@ private fun SnapshotList(vm: ResetViewModel, modifier: Modifier = Modifier) {
             )
             Spacer(Modifier.weight(1f))
             TextButton(
-                onClick = { vm.refreshSnapshots() },
-                enabled = !vm.loadingSnapshots,
+                onClick = { vm.snapshot.refreshSnapshots() },
+                enabled = !vm.snapshot.loadingSnapshots,
             ) { Text("Refresh") }
         }
 
         Text(
-            "${vm.snapshots.size} saved · ${vm.snapshotDir}",
+            "${vm.snapshot.snapshots.size} saved · ${vm.snapshot.snapshotDir}",
             style = MaterialTheme.typography.labelSmall,
             color = StatusColors.muted,
         )
 
         Spacer(Modifier.height(10.dp))
 
-        if (vm.snapshots.isEmpty()) {
+        if (vm.snapshot.snapshots.isEmpty()) {
             Text(
-                if (vm.loadingSnapshots) {
+                if (vm.snapshot.loadingSnapshots) {
                     "Looking…"
                 } else {
                     "Nothing saved yet. Read the counters on the Reset tab and press Save " +
@@ -97,11 +97,11 @@ private fun SnapshotList(vm: ResetViewModel, modifier: Modifier = Modifier) {
         }
 
         LazyColumn {
-            items(vm.snapshots) { snapshot ->
+            items(vm.snapshot.snapshots) { snapshot ->
                 SnapshotRow(
                     snapshot = snapshot,
-                    selected = vm.selectedSnapshot?.file == snapshot.file,
-                    onClick = { vm.selectSnapshot(snapshot) },
+                    selected = vm.snapshot.selectedSnapshot?.file == snapshot.file,
+                    onClick = { vm.snapshot.selectSnapshot(snapshot) },
                 )
             }
         }
@@ -109,7 +109,7 @@ private fun SnapshotList(vm: ResetViewModel, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun SnapshotRow(snapshot: ResetViewModel.SavedSnapshot, selected: Boolean, onClick: () -> Unit) {
+private fun SnapshotRow(snapshot: SnapshotState.SavedSnapshot, selected: Boolean, onClick: () -> Unit) {
     val backup = snapshot.backup
 
     Column(
@@ -155,7 +155,7 @@ private fun SnapshotRow(snapshot: ResetViewModel.SavedSnapshot, selected: Boolea
 
 @Composable
 private fun SnapshotDetail(vm: ResetViewModel, modifier: Modifier = Modifier) {
-    val snapshot = vm.selectedSnapshot
+    val snapshot = vm.snapshot.selectedSnapshot
     val backup = snapshot?.backup
 
     if (backup == null) {
@@ -202,20 +202,20 @@ private fun SnapshotDetail(vm: ResetViewModel, modifier: Modifier = Modifier) {
         // The comparison replaces the single-sample view rather than sitting under it: it shows
         // both sides already, and two tables of the same bytes differing only in which sample they
         // came from is the layout most likely to be misread.
-        val comparison = vm.comparison
+        val comparison = vm.snapshot.comparison
         if (comparison != null) {
             Spacer(Modifier.height(16.dp))
             ComparisonResult(comparison)
             return@Column
         }
 
-        val counters = vm.snapshotCounters
+        val counters = vm.snapshot.snapshotCounters
         if (counters.isNotEmpty()) {
             Spacer(Modifier.height(16.dp))
             DecodedCounters(counters)
         }
 
-        vm.snapshotReport?.let { report ->
+        vm.snapshot.snapshotReport?.let { report ->
             Spacer(Modifier.height(12.dp))
             CounterTable(report, before = null)
         }
@@ -237,9 +237,9 @@ private fun SnapshotDetail(vm: ResetViewModel, modifier: Modifier = Modifier) {
 @Composable
 private fun CompareControls(vm: ResetViewModel) {
     var menuOpen by remember { mutableStateOf(false) }
-    val candidates = vm.compareCandidates
-    val active = vm.compareTarget != ResetViewModel.CompareTarget.None
-    val blocked = vm.compareReadBlockedReason
+    val candidates = vm.snapshot.compareCandidates
+    val active = vm.snapshot.compareTarget != SnapshotState.CompareTarget.None
+    val blocked = vm.snapshot.compareReadBlockedReason
 
     Column(
         Modifier
@@ -287,7 +287,7 @@ private fun CompareControls(vm: ResetViewModel) {
                             },
                             onClick = {
                                 menuOpen = false
-                                vm.compareWithSnapshot(candidate.file)
+                                vm.snapshot.compareWithSnapshot(candidate.file)
                             },
                         )
                     }
@@ -297,13 +297,13 @@ private fun CompareControls(vm: ResetViewModel) {
             Spacer(Modifier.width(8.dp))
 
             OutlinedButton(
-                onClick = { vm.readForComparison() },
-                enabled = vm.canReadForComparison,
+                onClick = { vm.snapshot.readForComparison() },
+                enabled = vm.snapshot.canReadForComparison,
             ) { Text(if (vm.reading) "Reading…" else "Read the printer now") }
 
             if (active) {
                 Spacer(Modifier.width(8.dp))
-                TextButton(onClick = { vm.clearComparison() }) { Text("Clear") }
+                TextButton(onClick = { vm.snapshot.clearComparison() }) { Text("Clear") }
             }
         }
 
@@ -477,7 +477,7 @@ private fun SnapshotHeader(vm: ResetViewModel, fileName: String, backup: EepromB
                     color = StatusColors.warn,
                 )
                 Spacer(Modifier.width(10.dp))
-                OutlinedButton(onClick = { vm.useSnapshotModel() }) {
+                OutlinedButton(onClick = { vm.snapshot.useSnapshotModel() }) {
                     Text("Select ${backup.model}")
                 }
             }
@@ -507,7 +507,7 @@ private fun Field(label: String, value: String) {
 private fun RestoreControls(vm: ResetViewModel, backup: EepromBackup) {
     var confirming by remember(backup) { mutableStateOf(false) }
     val running = vm.runState is ResetViewModel.RunState.Running
-    val blocked = vm.snapshotRestoreBlockedReason
+    val blocked = vm.snapshot.snapshotRestoreBlockedReason
 
     Column {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -527,14 +527,14 @@ private fun RestoreControls(vm: ResetViewModel, backup: EepromBackup) {
                     Button(
                         onClick = {
                             confirming = false
-                            vm.restoreSelectedSnapshot()
+                            vm.snapshot.restoreSelectedSnapshot()
                         },
                         colors = dangerButtonColors(),
                     ) { Text("Yes, write it back") }
                 }
 
                 vm.dryRun -> Button(
-                    onClick = { vm.restoreSelectedSnapshot() },
+                    onClick = { vm.snapshot.restoreSelectedSnapshot() },
                     enabled = blocked == null,
                 ) { Text("Simulate restore") }
 

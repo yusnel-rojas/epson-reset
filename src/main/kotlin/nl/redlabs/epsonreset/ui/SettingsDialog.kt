@@ -186,26 +186,26 @@ private fun CounterMaxima(vm: ResetViewModel) {
     Spacer(Modifier.height(8.dp))
     Text(
         when {
-            vm.overlayInForce ->
+            vm.calibration.overlayInForce ->
                 "An overlay file is in force. Counters it names read from it, not " +
                     "from the shipped figures."
-            vm.calibrationApplied -> "A calibration is applied to this session only."
+            vm.calibration.applied -> "A calibration is applied to this session only."
             else -> "No overlay and no session calibration — the shipped figures are in use."
         },
         style = MaterialTheme.typography.bodySmall,
-        color = if (vm.overlayInForce || vm.calibrationApplied) StatusColors.warn else StatusColors.muted,
+        color = if (vm.calibration.overlayInForce || vm.calibration.applied) StatusColors.warn else StatusColors.muted,
     )
 
-    if (!vm.overlayInForce && !vm.calibrationApplied) return
+    if (!vm.calibration.overlayInForce && !vm.calibration.applied) return
 
     Spacer(Modifier.height(8.dp))
     Row(verticalAlignment = Alignment.CenterVertically) {
-        if (vm.calibrationApplied) {
-            OutlinedButton(onClick = { vm.revertSessionCalibration() }) { Text("Undo for this session") }
+        if (vm.calibration.applied) {
+            OutlinedButton(onClick = { vm.calibration.revertSession() }) { Text("Undo for this session") }
             Spacer(Modifier.width(8.dp))
         }
-        if (vm.overlayInForce) {
-            OutlinedButton(onClick = { vm.removeCounterOverlay() }, colors = dangerOutline()) {
+        if (vm.calibration.overlayInForce) {
+            OutlinedButton(onClick = { vm.calibration.removeCounterOverlay() }, colors = dangerOutline()) {
                 Text("Delete the overlay file")
             }
         }
@@ -231,7 +231,7 @@ private fun DataDirectory(vm: ResetViewModel) {
         color = StatusColors.muted,
     )
     Spacer(Modifier.height(8.dp))
-    OutlinedButton(onClick = { vm.openDataDirectory() }) { Text("Open data directory") }
+    OutlinedButton(onClick = { vm.calibration.openDataDirectory() }) { Text("Open data directory") }
 }
 
 /**

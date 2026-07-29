@@ -1,7 +1,5 @@
 package nl.redlabs.epsonreset.ui
-
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
@@ -38,6 +36,7 @@ import nl.redlabs.epsonreset.probe.SweepAnalysis
 @Composable
 fun InspectPanel(vm: ResetViewModel, modifier: Modifier = Modifier) {
     val clipboard = LocalClipboardManager.current
+    val inspect = vm.inspect
 
     Column(modifier.verticalScroll(rememberScrollState()).padding(20.dp)) {
         Header(vm)
@@ -52,15 +51,15 @@ fun InspectPanel(vm: ResetViewModel, modifier: Modifier = Modifier) {
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Button(
-                    onClick = { vm.discoverReadKey() },
-                    enabled = vm.canInspect,
+                    onClick = { inspect.discoverReadKey() },
+                    enabled = inspect.canInspect,
                 ) { Text("Try known keys") }
 
                 Spacer(Modifier.width(10.dp))
-                if (vm.inspecting) OutlinedButton(onClick = { vm.cancel() }) { Text("Cancel") }
+                if (inspect.inspecting) OutlinedButton(onClick = { vm.cancel() }) { Text("Cancel") }
 
                 Spacer(Modifier.width(16.dp))
-                vm.inspectKey?.let {
+                inspect.key?.let {
                     Text(
                         "Using 0x%04X".format(it),
                         style = MaterialTheme.typography.bodyMedium,
@@ -70,7 +69,7 @@ fun InspectPanel(vm: ResetViewModel, modifier: Modifier = Modifier) {
                 }
             }
 
-            val answered = vm.inspectKeys.filter { it.answered }
+            val answered = inspect.keys.filter { it.answered }
             if (answered.isNotEmpty()) {
                 Spacer(Modifier.height(10.dp))
                 for (result in answered.take(6)) {
@@ -79,8 +78,8 @@ fun InspectPanel(vm: ResetViewModel, modifier: Modifier = Modifier) {
                         detail = "${result.hits}/${result.probes} probes" +
                             result.exampleModels.takeIf { it.isNotEmpty() }
                                 ?.let { " · like ${it.joinToString(", ")}" }.orEmpty(),
-                        selected = vm.inspectKey == result.readKey,
-                        onClick = { vm.chooseInspectKey(result.readKey) },
+                        selected = inspect.key == result.readKey,
+                        onClick = { inspect.chooseKey(result.readKey) },
                     )
                 }
                 if (answered.size > 1) {
@@ -91,7 +90,7 @@ fun InspectPanel(vm: ResetViewModel, modifier: Modifier = Modifier) {
                         StatusColors.warn,
                     )
                 }
-            } else if (vm.inspectKeys.isNotEmpty()) {
+            } else if (inspect.keys.isNotEmpty()) {
                 Spacer(Modifier.height(8.dp))
                 Note(
                     "No known key produced a reading. This model may use a key nobody has recorded yet.",
@@ -107,21 +106,21 @@ fun InspectPanel(vm: ResetViewModel, modifier: Modifier = Modifier) {
             title = "Sweep the EEPROM",
             blurb = "Reads every address in range and shows what came back. Read-only: the read " +
                 "command carries no write key, so this cannot alter the printer.",
-            enabled = vm.inspectKey != null,
+            enabled = inspect.key != null,
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Button(
-                    onClick = { vm.sweepAddresses() },
-                    enabled = vm.canInspect && vm.inspectKey != null,
-                ) { Text("Sweep 0x0000–0x%04X".format(vm.inspectRangeEnd)) }
+                    onClick = { inspect.sweepAddresses() },
+                    enabled = inspect.canInspect && inspect.key != null,
+                ) { Text("Sweep 0x0000–0x%04X".format(inspect.rangeEnd)) }
 
                 Spacer(Modifier.width(12.dp))
-                RangeChoice("256", 0xFF, vm)
-                RangeChoice("512", 0x1FF, vm)
-                RangeChoice("2048", 0x7FF, vm)
+                RangeChoice("256", 0xFF, inspect)
+                RangeChoice("512", 0x1FF, inspect)
+                RangeChoice("2048", 0x7FF, inspect)
             }
 
-            vm.inspectSweep?.let { sweep ->
+            inspect.sweep?.let { sweep ->
                 Spacer(Modifier.height(12.dp))
                 Text(
                     "${sweep.answered} of ${sweep.total} addresses answered",
@@ -156,11 +155,11 @@ fun InspectPanel(vm: ResetViewModel, modifier: Modifier = Modifier) {
             blurb = "Ranked by what the guess rests on. A family match means a model sharing your " +
                 "read key uses exactly these addresses — that is a good deal stronger than a byte " +
                 "pattern that merely looks like a count.",
-            enabled = vm.inspectSweep != null,
+            enabled = inspect.sweep != null,
         ) {
-            if (vm.inspectCandidates.isEmpty()) {
+            if (inspect.candidates.isEmpty()) {
                 Text(
-                    if (vm.inspectSweep == null) {
+                    if (inspect.sweep == null) {
                         "Run a sweep first."
                     } else {
                         "Nothing in the sweep looked like a counter."
@@ -169,7 +168,7 @@ fun InspectPanel(vm: ResetViewModel, modifier: Modifier = Modifier) {
                     color = StatusColors.muted,
                 )
             } else {
-                for (candidate in vm.inspectCandidates) CandidateRow(candidate)
+                for (candidate in inspect.candidates) CandidateRow(candidate)
             }
         }
 
@@ -181,11 +180,11 @@ fun InspectPanel(vm: ResetViewModel, modifier: Modifier = Modifier) {
             blurb = "The overlay makes this app read your printer straight away. The report belongs " +
                 "upstream at reinkpy, where both bundled files come from — a model added there " +
                 "reaches every tool built on it, not just this one.",
-            enabled = vm.canExportInspection,
+            enabled = inspect.canExport,
         ) {
             OutlinedTextField(
-                value = vm.inspectModelName,
-                onValueChange = { vm.inspectModelName = it },
+                value = inspect.modelName,
+                onValueChange = { inspect.modelName = it },
                 label = { Text("Model name") },
                 placeholder = { Text(vm.selectedDevice?.device?.displayName ?: "ET-0000") },
                 singleLine = true,
@@ -194,14 +193,14 @@ fun InspectPanel(vm: ResetViewModel, modifier: Modifier = Modifier) {
             Spacer(Modifier.height(10.dp))
             Row {
                 Button(
-                    onClick = { clipboard.setText(AnnotatedString(vm.inspectionOverlay())) },
-                    enabled = vm.canExportInspection && vm.inspectCandidates.isNotEmpty(),
+                    onClick = { clipboard.setText(AnnotatedString(inspect.overlay())) },
+                    enabled = inspect.canExport && inspect.candidates.isNotEmpty(),
                 ) { Text("Copy overlay JSON") }
 
                 Spacer(Modifier.width(10.dp))
                 OutlinedButton(
-                    onClick = { clipboard.setText(AnnotatedString(vm.inspectionReport())) },
-                    enabled = vm.canExportInspection,
+                    onClick = { clipboard.setText(AnnotatedString(inspect.report())) },
+                    enabled = inspect.canExport,
                 ) { Text("Copy report") }
             }
             Spacer(Modifier.height(10.dp))
@@ -212,7 +211,7 @@ fun InspectPanel(vm: ResetViewModel, modifier: Modifier = Modifier) {
             )
         }
 
-        if (vm.inspecting) {
+        if (inspect.inspecting) {
             Spacer(Modifier.height(16.dp))
             LinearProgressIndicator(progress = { vm.progress }, modifier = Modifier.fillMaxWidth())
             Spacer(Modifier.height(6.dp))
@@ -245,7 +244,7 @@ private fun Header(vm: ResetViewModel) {
 }
 
 /**
- * What the inspector is pointed at. Real hardware only — see [ResetViewModel.canInspect] for why
+ * What the inspector is pointed at. Real hardware only — see [InspectState.canInspect] for why
  * there is no simulated mode.
  */
 @Composable
@@ -262,55 +261,6 @@ private fun Target(vm: ResetViewModel) {
     }
 
     Note("Target: ${device.device.displayName} (${device.device.pidHex}) — read-only.", StatusColors.muted)
-}
-
-@Composable
-private fun StepCard(
-    number: Int,
-    title: String,
-    blurb: String,
-    enabled: Boolean = true,
-    content: @Composable () -> Unit,
-) {
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
-            .background(MaterialTheme.colorScheme.surface)
-            .border(1.dp, MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(10.dp))
-            .padding(16.dp),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                Modifier
-                    .width(22.dp)
-                    .height(22.dp)
-                    .clip(RoundedCornerShape(11.dp))
-                    .background(
-                        if (enabled) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.surfaceVariant
-                        },
-                    ),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    "$number",
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = if (enabled) MaterialTheme.colorScheme.onPrimary else StatusColors.muted,
-                )
-            }
-            Spacer(Modifier.width(10.dp))
-            Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-        }
-
-        Spacer(Modifier.height(6.dp))
-        Text(blurb, style = MaterialTheme.typography.bodySmall, color = StatusColors.muted)
-        Spacer(Modifier.height(12.dp))
-        content()
-    }
 }
 
 @Composable
@@ -377,8 +327,8 @@ private fun CandidateRow(candidate: SweepAnalysis.Candidate) {
 }
 
 @Composable
-private fun RangeChoice(label: String, end: Int, vm: ResetViewModel) {
-    val active = vm.inspectRangeEnd == end
+private fun RangeChoice(label: String, end: Int, inspect: InspectState) {
+    val active = inspect.rangeEnd == end
     Text(
         label,
         style = MaterialTheme.typography.labelMedium,
@@ -386,12 +336,7 @@ private fun RangeChoice(label: String, end: Int, vm: ResetViewModel) {
         color = if (active) MaterialTheme.colorScheme.primary else StatusColors.muted,
         modifier = Modifier
             .clip(RoundedCornerShape(6.dp))
-            .clickable(enabled = !vm.inspecting) { vm.inspectRangeEnd = end }
+            .clickable(enabled = !inspect.inspecting) { inspect.rangeEnd = end }
             .padding(horizontal = 8.dp, vertical = 4.dp),
     )
-}
-
-@Composable
-private fun Note(text: String, colour: androidx.compose.ui.graphics.Color) {
-    Text(text, style = MaterialTheme.typography.labelSmall, color = colour)
 }

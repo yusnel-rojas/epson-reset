@@ -2,7 +2,6 @@ package nl.redlabs.epsonreset.ui
 
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import kotlinx.coroutines.CoroutineScope
@@ -12,10 +11,6 @@ import kotlinx.coroutines.withContext
 import nl.redlabs.epsonreset.AppPaths
 import nl.redlabs.epsonreset.backup.Capture
 import nl.redlabs.epsonreset.backup.EepromBackup
-import nl.redlabs.epsonreset.backup.SnapshotComparison
-import nl.redlabs.epsonreset.backup.UnitChoice
-import nl.redlabs.epsonreset.backup.UnitSelector
-import nl.redlabs.epsonreset.db.Calibration
 import nl.redlabs.epsonreset.db.CapabilitySummary
 import nl.redlabs.epsonreset.db.CounterSpec
 import nl.redlabs.epsonreset.db.CounterSpecs
@@ -38,8 +33,6 @@ import nl.redlabs.epsonreset.device.Serials
 import nl.redlabs.epsonreset.net.NetworkAddress
 import nl.redlabs.epsonreset.net.SavedPrinters
 import nl.redlabs.epsonreset.prefs.PreferencesStore
-import nl.redlabs.epsonreset.probe.DeviceInspector
-import nl.redlabs.epsonreset.probe.SweepAnalysis
 import nl.redlabs.epsonreset.protocol.CounterReader
 import nl.redlabs.epsonreset.protocol.Executor
 import nl.redlabs.epsonreset.protocol.FakeTransport
@@ -291,31 +284,6 @@ class ResetViewModel(
     var lastBackup by mutableStateOf<File?>(null)
         private set
 
-    /** Every snapshot on disk, newest first, each with its parsed contents. */
-    val snapshots = mutableStateListOf<SavedSnapshot>()
-
-    var selectedSnapshot by mutableStateOf<SavedSnapshot?>(null)
-        private set
-
-    var loadingSnapshots by mutableStateOf(false)
-        private set
-
-    data class SavedSnapshot(val file: File, val backup: EepromBackup?)
-
-    /** What the selected snapshot is being compared against, if anything. */
-    var compareTarget by mutableStateOf<CompareTarget>(CompareTarget.None)
-        private set
-
-    sealed interface CompareTarget {
-        data object None : CompareTarget
-
-        /** Another file on disk. Needs no printer, and is the pairing that survives a restart. */
-        data class Snapshot(val file: File) : CompareTarget
-
-        /** Whatever [readReport] holds — a reading already taken, not one this triggers. */
-        data object CurrentReading : CompareTarget
-    }
-
     var reading by mutableStateOf(false)
         private set
 
@@ -323,45 +291,101 @@ class ResetViewModel(
     var status by mutableStateOf<Status.Report?>(null)
         private set
 
-    // Read-only exploration for printers the database doesn't cover. All the protocol work lives in
-    // DeviceInspector, which cannot emit a write.
+    val calibration = CalibrationState(
+        scope = scope,
+        io = io,
+        database = { database },
+        selectedModel = { selectedModel },
+        identifiedModel = { identifiedModel },
+        identity = { identity },
+        selectedDevice = { selectedDevice },
+        lastTest = { lastTest },
+        status = { status },
+        readReport = { readReport },
+        readWasSimulated = { readWasSimulated },
+        decodedCounters = { decodedCounters },
+        counterSpecs = { counterSpecs },
+        updateCounterSpecs = { counterSpecs = it },
+        specsFor = { specsFor(it) },
+        info = { info(it) },
+        good = { good(it) },
+        warn = { warn(it) },
+    )
 
-    var inspectKeys = mutableStateListOf<DeviceInspector.KeyResult>()
-        private set
+    val inspect = InspectState(
+        scope = scope,
+        io = io,
+        database = { database },
+        selectedDevice = { selectedDevice },
+        openTransport = { device, isDry -> openTransport(device, isDry) },
+        transportError = { transportError },
+        specsFor = { specsFor(it) },
+        resetCancellation = { cancelFlag.set(false) },
+        isCancelled = { cancelFlag.get() },
+        updateProgress = { value, label ->
+            progress = value
+            progressLabel = label
+        },
+        trace = { trace(it) },
+        info = { info(it) },
+        good = { good(it) },
+        warn = { warn(it) },
+        bad = { bad(it) },
+    )
 
-    /** The key the sweep will use — discovered, or typed in by someone who already knows it. */
-    var inspectKey by mutableStateOf<Int?>(null)
-        private set
+    val snapshot = SnapshotState(
+        scope = scope,
+        io = io,
+        backupDir = backupDir,
+        database = { database },
+        selectedModel = { selectedModel },
+        selectedDevice = { selectedDevice },
+        dryRun = { dryRun },
+        writeBlockedReason = { writeBlockedReason },
+        busy = { busy },
+        reading = { reading },
+        readReport = { readReport },
+        readWasSimulated = { readWasSimulated },
+        status = { status },
+        specsFor = { specsFor(it) },
+        performRead = { model, device, isDry -> performRead(model, device, isDry) },
+        selectModel = { selectModel(it) },
+        updateQuery = { query = it },
+        openSnapshotsTab = { tab = Tab.SNAPSHOTS },
+        openTransport = { device, isDry -> openTransport(device, isDry) },
+        transportError = { transportError },
+        resetCancellation = { cancelFlag.set(false) },
+        isCancelled = { cancelFlag.get() },
+        startRun = { label ->
+            runState = RunState.Running
+            progress = 0f
+            progressLabel = label
+        },
+        updateProgress = { value, label ->
+            progress = value
+            progressLabel = label
+        },
+        finishRun = { result, wasDryRun -> runState = RunState.Finished(result, wasDryRun) },
+        info = { info(it) },
+        good = { good(it) },
+        warn = { warn(it) },
+        bad = { bad(it) },
+        trace = { trace(it) },
+    )
 
-    var inspectSweep by mutableStateOf<DeviceInspector.Sweep?>(null)
-        private set
-
-    var inspectCandidates = mutableStateListOf<SweepAnalysis.Candidate>()
-        private set
-
-    var inspecting by mutableStateOf(false)
-        private set
-
-    /** Name the user gives the unknown printer; seeded from the USB descriptor. */
-    var inspectModelName by mutableStateOf("")
-
-    /**
-     * Requires real hardware: the fake EEPROM answers every key and returns the same byte at every
-     * address, so a simulated run reports keys "found" and hundreds of candidate counters, all of
-     * them fiction — indistinguishable from a successful discovery.
-     */
-    val canInspect: Boolean get() = !inspecting && database != null && selectedDevice != null
-
-    /** Highest address the sweep will reach. 0x1FF covers every mem_high in the database. */
-    var inspectRangeEnd by mutableStateOf(0x1FF)
-
-    /** Models sharing [inspectKey] — the family whose layout the analysis leans on. */
-    val inspectSiblings: List<PrinterModel>
-        get() {
-            val db = database ?: return emptyList()
-            val key = inspectKey ?: return emptyList()
-            return DeviceInspector.siblingsOf(db, key)
-        }
+    val maintenance = MaintenanceState(
+        scope = scope,
+        io = io,
+        selectedDevice = { selectedDevice },
+        status = { status },
+        otherOperationRunning = { runState == RunState.Running || reading },
+        transports = transports,
+        trace = { trace(it) },
+        info = { info(it) },
+        good = { good(it) },
+        warn = { warn(it) },
+        bad = { bad(it) },
+    )
 
     private val cancelFlag = AtomicBoolean(false)
 
@@ -391,7 +415,7 @@ class ResetViewModel(
     val searchResults: List<PrinterModel>
         get() = database?.search(query) ?: emptyList()
 
-    enum class Tab { RESET, MODELS, INSPECT, SNAPSHOTS }
+    enum class Tab { RESET, MODELS, INSPECT, MAINTENANCE, SNAPSHOTS }
 
     enum class MatrixFilter(val label: String) {
         ALL("All"),
@@ -442,7 +466,7 @@ class ResetViewModel(
         tab = Tab.RESET
     }
 
-    private val busy: Boolean get() = runState == RunState.Running || reading
+    private val busy: Boolean get() = runState == RunState.Running || reading || maintenance.running != null
 
     /** The selected model contradicts what the printer said it is, or null when they agree. */
     val modelMismatch: String?
@@ -499,7 +523,7 @@ class ResetViewModel(
             // Before the scan, because the Reset tab offers a comparison the moment a read lands
             // and that offer depends on knowing what is already on disk. Reading a directory is
             // cheap;
-            refreshSnapshotsNow()
+            snapshot.refreshNow()
             scanNow()
         }
     }
@@ -637,7 +661,8 @@ class ResetViewModel(
     fun select(device: MatchedPrinter) {
         selectedDevice = device
         lastTest = null
-        // Both belong to the printer that was selected before this one, not to this one.
+        // All three belong to the printer that was selected before this one, not to this one.
+        status = null
         identity = null
         pendingClass = null
         manualModelRequested = false
@@ -987,7 +1012,7 @@ class ResetViewModel(
         readReport = report
         readWasSimulated = isDry
         // A percentage typed against the previous reading would silently pair with this one.
-        resetCalibrationForm()
+        calibration.resetForm()
         status = read
         read?.let { s ->
             s.inkLevels.takeIf { it.isNotEmpty() }?.let { levels ->
@@ -999,141 +1024,6 @@ class ResetViewModel(
         progressLabel = ""
 
         describe(report, isDry)
-    }
-
-    val canExportInspection: Boolean get() = inspectSweep?.answered?.let { it > 0 } == true
-
-    fun chooseInspectKey(key: Int?) {
-        inspectKey = key
-        inspectSweep = null
-        inspectCandidates.clear()
-    }
-
-    private fun inspectorListener() = object : DeviceInspector.Listener {
-        override fun onProgress(done: Int, total: Int, label: String) = onMain {
-            progress = if (total == 0) 0f else done.toFloat() / total
-            progressLabel = "$label ($done / $total)"
-        }
-
-        override fun onTrace(line: String) = onMain { trace(line) }
-        override fun onNote(text: String) = onMain { info(text) }
-    }
-
-    /** Tries the database's known read keys against the attached printer. */
-    fun discoverReadKey() {
-        val db = database ?: return
-        val device = selectedDevice ?: return
-
-        scope.launch {
-            cancelFlag.set(false)
-            inspecting = true
-            inspectKeys.clear()
-            progressLabel = "Trying read keys…"
-            info("Trying ${DeviceInspector.candidateKeys(db).size} known read keys — read-only, nothing is written.")
-
-            val results = withContext(io) {
-                openTransport(device, isDry = false).use { transport ->
-                    transport?.let {
-                        DeviceInspector.discoverKey(
-                            transport = it,
-                            db = db,
-                            listener = inspectorListener(),
-                            isCancelled = { cancelFlag.get() },
-                        )
-                    }
-                } ?: emptyList()
-            }
-
-            inspectKeys.clear()
-            inspectKeys.addAll(results)
-
-            val answered = results.filter { it.answered }
-            when {
-                results.isEmpty() -> bad("No reply at all — the printer never opened a D4 channel. $transportError")
-                answered.isEmpty() -> warn("None of the known read keys produced a reading.")
-                else -> {
-                    chooseInspectKey(answered.first().readKey)
-                    good("${answered.size} key(s) answered. Using ${answered.first().hex}.")
-                    if (answered.size > 1) {
-                        warn(
-                            "More than one key answered, so this firmware probably doesn't check the " +
-                                "read key. The sweep is the useful result, not the key.",
-                        )
-                    }
-                }
-            }
-
-            inspecting = false
-            progress = 0f
-            progressLabel = ""
-        }
-    }
-
-    /** Reads every address up to [inspectRangeEnd] with the chosen key. Never writes. */
-    fun sweepAddresses() {
-        val key = inspectKey ?: return
-        val device = selectedDevice ?: return
-        val end = inspectRangeEnd
-
-        scope.launch {
-            cancelFlag.set(false)
-            inspecting = true
-            progressLabel = "Sweeping…"
-            info("Sweeping 0x0000–0x%04X with key 0x%04X — read-only.".format(end, key))
-
-            val addresses = (0..end).toList()
-            val result = withContext(io) {
-                openTransport(device, isDry = false).use { transport ->
-                    transport?.let {
-                        DeviceInspector.sweep(
-                            transport = it,
-                            readKey = key,
-                            addresses = addresses,
-                            listener = inspectorListener(),
-                            isCancelled = { cancelFlag.get() },
-                        )
-                    }
-                } ?: DeviceInspector.Sweep(key, addresses, emptyMap(), transportError)
-            }
-
-            inspectSweep = result
-            val found = SweepAnalysis.candidates(
-                sweep = result,
-                siblings = inspectSiblings,
-                specsFor = { specsFor(it) },
-            )
-            inspectCandidates.clear()
-            inspectCandidates.addAll(found)
-
-            when {
-                result.error != null -> bad("Sweep failed: ${result.error}")
-                result.answered == 0 -> bad("No address answered. The key is probably wrong.")
-                else -> good(
-                    "Read ${result.answered} of ${result.total} addresses; ${found.size} candidate counter(s).",
-                )
-            }
-
-            inspecting = false
-            progress = 0f
-            progressLabel = ""
-        }
-    }
-
-    /** The overlay that makes this app read the discovered addresses on this model. */
-    fun inspectionOverlay(): String = SweepAnalysis.overlayJson(
-        inspectModelName.ifBlank { selectedDevice?.device?.displayName ?: "MY-MODEL" },
-        inspectCandidates,
-    )
-
-    /** A report to file, so a fix reaches every tool built on the same data rather than only this one. */
-    fun inspectionReport(): String {
-        val sweep = inspectSweep ?: return "Nothing has been swept yet."
-        return SweepAnalysis.report(
-            device = selectedDevice?.device,
-            sweep = sweep,
-            candidates = inspectCandidates,
-            keyResults = inspectKeys.filter { it.answered },
-        )
     }
 
     private fun describe(report: CounterReader.Report, isDry: Boolean) {
@@ -1258,7 +1148,7 @@ class ResetViewModel(
             readReport = after
             readWasSimulated = isDry
             // The counters have just been zeroed, so nothing on this reading measures a maximum.
-            resetCalibrationForm()
+            calibration.resetForm()
             lastBackup = backupFile
             runState = RunState.Finished(result, isDry)
 
@@ -1346,759 +1236,6 @@ class ResetViewModel(
                     },
                 )
             }
-    }
-
-    /** Writes the bytes from [backup] back to the addresses they came from. */
-    fun restore(backup: EepromBackup) {
-        val model = selectedModel ?: run {
-            bad("Pick the model first — a restore needs its write key.")
-            return
-        }
-        val device = selectedDevice
-
-        if (!allowedToLand(backup, model, device)) return
-
-        scope.launch {
-            cancelFlag.set(false)
-            runState = RunState.Running
-            progress = 0f
-            progressLabel = "Generating restore sequence…"
-
-            val sequence = SequenceGenerator.generateWrites(model, backup.writes)
-            info(
-                "Restoring ${backup.entries.size} addresses to ${model.name} from the backup taken ${backup.createdAt}.",
-            )
-
-            val listener = object : Executor.Listener {
-                override fun onPacket(index: Int, total: Int, message: String) = onMain {
-                    progress = index.toFloat() / total
-                    progressLabel = "Packet $index / $total — $message"
-                }
-
-                override fun onTrace(line: String) = onMain { trace(line) }
-            }
-
-            val result = withContext(io) {
-                openTransport(device, dryRun).use { transport ->
-                    transport?.let {
-                        Executor.execute(
-                            transport = it,
-                            sequence = sequence,
-                            listener = listener,
-                            isCancelled = { cancelFlag.get() },
-                        )
-                    }
-                } ?: Executor.Result(error = transportError)
-            }
-
-            progress = 1f
-            progressLabel = ""
-            runState = RunState.Finished(result, dryRun)
-
-            if (result.success) {
-                good("Restore complete — ${result.writesVerified}/${result.writesTotal} writes verified.")
-                warn("Power-cycle the printer to finalise the change.")
-            } else {
-                bad(result.error.ifBlank { "The restore did not complete." })
-            }
-        }
-    }
-
-    /** Whether this backup may be written to this printer, per [UnitSelector]. */
-    private fun allowedToLand(backup: EepromBackup, model: PrinterModel, device: MatchedPrinter?): Boolean {
-        if (dryRun) {
-            if (!backup.model.equals(model.name, ignoreCase = true)) {
-                warn("This backup is for ${backup.model} but ${model.name} is selected. A live run would refuse.")
-            }
-            return true
-        }
-
-        writeBlockedReason?.let {
-            bad(it)
-            return false
-        }
-
-        // The device carries the serial the scan found, which over the network is nothing at all.
-        val candidate = device?.let {
-            MatchedPrinter(it.device.copy(serial = identifyingSerial(it)), model, it.confidence)
-        }
-
-        return when (val choice = UnitSelector.choose(backup, listOfNotNull(candidate))) {
-            is UnitChoice.NoSuchModel -> {
-                bad(
-                    if (candidate == null) {
-                        "Select the printer to restore to first."
-                    } else {
-                        "That backup is for ${choice.model}, but the selected printer is " +
-                            "${model.name}. Refusing to write one model's bytes to another."
-                    },
-                )
-                false
-            }
-
-            is UnitChoice.WrongUnit -> {
-                bad(
-                    "That backup came from ${choice.wanted}; this printer reports " +
-                        "${choice.connected.joinToString(", ")}. Refusing to write.",
-                )
-                false
-            }
-
-            // Unreachable with a single candidate, but the rule owns the enumeration, not this.
-            is UnitChoice.Ambiguous -> {
-                bad("${choice.count} ${choice.model} units match and none can be told apart by serial.")
-                false
-            }
-
-            is UnitChoice.Write -> {
-                choice.unconfirmed?.let {
-                    warn(
-                        "This backup can't be tied to this exact unit — $it. Check you're pointed at the right printer.",
-                    )
-                }
-                true
-            }
-        }
-    }
-
-    fun loadBackup(file: File): EepromBackup? = EepromBackup.load(file)
-
-    // ── Snapshots ────────────────────────────────────────────────────────────────────────────
-
-    /** Why the counters currently on screen cannot be saved, or null when they can. */
-    val snapshotBlockedReason: String?
-        get() {
-            val report = readReport
-            return when {
-                selectedModel == null -> "pick the model these counters belong to first"
-                report == null -> "read the counters first — a snapshot stores bytes that were actually read"
-                readWasSimulated ->
-                    "these values came from the simulated EEPROM of a dry run, not from a printer. " +
-                        "Switch to Live and read again"
-                report.answered == 0 -> "nothing answered the last read, so there is nothing to save"
-                else -> null
-            }
-        }
-
-    val canSaveSnapshot: Boolean get() = !busy && snapshotBlockedReason == null
-
-    /** Saves the counters on screen as a snapshot, at whatever moment the user asks for one. */
-    fun saveSnapshot() {
-        val model = selectedModel ?: return
-        val report = readReport ?: return
-
-        snapshotBlockedReason?.let {
-            bad("Nothing saved — $it.")
-            return
-        }
-
-        scope.launch {
-            val capture = EepromBackup.capture(
-                model = model.name,
-                sequence = SequenceGenerator.generate(model),
-                readings = report.readings,
-                printerSerial = identifyingSerial(selectedDevice),
-            )
-
-            when (capture) {
-                is Capture.NothingToWrite ->
-                    bad("${model.name} has no resettable addresses, so a snapshot would have nothing to put back.")
-
-                is Capture.Incomplete -> {
-                    val shown = capture.missing.take(8).joinToString(", ")
-                    val more = if (capture.missing.size > 8) " +${capture.missing.size - 8} more" else ""
-                    bad(
-                        "Nothing saved: ${capture.missing.size} of the addresses a reset would write " +
-                            "did not answer the read ($shown$more), so a restore could not put them " +
-                            "back. Reads are unprivileged and safe to retry.",
-                    )
-                }
-
-                is Capture.Ready -> {
-                    val saved = withContext(io) { runCatching { capture.backup.save(backupDir()) } }
-                    saved.onSuccess { file ->
-                        good(
-                            "Snapshot saved as ${file.name} — ${capture.backup.entries.size} addresses, " +
-                                "${capture.backup.changedByReset} differ from their reset value.",
-                        )
-                        refreshSnapshotsNow()
-                        selectedSnapshot = snapshots.firstOrNull { it.file == file }
-                    }.onFailure { e ->
-                        bad("Snapshot not saved: ${e.message ?: e::class.simpleName}.")
-                    }
-                }
-            }
-        }
-    }
-
-    // ------------------------------------------------------------------ calibration
-
-    /** What the user has said about one counter on the calibration form. */
-    data class CalibrationInput(
-        val percent: String = "",
-        val reportedValue: String = "",
-        val serviceRequired: Boolean = false,
-    )
-
-    /** Keyed by the counter's address list, which is what identifies a counter across a re-read. */
-    val calibrationInputs = mutableStateMapOf<List<Int>, CalibrationInput>()
-
-    /** Whether the contribution form is open. */
-    var calibrationDialogOpen by mutableStateOf(false)
-
-    /** Anything the contributor wants to add — where the percentage came from, usually. */
-    var calibrationNote by mutableStateOf("")
-
-    /** The model this measurement is filed against — its own field, not [selectedModel]. */
-    var calibrationModel by mutableStateOf("")
-
-    /** Whether the measured maxima are already layered onto this session's layouts. */
-    var calibrationApplied by mutableStateOf(false)
-        private set
-
-    fun calibrationInput(addresses: List<Int>): CalibrationInput = calibrationInputs[addresses] ?: CalibrationInput()
-
-    fun setCalibrationPercent(addresses: List<Int>, text: String) {
-        calibrationInputs[addresses] = calibrationInput(addresses).copy(percent = text)
-    }
-
-    fun setCalibrationReportedValue(addresses: List<Int>, text: String) {
-        calibrationInputs[addresses] = calibrationInput(addresses).copy(reportedValue = text)
-    }
-
-    fun setCalibrationServiceRequired(addresses: List<Int>, on: Boolean) {
-        calibrationInputs[addresses] = calibrationInput(addresses).copy(serviceRequired = on)
-    }
-
-    private fun resetCalibrationForm() {
-        calibrationInputs.clear()
-        calibrationNote = ""
-        calibrationModel = ""
-        calibrationApplied = false
-    }
-
-    /** Opens the form, starting from the best answer to "which model is this?" available. */
-    fun openCalibration() {
-        if (calibrationModel.isBlank()) {
-            calibrationModel = identifiedModel?.name ?: selectedModel?.name.orEmpty()
-        }
-        calibrationDialogOpen = true
-    }
-
-    /** Every model whose counter layout is the one being measured. */
-    val calibrationLayoutSiblings: List<PrinterModel>
-        get() {
-            val db = database ?: return emptyList()
-            val layout = selectedModel?.let { addressLayout(it) }?.takeIf { it.isNotEmpty() }
-                ?: return emptyList()
-            return db.models.filter { addressLayout(it) == layout }
-        }
-
-    /** A model's layout as the address groups alone. */
-    private fun addressLayout(model: PrinterModel): List<List<Int>> = specsFor(model).map { it.addresses }
-
-    /** What to offer in the model picker, best answer first. */
-    val calibrationModelCandidates: List<String>
-        get() {
-            val anchor = (identifiedModel?.name ?: selectedModel?.name).orEmpty()
-            val siblings = calibrationLayoutSiblings
-                .map { it.name }
-                .sortedWith(
-                    compareByDescending<String> { it.commonPrefixWith(anchor, true).length }
-                        .thenBy { it },
-                )
-
-            return (listOfNotNull(identifiedModel?.name, selectedModel?.name) + siblings)
-                .distinct()
-                .take(MAX_MODEL_CANDIDATES)
-        }
-
-    /** What is doubtful about the name on the form, or null when nothing is. */
-    val calibrationModelWarning: String?
-        get() {
-            val name = calibrationModel.trim()
-            val id = identity
-            val identified = id?.model?.name
-            val differs = identified != null && !name.equals(identified, ignoreCase = true)
-
-            return when {
-                name.isEmpty() -> "Name the model this printer actually is."
-
-                // A family entry covers several SKUs, so a maximum filed under one is attributed
-                // to all of them and to none of them.
-                name.contains("series", ignoreCase = true) ->
-                    "'$name' names a family, not a unit. Pick the exact model — a maximum filed " +
-                        "against a family cannot later be told from one measured on any of its members."
-
-                // Only worth saying when there is a database to have missed it.
-                database?.let { it[name] == null } == true ->
-                    "'$name' is not in the database. Fine if it is a model nobody has added yet; " +
-                        "worth a second look otherwise."
-
-                // The name came from the user, not the firmware, so it carries no more authority
-                // than the one about to replace it.
-                id != null && id.via == Identity.Via.CONFIRMED && differs ->
-                    "You confirmed this printer as $identified — it names only " +
-                        "\"${id.reported}\", which is a family. Filing it as $name replaces your " +
-                        "own answer, so file the one you can read off the printer."
-
-                // The source named a family, so it never named this unit — and over USB that is the
-                // ordinary case, not the exception. Correcting the box is the point of it, and
-                // saying anything about overriding a strong answer would have it backwards.
-                id != null && id.namesAFamily && differs ->
-                    "This printer answers \"${id.reported}\" (${id.via.label}), which is a family " +
-                        "rather than a unit — $identified is that family's database entry, not " +
-                        "this printer's own answer. If $name is what the label says, it is the " +
-                        "better name to file."
-
-                // Same fact, but nothing has been corrected yet: the box is still holding a family's
-                // entry, and leaving it there is what makes a measurement unattributable later.
-                id != null && id.namesAFamily ->
-                    "The name above was derived from \"${id.reported}\" (${id.via.label}), which " +
-                        "covers several units. Check it against the label on the printer — a " +
-                        "maximum filed against the wrong sibling cannot afterwards be told from " +
-                        "one measured on the right one."
-
-                differs ->
-                    "This printer names itself $identified via ${id?.via?.label}, which is the " +
-                        "strongest identification available here. Filing it as $name overrides that."
-
-                else -> null
-            }
-        }
-
-    /** The name a submission is filed under. */
-    private val calibrationModelName: String get() = calibrationModel.trim()
-
-    /** The counters a maximum could be attached to: one number each, and not sitting at zero. */
-    val calibratableCounters: List<CounterReader.DecodedCounter>
-        get() = decodedCounters.filter { it.spec.isSingleValue && (it.value ?: 0L) > 0L }
-
-    /** Why a calibration cannot be measured from what is on screen, or null when it can. */
-    val calibrationBlockedReason: String?
-        get() {
-            val report = readReport
-            return when {
-                selectedModel == null -> "pick the model these counters belong to first"
-                report == null ->
-                    "read the counters first — a calibration is a reading with a maximum attached"
-                readWasSimulated ->
-                    "these values came from the simulated EEPROM of a dry run, not from a printer. " +
-                        "Switch to Live and read again"
-                report.answered == 0 -> "nothing answered the last read, so there is nothing to measure"
-                calibratableCounters.isEmpty() ->
-                    "none of this model's counters decoded to a single non-zero number, so there is " +
-                        "nothing to put a maximum on"
-                else -> null
-            }
-        }
-
-    /** One counter's line on the form. A null [outcome] means the user hasn't answered for it yet. */
-    data class CalibrationRow(val counter: CounterReader.DecodedCounter, val outcome: Calibration.Outcome?)
-
-    val calibrationRows: List<CalibrationRow>
-        get() = calibratableCounters.map { counter ->
-            val input = calibrationInput(counter.spec.addresses)
-            val basis = when {
-                input.serviceRequired -> Calibration.Basis.ServiceRequired
-                input.percent.isNotBlank() ->
-                    Calibration.Basis.Reference(input.percent, input.reportedValue)
-                // Most contributions calibrate one counter and leave the rest alone, so silence
-                // is a normal answer rather than an error.
-                else -> return@map CalibrationRow(counter, null)
-            }
-            CalibrationRow(counter, Calibration.measure(counter.spec, counter.value, basis))
-        }
-
-    val calibrationMeasurements: List<Calibration.Measured>
-        get() = calibrationRows.mapNotNull { (it.outcome as? Calibration.Outcome.Ok)?.measured }
-
-    val canSubmitCalibration: Boolean
-        get() = calibrationBlockedReason == null &&
-            calibrationMeasurements.isNotEmpty() &&
-            calibrationModelName.isNotEmpty()
-
-    fun calibrationEntry(): String = Calibration.entryJson(
-        model = calibrationModelName,
-        measured = calibrationMeasurements,
-        note = calibrationNote,
-        sharedLayout = calibrationLayoutSiblings.size,
-    )
-
-    fun calibrationReport(): String = Calibration.report(calibrationContext(), calibrationMeasurements)
-
-    fun calibrationOverlay(): String {
-        val model = selectedModel ?: return ""
-        // The layout comes from the selection (that is what was read), the name from the form (that
-        // is what the printer is). An overlay keyed to a family name would not match the unit.
-        return Calibration.overlayJson(calibrationModelName, specsFor(model), calibrationMeasurements)
-    }
-
-    /**
-     * Layers the measured maxima onto this session's layouts, so the contributor's own counters
-     * start showing percentages immediately.
-     */
-    fun applyCalibrationToSession() {
-        if (!canSubmitCalibration) return
-        val specs = counterSpecs ?: return
-        val model = selectedModel ?: return
-
-        counterSpecs = specs.withCalibration(Calibration.asCalibrationsFile(calibrationEntry()))
-        calibrationApplied = true
-
-        good(
-            "Applied to ${model.name} for this session: " +
-                calibrationMeasurements.joinToString("; ") {
-                    "addr ${it.addressLabel} max ${it.max} → %.2f%%".format(it.percent)
-                } + ". Save the overlay to keep it after a restart.",
-        )
-    }
-
-    /**
-     * Puts the counter layouts back to what is on disk, dropping anything a calibration layered on
-     * top of this session.
-     *
-     * "Show it now" changes what every percentage on screen is divided by, and a maximum that is
-     * wrong makes every reading wrong with it — so undoing it has to be one button rather than a
-     * restart nobody knows to perform.
-     */
-    fun revertSessionCalibration() {
-        scope.launch {
-            val reloaded = withContext(io) { runCatching { CounterSpecs.load() } }
-            reloaded.onSuccess {
-                counterSpecs = it
-                calibrationApplied = false
-                good(
-                    "Counter layouts back to what is on disk. Any maximum applied to this session " +
-                        "is gone; percentages are computed from the shipped figures again.",
-                )
-            }.onFailure { e -> warn("Could not reload the counter layouts: ${e.message}") }
-        }
-    }
-
-    /** Whether a user overlay file is in force, which outlives a restart where a session does not. */
-    val overlayInForce: Boolean get() = counterSpecs?.overlayLoaded == true
-
-    /**
-     * Deletes `counters-overlay.json` and reloads. The overlay is the persistent half: a session
-     * calibration disappears on its own at exit, this one does not, and nothing in the app put it
-     * there — so nothing in the app could take it away either.
-     */
-    fun removeCounterOverlay() {
-        scope.launch {
-            val file = AppPaths.counterOverlay
-            val removed = withContext(io) { runCatching { file.takeIf { it.isFile }?.delete() ?: false } }
-
-            removed.onSuccess { deleted ->
-                if (!deleted) {
-                    warn("No overlay file to remove at $file.")
-                    return@onSuccess
-                }
-                info("Removed $file.")
-                revertSessionCalibration()
-            }.onFailure { e -> warn("Could not remove the overlay: ${e.message}") }
-        }
-    }
-
-    /** Opens the data directory in the file manager. Everything the app keeps is in there. */
-    fun openDataDirectory() {
-        val dir = AppPaths.dataDir
-        if (!Browser.openDirectory(dir)) warn("Could not open a file manager. The directory is $dir")
-    }
-
-    /** Opens the calibration issue form, prefilled. */
-    fun openCalibrationIssue(toClipboard: (String) -> Unit) {
-        if (!canSubmitCalibration) return
-
-        val submission = Calibration.submission(
-            model = calibrationModelName,
-            entry = calibrationEntry(),
-            evidence = calibrationReport(),
-        )
-
-        if (!submission.prefilled) {
-            toClipboard(calibrationReport())
-            warn("Too long to prefill — the report is on the clipboard, paste it into the form.")
-        }
-
-        if (Browser.open(submission.url)) {
-            info(
-                "Opened a calibration issue for ${selectedModel?.name}. Nothing has been sent: the " +
-                    "form is yours to read and submit.",
-            )
-        } else {
-            toClipboard(calibrationReport())
-            warn(
-                "Could not open a browser. The report is on the clipboard — file it at " +
-                    Calibration.ISSUE_BASE,
-            )
-        }
-    }
-
-    private fun calibrationContext(): Calibration.Context = Calibration.Context(
-        model = calibrationModelName,
-        identifiedAs = identifiedModel?.name,
-        confirmedAgainst = confirmedClass,
-        identifiedVia = identity?.takeIf { it.via != Identity.Via.CONFIRMED }?.via?.label,
-        reportedAs = identity?.reported?.takeIf { it.isNotBlank() },
-        layoutOf = selectedModel?.name,
-        sharedLayout = calibrationLayoutSiblings.size,
-        printer = selectedDevice?.device?.displayName,
-        transport = selectedDevice?.device?.let { if (it.isNetwork) "network (SNMP)" else "USB" },
-        firmware = lastTest?.firmware,
-        appVersion = AppVersion.display,
-        inkLevels = status?.inkLevels.orEmpty().map { it.colour to it.percent },
-        statusFields = calibrationStatusFields,
-        note = calibrationNote,
-    )
-
-    /** The printer's own state block, as bytes, for the submission to carry. */
-    private val calibrationStatusFields: List<Pair<String, String>>
-        get() {
-            val report = status ?: return emptyList()
-            return listOf(0x01, 0x02, 0x04).mapNotNull { type ->
-                report[type]?.let { it.name to it.hex }
-            }
-        }
-
-    /** Where snapshots are kept. Shown in the panel, so it comes from the same place it is read. */
-    val snapshotDir: File get() = backupDir()
-
-    fun refreshSnapshots() {
-        scope.launch { refreshSnapshotsNow() }
-    }
-
-    private suspend fun refreshSnapshotsNow() {
-        loadingSnapshots = true
-        val found = withContext(io) {
-            EepromBackup.list(backupDir()).map { SavedSnapshot(it, EepromBackup.load(it)) }
-        }
-        snapshots.clear()
-        snapshots.addAll(found)
-        // By file, not by object: a refresh rebuilds every row, and the selection is about which
-        // snapshot is on screen rather than which instance was clicked.
-        selectedSnapshot = selectedSnapshot?.let { previous ->
-            found.firstOrNull { it.file == previous.file }
-        }
-        loadingSnapshots = false
-    }
-
-    /** Opens a snapshot. Reading it is what selecting it does — see [snapshotReport]. */
-    fun selectSnapshot(snapshot: SavedSnapshot?) {
-        selectedSnapshot = snapshot
-        // A comparison is against one specific file. Carrying it across a change of selection would
-        // silently re-point it at a pair the user never asked for.
-        compareTarget = CompareTarget.None
-        val backup = snapshot?.backup ?: return
-        info(
-            "Read ${snapshot.file.name} from disk — ${backup.model}, taken ${backup.takenAt}, " +
-                "${backup.entries.size} addresses (${backup.changedByReset} differ from their " +
-                "reset value). No printer was involved.",
-        )
-    }
-
-    /** The database entry a snapshot belongs to, when there still is one. */
-    private val selectedSnapshotModel: PrinterModel?
-        get() = selectedSnapshot?.backup?.let { database?.get(it.model) }
-
-    /** The selected snapshot read back as if it had come off a printer — the dry read. */
-    val snapshotReport: CounterReader.Report?
-        get() = selectedSnapshot?.backup?.let {
-            CounterReader.Report(it.model, it.readings(selectedSnapshotModel))
-        }
-
-    /** [snapshotReport] grouped into real counters. Empty when the model's layout is unknown. */
-    val snapshotCounters: List<CounterReader.DecodedCounter>
-        get() {
-            val backup = selectedSnapshot?.backup ?: return emptyList()
-            val model = selectedSnapshotModel ?: return emptyList()
-            return CounterReader.decode(backup.readings(model), specsFor(model))
-        }
-
-    // ── Comparing two samples ────────────────────────────────────────────────────────────────
-
-    /** Snapshots that could be compared against the selected one: same model, and readable. */
-    val compareCandidates: List<SavedSnapshot>
-        get() {
-            val selected = selectedSnapshot ?: return emptyList()
-            val model = selected.backup?.model ?: return emptyList()
-            return snapshots.filter {
-                it.file != selected.file && it.backup?.model.equals(model, ignoreCase = true)
-            }
-        }
-
-    /** Why the printer cannot be read for a comparison right now, or null when it can. */
-    val compareReadBlockedReason: String?
-        get() {
-            val backup = selectedSnapshot?.backup ?: return "Select a snapshot first."
-            val model = selectedModel
-                ?: return "Select ${backup.model} on the Reset tab so there is a model to read."
-            if (!model.name.equals(backup.model, ignoreCase = true)) {
-                return "This snapshot is a ${backup.model} but ${model.name} is selected. The same " +
-                    "address is a different counter on each, so there is nothing to compare."
-            }
-            if (selectedDevice == null) return "No printer is selected — connect one on the Reset tab."
-            if (dryRun) {
-                return "Dry run invents a byte for every address, so comparing against it would " +
-                    "show differences that are not real. Switch to Live to read this printer."
-            }
-            return null
-        }
-
-    val canReadForComparison: Boolean get() = !busy && !reading && compareReadBlockedReason == null
-
-    /** Compares the selected snapshot against another file. Touches no printer. */
-    fun compareWithSnapshot(file: File) {
-        compareTarget = CompareTarget.Snapshot(file)
-    }
-
-    /** Compares against the reading already in memory. */
-    fun compareWithCurrentReading() {
-        if (readReport == null) {
-            bad("There is no current reading to compare against — read the counters first.")
-            return
-        }
-        if (readWasSimulated) {
-            bad(
-                "That reading came from a dry run's simulated EEPROM, not from a printer. " +
-                    "Switch to Live and read again before comparing.",
-            )
-            return
-        }
-        compareTarget = CompareTarget.CurrentReading
-    }
-
-    fun clearComparison() {
-        compareTarget = CompareTarget.None
-    }
-
-    /** Reads the printer now and compares the selected snapshot against it. */
-    fun readForComparison() {
-        val model = selectedModel ?: return
-        compareReadBlockedReason?.let {
-            bad("Cannot read for comparison — $it")
-            return
-        }
-
-        scope.launch {
-            performRead(model, selectedDevice, isDry = false)
-            // Only on a read that produced something. A failed read leaves the previous reading in
-            // place, and pairing the snapshot with *that* would date the comparison silently.
-            if (readReport?.answered?.let { it > 0 } == true) {
-                compareTarget = CompareTarget.CurrentReading
-            } else {
-                warn("Nothing answered the read, so there is nothing to compare against.")
-            }
-        }
-    }
-
-    /** The selected snapshot against [compareTarget], oldest sample first. */
-    val comparison: SnapshotComparison.Result?
-        get() {
-            val selected = selectedSnapshot ?: return null
-            val backup = selected.backup ?: return null
-            val model = selectedSnapshotModel
-            val specs = model?.let { specsFor(it) } ?: emptyList()
-
-            val base = SnapshotComparison.Side(
-                label = selected.file.name,
-                takenAt = backup.takenAt,
-                model = backup.model,
-                serial = backup.printerSerial,
-                readings = backup.readings(model),
-            )
-
-            return when (val target = compareTarget) {
-                is CompareTarget.None -> null
-
-                is CompareTarget.CurrentReading -> {
-                    val report = readReport ?: return null
-                    val other = SnapshotComparison.Side(
-                        label = "Current reading",
-                        takenAt = "read just now",
-                        model = report.model,
-                        serial = identifyingSerial(selectedDevice),
-                        readings = report.readings,
-                    )
-                    SnapshotComparison.compare(before = base, after = other, specs = specs)
-                }
-
-                is CompareTarget.Snapshot -> {
-                    val found = snapshots.firstOrNull { it.file == target.file }
-                    val otherBackup = found?.backup ?: return null
-                    val other = SnapshotComparison.Side(
-                        label = found.file.name,
-                        takenAt = otherBackup.takenAt,
-                        model = otherBackup.model,
-                        serial = otherBackup.printerSerial,
-                        readings = otherBackup.readings(model),
-                    )
-                    // The stamp is `yyyyMMdd'T'HHmmss'Z'`, so it sorts as text. A hand-edited file
-                    // with an unparseable stamp lands wherever it lands;
-                    if (otherBackup.createdAt >= backup.createdAt) {
-                        SnapshotComparison.compare(before = base, after = other, specs = specs)
-                    } else {
-                        SnapshotComparison.compare(before = other, after = base, specs = specs)
-                    }
-                }
-            }
-        }
-
-    // ── The hand-off from the Reset tab ──────────────────────────────────────────────────────
-
-    /** Snapshots taken from the model currently selected on the Reset tab, newest first. */
-    val snapshotsForSelectedModel: List<SavedSnapshot>
-        get() {
-            val model = selectedModel ?: return emptyList()
-            return snapshots.filter { it.backup?.model.equals(model.name, ignoreCase = true) }
-        }
-
-    /** True when the reading on the Reset tab could be compared against something on disk. */
-    val canOfferComparison: Boolean
-        get() = readReport?.answered?.let { it > 0 } == true &&
-            !readWasSimulated &&
-            snapshotsForSelectedModel.isNotEmpty()
-
-    /**
-     * Opens the newest snapshot for this model on the Snapshot tab, already paired with the reading
-     * on screen.
-     */
-    fun compareCurrentReadingWithNewestSnapshot() {
-        val snapshot = snapshotsForSelectedModel.firstOrNull() ?: return
-        selectSnapshot(snapshot)
-        compareWithCurrentReading()
-        tab = Tab.SNAPSHOTS
-    }
-
-    /** Why the selected snapshot cannot be written back right now, or null when it can. */
-    val snapshotRestoreBlockedReason: String?
-        get() {
-            val backup = selectedSnapshot?.backup ?: return "Select a snapshot."
-            val model = selectedModel
-                ?: return "Select ${backup.model} on the Reset tab — a restore needs its write key."
-            if (!model.name.equals(backup.model, ignoreCase = true)) {
-                return "This snapshot is a ${backup.model}; ${model.name} is selected. " +
-                    "Switch the selection before writing one model's bytes into another."
-            }
-            return if (dryRun) null else writeBlockedReason
-        }
-
-    /** Puts the Reset tab's selection on the model the selected snapshot came from. */
-    fun useSnapshotModel() {
-        val backup = selectedSnapshot?.backup ?: return
-        val model = database?.get(backup.model) ?: run {
-            bad("'${backup.model}' is not in the database, so its write key is unavailable.")
-            return
-        }
-        selectModel(model)
-        query = model.name
-        info("Selected ${model.name} — the model this snapshot was taken from.")
-    }
-
-    /** Writes the selected snapshot back. Gated exactly as any other restore is. */
-    fun restoreSelectedSnapshot() {
-        val backup = selectedSnapshot?.backup ?: return
-        restore(backup)
     }
 
     /**
@@ -2225,11 +1362,5 @@ class ResetViewModel(
 
     private companion object {
         const val MAX_LOG_LINES = 4000
-
-        /**
-         * How many models the calibration picker offers. A layout can be shared by 120 of them,
-         * which is a list nobody scrolls;
-         */
-        const val MAX_MODEL_CANDIDATES = 24
     }
 }

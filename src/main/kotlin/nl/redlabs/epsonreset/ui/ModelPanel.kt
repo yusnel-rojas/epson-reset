@@ -69,12 +69,12 @@ fun ModelPanel(vm: ResetViewModel, modifier: Modifier = Modifier) {
                 Spacer(Modifier.height(12.dp))
                 // The action belongs on the counters, since a maximum is what the "no limit" in
                 // them is missing. The form itself opens in its own window — see CalibrationDialog.
-                DecodedCounters(vm.decodedCounters, onCalibrate = { vm.openCalibration() })
+                DecodedCounters(vm.decodedCounters, onCalibrate = { vm.calibration.open() })
                 CalibrationDialog(vm)
                 Spacer(Modifier.height(12.dp))
                 CounterTable(report, vm.beforeReport)
 
-                if (vm.canOfferComparison) {
+                if (vm.snapshot.canOfferComparison) {
                     Spacer(Modifier.height(12.dp))
                     CompareOffer(vm)
                 }
@@ -86,7 +86,7 @@ fun ModelPanel(vm: ResetViewModel, modifier: Modifier = Modifier) {
 /** A way through to the comparison, not a second copy of it. */
 @Composable
 private fun CompareOffer(vm: ResetViewModel) {
-    val saved = vm.snapshotsForSelectedModel
+    val saved = vm.snapshot.snapshotsForSelectedModel
 
     Row(
         Modifier
@@ -112,7 +112,7 @@ private fun CompareOffer(vm: ResetViewModel) {
         }
 
         Spacer(Modifier.width(12.dp))
-        OutlinedButton(onClick = { vm.compareCurrentReadingWithNewestSnapshot() }) {
+        OutlinedButton(onClick = { vm.snapshot.compareCurrentReadingWithNewestSnapshot() }) {
             Text("Compare")
         }
     }
@@ -250,7 +250,7 @@ private fun RunControls(
                 Spacer(Modifier.width(8.dp))
                 // Saving writes a file, not EEPROM, so it needs no confirmation either — and it
                 // belongs next to the read, because what it saves is whatever that read returned.
-                OutlinedButton(onClick = { vm.saveSnapshot() }, enabled = vm.canSaveSnapshot) {
+                OutlinedButton(onClick = { vm.snapshot.saveSnapshot() }, enabled = vm.snapshot.canSaveSnapshot) {
                     Text("Save snapshot")
                 }
                 Spacer(Modifier.width(8.dp))
@@ -300,7 +300,7 @@ private fun RunControls(
         // Only once there are counters on screen. Before that, a disabled Save snapshot next to
         // Read counters says what it needs to say on its own.
         if (vm.readReport != null) {
-            vm.snapshotBlockedReason?.let {
+            vm.snapshot.snapshotBlockedReason?.let {
                 Spacer(Modifier.height(8.dp))
                 Text(
                     "Cannot save these as a snapshot — $it.",
@@ -453,7 +453,7 @@ private fun RestoreOffer(vm: ResetViewModel) {
             if (confirming) {
                 Button(
                     onClick = {
-                        vm.loadBackup(file)?.let { vm.restore(it) }
+                        vm.snapshot.loadBackup(file)?.let { vm.snapshot.restore(it) }
                             ?: vm.bad("Could not read ${file.name} — it is missing or not a valid backup.")
                         confirming = false
                     },

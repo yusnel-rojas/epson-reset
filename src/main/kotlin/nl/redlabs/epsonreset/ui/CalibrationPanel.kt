@@ -47,13 +47,14 @@ import nl.redlabs.epsonreset.db.Calibration
 /** Where a printer's own maximum gets measured and reported. */
 @Composable
 fun CalibrationDialog(vm: ResetViewModel) {
-    if (!vm.calibrationDialogOpen) return
+    val calibration = vm.calibration
+    if (!calibration.dialogOpen) return
 
     val clipboard = LocalClipboardManager.current
     val state = rememberDialogState(size = DpSize(740.dp, 780.dp))
 
     DialogWindow(
-        onCloseRequest = { vm.calibrationDialogOpen = false },
+        onCloseRequest = { calibration.dialogOpen = false },
         state = state,
         title = "Contribute a calibration — ${vm.selectedModel?.name ?: "no model"}",
     ) {
@@ -61,7 +62,7 @@ fun CalibrationDialog(vm: ResetViewModel) {
             Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp)) {
                 Header(vm)
 
-                val blocked = vm.calibrationBlockedReason
+                val blocked = calibration.blockedReason
                 if (blocked != null) {
                     Spacer(Modifier.height(16.dp))
                     Text(
@@ -70,7 +71,7 @@ fun CalibrationDialog(vm: ResetViewModel) {
                         color = StatusColors.warn,
                     )
                     Spacer(Modifier.height(16.dp))
-                    OutlinedButton(onClick = { vm.calibrationDialogOpen = false }) { Text("Close") }
+                    OutlinedButton(onClick = { calibration.dialogOpen = false }) { Text("Close") }
                     return@Column
                 }
 
@@ -78,15 +79,15 @@ fun CalibrationDialog(vm: ResetViewModel) {
                 ModelField(vm)
 
                 Spacer(Modifier.height(16.dp))
-                for (row in vm.calibrationRows) {
-                    CounterRow(vm, row)
+                for (row in calibration.rows) {
+                    CounterRow(calibration, row)
                     HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
                 }
 
                 Spacer(Modifier.height(14.dp))
                 OutlinedTextField(
-                    value = vm.calibrationNote,
-                    onValueChange = { vm.calibrationNote = it },
+                    value = calibration.note,
+                    onValueChange = { calibration.note = it },
                     label = { Text("Note (optional)") },
                     placeholder = { Text("Which tool reported the percentage, what the printer's panel said…") },
                     modifier = Modifier.fillMaxWidth(),
@@ -137,14 +138,15 @@ private fun Header(vm: ResetViewModel) {
 @Composable
 private fun ModelField(vm: ResetViewModel) {
     var menu by remember { mutableStateOf(false) }
-    val candidates = vm.calibrationModelCandidates
-    val siblings = vm.calibrationLayoutSiblings.size
+    val calibration = vm.calibration
+    val candidates = calibration.modelCandidates
+    val siblings = calibration.layoutSiblings.size
 
     Column {
         Row(verticalAlignment = Alignment.CenterVertically) {
             OutlinedTextField(
-                value = vm.calibrationModel,
-                onValueChange = { vm.calibrationModel = it },
+                value = calibration.model,
+                onValueChange = { calibration.model = it },
                 label = { Text("The model this printer actually is") },
                 placeholder = { Text("ET-2825") },
                 singleLine = true,
@@ -173,7 +175,7 @@ private fun ModelField(vm: ResetViewModel) {
                                 }
                             },
                             onClick = {
-                                vm.calibrationModel = name
+                                calibration.model = name
                                 menu = false
                             },
                         )
@@ -182,7 +184,7 @@ private fun ModelField(vm: ResetViewModel) {
             }
         }
 
-        vm.calibrationModelWarning?.let {
+        calibration.modelWarning?.let {
             Spacer(Modifier.height(4.dp))
             Text(it, style = MaterialTheme.typography.labelSmall, color = StatusColors.warn)
         }
@@ -214,9 +216,9 @@ private fun label(vm: ResetViewModel, name: String): String? = when (name) {
  * One counter: what the app knows about it today, what you can say about it, and what that implies.
  */
 @Composable
-private fun CounterRow(vm: ResetViewModel, row: ResetViewModel.CalibrationRow) {
+private fun CounterRow(calibration: CalibrationState, row: CalibrationState.Row) {
     val spec = row.counter.spec
-    val input = vm.calibrationInput(spec.addresses)
+    val input = calibration.input(spec.addresses)
 
     Column(Modifier.fillMaxWidth().padding(vertical = 10.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -264,7 +266,7 @@ private fun CounterRow(vm: ResetViewModel, row: ResetViewModel.CalibrationRow) {
         Row {
             OutlinedTextField(
                 value = input.percent,
-                onValueChange = { vm.setCalibrationPercent(spec.addresses, it) },
+                onValueChange = { calibration.setPercent(spec.addresses, it) },
                 enabled = !input.serviceRequired,
                 label = { Text("Percentage another tool shows") },
                 placeholder = { Text("60.90") },
@@ -276,7 +278,7 @@ private fun CounterRow(vm: ResetViewModel, row: ResetViewModel.CalibrationRow) {
             // different counter, and its percentage would calibrate the wrong thing.
             OutlinedTextField(
                 value = input.reportedValue,
-                onValueChange = { vm.setCalibrationReportedValue(spec.addresses, it) },
+                onValueChange = { calibration.setReportedValue(spec.addresses, it) },
                 enabled = !input.serviceRequired,
                 label = { Text("…and the count it shows") },
                 placeholder = { Text(row.counter.value?.toString() ?: "") },
@@ -288,7 +290,7 @@ private fun CounterRow(vm: ResetViewModel, row: ResetViewModel.CalibrationRow) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Checkbox(
                 checked = input.serviceRequired,
-                onCheckedChange = { vm.setCalibrationServiceRequired(spec.addresses, it) },
+                onCheckedChange = { calibration.setServiceRequired(spec.addresses, it) },
             )
             Text(
                 "…or the printer is saying service required right now",
@@ -424,44 +426,45 @@ private fun Included(vm: ResetViewModel) {
 
 @Composable
 private fun Actions(vm: ResetViewModel, copy: (AnnotatedString) -> Unit) {
-    val enabled = vm.canSubmitCalibration
+    val calibration = vm.calibration
+    val enabled = calibration.canSubmit
 
     Column {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Button(
-                onClick = { vm.openCalibrationIssue { copy(AnnotatedString(it)) } },
+                onClick = { calibration.openIssue { copy(AnnotatedString(it)) } },
                 enabled = enabled,
             ) { Text("Open an issue") }
             Spacer(Modifier.width(8.dp))
             // Named for what it changes, not for what it reveals: it replaces the divisor behind
             // every percentage on this model, and "Show it now" reads like a preview.
-            OutlinedButton(onClick = { vm.applyCalibrationToSession() }, enabled = enabled) {
-                Text(if (vm.calibrationApplied) "Applied" else "Use this maximum now")
+            OutlinedButton(onClick = { calibration.applyToSession() }, enabled = enabled) {
+                Text(if (calibration.applied) "Applied" else "Use this maximum now")
             }
-            if (vm.calibrationApplied) {
+            if (calibration.applied) {
                 Spacer(Modifier.width(8.dp))
-                OutlinedButton(onClick = { vm.revertSessionCalibration() }) { Text("Undo") }
+                OutlinedButton(onClick = { calibration.revertSession() }) { Text("Undo") }
             }
             Spacer(Modifier.weight(1f))
-            TextButton(onClick = { vm.calibrationDialogOpen = false }) { Text("Close") }
+            TextButton(onClick = { calibration.dialogOpen = false }) { Text("Close") }
         }
 
         Row(verticalAlignment = Alignment.CenterVertically) {
             TextButton(
-                onClick = { copy(AnnotatedString(vm.calibrationEntry())) },
+                onClick = { copy(AnnotatedString(calibration.entry())) },
                 enabled = enabled,
             ) { Text("Copy entry") }
             TextButton(
-                onClick = { copy(AnnotatedString(vm.calibrationOverlay())) },
+                onClick = { copy(AnnotatedString(calibration.overlay())) },
                 enabled = enabled,
             ) { Text("Copy overlay") }
             TextButton(
-                onClick = { copy(AnnotatedString(vm.calibrationReport())) },
+                onClick = { copy(AnnotatedString(calibration.report())) },
                 enabled = enabled,
             ) { Text("Copy report") }
         }
 
-        if (vm.calibrationApplied) {
+        if (calibration.applied) {
             Spacer(Modifier.height(6.dp))
             Hint(
                 "Every percentage for this model is now divided by the maximum above, for this " +
