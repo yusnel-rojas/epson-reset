@@ -5,7 +5,7 @@ import nl.redlabs.epsonreset.net.SavedPrinters
 import nl.redlabs.epsonreset.net.SnmpTransport
 import nl.redlabs.epsonreset.usb.UsbPrinterScanner
 
-/** Everything reachable, from every source, in one list. */
+/** Reachable printers plus remembered network addresses, from every source, in one list. */
 object PrinterDiscovery {
 
     data class Result(
@@ -94,14 +94,14 @@ object PrinterDiscovery {
         // and the same limitation: it names the family, not the unit. SNMP knows better.
         fallbackProduct = service.model,
         manufacturer = service.manufacturer,
+        advertisedNow = true,
     )
 
     private fun fromSaved(entry: SavedPrinters.Saved) = identified(
         link = entry.link,
         fallbackProduct = entry.product,
         manufacturer = null,
-        noteWhenAnonymous =
-        "Added by hand and not identified — test the connection, or pick the model below.",
+        advertisedNow = false,
     )
 
     /** Asks the printer itself before falling back to what advertised it. */
@@ -109,16 +109,32 @@ object PrinterDiscovery {
         link: Link.Network,
         fallbackProduct: String?,
         manufacturer: String?,
-        noteWhenAnonymous: String? = null,
+        advertisedNow: Boolean,
+    ): DetectedPrinter = identified(
+        link = link,
+        fallbackProduct = fallbackProduct,
+        manufacturer = manufacturer,
+        advertisedNow = advertisedNow,
+        identity = SnmpTransport.identify(link.host, port = link.port),
+    )
+
+    /** Pure half of network discovery, visible to tests so remembered presence cannot regress. */
+    internal fun identified(
+        link: Link.Network,
+        fallbackProduct: String?,
+        manufacturer: String?,
+        advertisedNow: Boolean,
+        identity: SnmpTransport.Companion.Identity?,
     ): DetectedPrinter {
-        val identity = SnmpTransport.identify(link.host, port = link.port)
+        val reachable = advertisedNow || identity != null
 
         return DetectedPrinter(
             link = link,
             manufacturer = manufacturer,
             product = identity?.model ?: fallbackProduct,
             serial = identity?.serial,
-            accessNote = if (identity == null && fallbackProduct == null) noteWhenAnonymous else null,
+            accessNote = if (reachable) null else "Saved address did not answer this scan.",
+            reachable = reachable,
         )
     }
 }

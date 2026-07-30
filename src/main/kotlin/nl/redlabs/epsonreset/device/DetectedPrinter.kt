@@ -2,7 +2,7 @@ package nl.redlabs.epsonreset.device
 
 import nl.redlabs.epsonreset.db.PrinterModel
 
-/** A printer we found and can reach, plus whatever it told us about itself. */
+/** A printer found during discovery, or a remembered network address, plus what is known about it. */
 data class DetectedPrinter(
     val link: Link,
     val manufacturer: String? = null,
@@ -12,6 +12,8 @@ data class DetectedPrinter(
     val productId: Int? = null,
     /** Set when identity couldn't be read — usually the OS owning the USB interface. */
     val accessNote: String? = null,
+    /** Whether this printer answered the current discovery or a later connection test. */
+    val reachable: Boolean = true,
     /**
      * The same printer answering on its other link, and the better name it gave there. Only set
      * where that name is worth having: SNMP names a unit where a USB descriptor names a family.

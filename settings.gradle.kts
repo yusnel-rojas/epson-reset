@@ -13,4 +13,10 @@ pluginManagement {
     }
 }
 
+// Compose Hot Reload runs on JetBrains Runtime for enhanced class redefinition. Provision it on
+// machines that only have a regular JDK, so `./gradlew hotRun --auto` works from a clean checkout.
+plugins {
+    id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"
+}
+
 rootProject.name = "EpsonReset"

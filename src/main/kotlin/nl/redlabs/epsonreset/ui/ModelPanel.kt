@@ -41,7 +41,7 @@ import nl.redlabs.epsonreset.db.PadKind
 import nl.redlabs.epsonreset.db.PrinterModel
 import nl.redlabs.epsonreset.protocol.Executor
 
-/** The full-width Reset screen for the model in the application-wide target. */
+/** The full-width Counters screen for the model in the application-wide target. */
 @Composable
 fun ModelPanel(vm: ResetViewModel, modifier: Modifier = Modifier) {
     var confirming by remember { mutableStateOf(false) }
@@ -69,7 +69,10 @@ fun ModelPanel(vm: ResetViewModel, modifier: Modifier = Modifier) {
                 Spacer(Modifier.height(12.dp))
                 // The action belongs on the counters, since a maximum is what the "no limit" in
                 // them is missing. The form itself opens in its own window — see CalibrationDialog.
-                DecodedCounters(vm.decodedCounters, onCalibrate = { vm.calibration.open() })
+                DecodedCounters(
+                    counters = vm.decodedCounters,
+                    onCalibrate = if (vm.readWasSimulated) null else vm.calibration::open,
+                )
                 CalibrationDialog(vm)
                 Spacer(Modifier.height(12.dp))
                 CounterTable(report, vm.beforeReport)
@@ -80,6 +83,12 @@ fun ModelPanel(vm: ResetViewModel, modifier: Modifier = Modifier) {
                 }
             }
         }
+
+        // Rendered once, whether or not this session has a fresh reading. The panel hides itself when
+        // the selected printer has neither a serial-keyed history nor a reason it can't have one, and
+        // its modifier — top spacing included — applies only on that render path, so nothing shows a
+        // gap when it stays hidden.
+        CounterHistoryPanel(vm, Modifier.padding(top = 20.dp))
     }
 }
 
@@ -226,6 +235,7 @@ private fun RunControls(
     onConfirmChange: (Boolean) -> Unit,
 ) {
     val running = vm.runState is ResetViewModel.RunState.Running
+    val active = running || vm.reading
 
     Column {
         // Nothing is inserted here when Live is switched on. A warning that displaces the controls
@@ -239,12 +249,12 @@ private fun RunControls(
             }
             Spacer(Modifier.weight(1f))
 
-            if (running || vm.reading) {
+            if (active) {
                 OutlinedButton(onClick = { vm.cancel() }) { Text("Cancel") }
             } else {
                 // Reading never writes, so it sits outside the confirmation gate.
                 OutlinedButton(onClick = { vm.readCounters() }, enabled = vm.canRead) {
-                    Text("Read counters")
+                    Text(if (vm.dryRun) "Simulate reading" else "Read counters")
                 }
                 Spacer(Modifier.width(8.dp))
                 // Saving writes a file, not EEPROM, so it needs no confirmation either — and it
@@ -257,15 +267,30 @@ private fun RunControls(
                     onClick = { if (vm.dryRun) vm.run() else onConfirmChange(true) },
                     enabled = vm.canRun,
                 ) {
-                    Text(if (vm.dryRun) "Dry run" else "Reset counters")
+                    Text(if (vm.dryRun) "Simulate reset" else "Reset counters")
                 }
             }
+        }
+
+        if (active) {
+            Spacer(Modifier.height(10.dp))
+            LinearProgressIndicator(
+                progress = { vm.progress },
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                vm.progressLabel,
+                style = MaterialTheme.typography.labelSmall,
+                color = StatusColors.muted,
+            )
+            return@Column
         }
 
         if (!vm.dryRun && vm.selectedDevice == null) {
             Spacer(Modifier.height(8.dp))
             Text(
-                "Select a connected printer before writing.",
+                "Select a connected printer to use live mode.",
                 style = MaterialTheme.typography.labelSmall,
                 color = StatusColors.warn,
             )
@@ -298,7 +323,7 @@ private fun RunControls(
 
         // Only once there are counters on screen. Before that, a disabled Save snapshot next to
         // Read counters says what it needs to say on its own.
-        if (vm.readReport != null) {
+        if (vm.readReport != null && !vm.readWasSimulated) {
             vm.snapshot.snapshotBlockedReason?.let {
                 Spacer(Modifier.height(8.dp))
                 Text(
@@ -320,27 +345,6 @@ private fun RunControls(
                 },
             )
         }
-
-        if (running || vm.reading) {
-            Spacer(Modifier.height(10.dp))
-            LinearProgressIndicator(
-                progress = { vm.progress },
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Spacer(Modifier.height(4.dp))
-            Text(
-                vm.progressLabel,
-                style = MaterialTheme.typography.labelSmall,
-                color = StatusColors.muted,
-            )
-        }
-
-        Spacer(Modifier.height(8.dp))
-        Text(
-            "${model.writeCount} EEPROM writes across ${model.padGroups.size} group(s).",
-            style = MaterialTheme.typography.labelSmall,
-            color = StatusColors.muted,
-        )
     }
 }
 

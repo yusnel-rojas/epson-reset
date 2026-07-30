@@ -39,4 +39,7 @@ object AppPaths {
 
     /** EEPROM snapshots, taken before a live run's first write or on request. */
     val backups: File get() = File(dataDir, "backups")
+
+    /** Append-only successful live counter reads, keyed by canonical printer serial. */
+    val counterHistory: File get() = File(dataDir, "counter-history.jsonl")
 }

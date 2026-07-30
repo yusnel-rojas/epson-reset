@@ -30,6 +30,8 @@ data class Preferences(
      * the network entry has already been queried by the time the two are compared.
      */
     val crossCheckOverSnmp: Boolean = true,
+    /** Successful real-printer counter reads are appended locally; disabling does not delete them. */
+    val keepCounterHistory: Boolean = true,
 ) {
 
     /** Clamps the stored geometry back into the range the app can actually render. */
@@ -76,6 +78,7 @@ data class Preferences(
                 checkForUpdates = root.bool("checkForUpdates") ?: defaults.checkForUpdates,
                 lastUpdateCheck = root.long("lastUpdateCheck") ?: defaults.lastUpdateCheck,
                 crossCheckOverSnmp = root.bool("crossCheckOverSnmp") ?: defaults.crossCheckOverSnmp,
+                keepCounterHistory = root.bool("keepCounterHistory") ?: defaults.keepCounterHistory,
             ).sanitised()
         }
 
@@ -92,6 +95,7 @@ data class Preferences(
                 put("checkForUpdates", JsonPrimitive(p.checkForUpdates))
                 put("lastUpdateCheck", JsonPrimitive(p.lastUpdateCheck))
                 put("crossCheckOverSnmp", JsonPrimitive(p.crossCheckOverSnmp))
+                put("keepCounterHistory", JsonPrimitive(p.keepCounterHistory))
             }
             return json.encodeToString(JsonObject.serializer(), obj) + "\n"
         }

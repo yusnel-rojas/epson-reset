@@ -30,6 +30,7 @@ import nl.redlabs.epsonreset.device.ModelChoices
 import nl.redlabs.epsonreset.device.PrinterDiscovery
 import nl.redlabs.epsonreset.device.PrinterTransports
 import nl.redlabs.epsonreset.device.Serials
+import nl.redlabs.epsonreset.history.CounterJournal
 import nl.redlabs.epsonreset.net.NetworkAddress
 import nl.redlabs.epsonreset.net.SavedPrinters
 import nl.redlabs.epsonreset.prefs.PreferencesStore
@@ -43,6 +44,7 @@ import nl.redlabs.epsonreset.update.AppVersion
 import nl.redlabs.epsonreset.usb.LibUsb
 import nl.redlabs.epsonreset.usb.UsbPrinterScanner
 import java.io.File
+import java.time.Instant
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.concurrent.atomic.AtomicBoolean
@@ -56,8 +58,14 @@ class ResetViewModel(
     private val discover: () -> PrinterDiscovery.Result = {
         PrinterDiscovery.scan(crossCheck = PreferencesStore.current().crossCheckOverSnmp)
     },
+    private val connectionTest: (DetectedPrinter, PrinterModel?) -> ConnectionTest.Result = ConnectionTest::run,
+    private val loadSavedPrinters: () -> List<SavedPrinters.Saved> = SavedPrinters::load,
+    private val addSavedPrinter: (SavedPrinters.Saved) -> List<SavedPrinters.Saved> = SavedPrinters::add,
+    private val removeSavedPrinter: (Link.Network) -> List<SavedPrinters.Saved> = SavedPrinters::remove,
     private val backupDir: () -> File = { AppPaths.backups },
     private val choicesFile: () -> File = { AppPaths.modelChoices },
+    private val historyFile: () -> File = { AppPaths.counterHistory },
+    private val now: () -> Instant = Instant::now,
 ) {
 
     /** The model database. */
@@ -105,6 +113,8 @@ class ResetViewModel(
     val scopedModelCandidates: List<PrinterModel>
         get() = pendingClass?.candidates ?: confirmedClass?.let { reported ->
             database?.let { DeviceMatcher.resolve(reported, it).candidates }
+        } ?: selectedDevice?.model?.let { model ->
+            database?.let { ModelClass.members(it, model.name) }
         }.orEmpty()
 
     /** What the printer would only say, and everything it could have meant. */
@@ -160,7 +170,7 @@ class ResetViewModel(
     fun isSaved(printer: MatchedPrinter): Boolean = printer.device.link in savedNetworkPrinters
 
     val canAddNetworkPrinter: Boolean
-        get() = !busy && NetworkAddress.parse(networkAddressInput) != null
+        get() = !printerOperationRunning && NetworkAddress.parse(networkAddressInput) != null
 
     var testing by mutableStateOf(false)
         private set
@@ -169,7 +179,7 @@ class ResetViewModel(
     var lastTest by mutableStateOf<ConnectionTest.Result?>(null)
         private set
 
-    val canTestConnection: Boolean get() = !busy && !testing && selectedDevice != null
+    val canTestConnection: Boolean get() = !printerOperationRunning && selectedDevice != null
 
     var query by mutableStateOf("")
     var selectedModel by mutableStateOf<PrinterModel?>(null)
@@ -178,25 +188,41 @@ class ResetViewModel(
     /** The user asked to pick the model by hand, over the top of a printer that named itself. */
     var manualModelRequested by mutableStateOf(false)
 
-    /** Whether the app-wide target menu shows model choices rather than one settled model. */
+    /** The target menu is on its contextual second step rather than its normal printer list. */
+    var modelSelectionVisible by mutableStateOf(false)
+        private set
+
+    /** Whether the model identity is unresolved or has been explicitly overridden. */
     val modelPickerExpanded: Boolean
         get() = manualModelRequested || identifiedModel == null || modelMismatch != null ||
             pendingClass != null
 
-    /** The user asked for the add-by-address field. It also appears on its own — see the panel. */
+    fun requestModelSelection() {
+        if (!canChangeTarget || selectedDevice == null) return
+        manualModelRequested = true
+        modelSelectionVisible = true
+    }
+
+    fun leaveModelSelection() {
+        manualModelRequested = false
+        modelSelectionVisible = false
+    }
+
+    /** The user opened the secondary add-by-address step from the scan control. */
     var addByAddressRequested by mutableStateOf(false)
 
-    var tab by mutableStateOf(Tab.RESET)
+    var tab by mutableStateOf(Tab.COUNTERS)
 
     /** The settings window, which is a window rather than a tab — it is an errand, not a screen. */
     var settingsOpen by mutableStateOf(false)
 
     /**
-     * Mirrors of the two preferences with a switch in that window. Restored and persisted in
+     * Mirrors of preferences with a switch in that window. Restored and persisted in
      * App.kt alongside the rest, so the view model stays out of the preferences file.
      */
     var crossCheckOverSnmp by mutableStateOf(true)
     var checkForUpdates by mutableStateOf(true)
+    var keepCounterHistory by mutableStateOf(true)
 
     /** Every family answer on file, for the window that lists them. Loaded on open. */
     var rememberedChoices by mutableStateOf<List<ModelChoices.Choice>>(emptyList())
@@ -205,6 +231,7 @@ class ResetViewModel(
     fun openSettings() {
         settingsOpen = true
         refreshRememberedChoices()
+        history.refreshStats()
     }
 
     private fun refreshRememberedChoices() {
@@ -219,6 +246,10 @@ class ResetViewModel(
      * the rest of the app carries on citing it.
      */
     fun forgetRememberedChoice(key: String) {
+        if (!canChangeTarget) {
+            warn("Wait for the current printer operation to finish before changing remembered models.")
+            return
+        }
         if (key in printerKeys) {
             forgetModelChoice()
             refreshRememberedChoices()
@@ -233,6 +264,10 @@ class ResetViewModel(
     }
 
     fun forgetAllRememberedChoices() {
+        if (!canChangeTarget) {
+            warn("Wait for the current printer operation to finish before changing remembered models.")
+            return
+        }
         val known = rememberedChoices
         if (known.isEmpty()) return
 
@@ -282,6 +317,17 @@ class ResetViewModel(
 
     fun specsFor(model: PrinterModel): List<CounterSpec> = counterSpecs?.get(model.name) ?: emptyList()
 
+    val history = CounterHistoryState(
+        scope = scope,
+        io = io,
+        journal = CounterJournal(historyFile()),
+        enabled = { keepCounterHistory },
+        specsFor = { counterSpecs?.get(it) ?: emptyList() },
+        now = now,
+        info = { info(it) },
+        bad = { bad(it) },
+    )
+
     /** Pre-reset sample, kept so the UI can show what actually changed. */
     var beforeReport by mutableStateOf<CounterReader.Report?>(null)
         private set
@@ -326,6 +372,13 @@ class ResetViewModel(
         openTransport = { device, isDry -> openTransport(device, isDry) },
         transportError = { transportError },
         specsFor = { specsFor(it) },
+        otherOperationRunning = {
+            runState == RunState.Running ||
+                reading ||
+                testing ||
+                maintenance.running != null ||
+                scanState is ScanState.Scanning
+        },
         resetCancellation = { cancelFlag.set(false) },
         isCancelled = { cancelFlag.get() },
         updateProgress = { value, label ->
@@ -385,7 +438,7 @@ class ResetViewModel(
         io = io,
         selectedDevice = { selectedDevice },
         status = { status },
-        otherOperationRunning = { runState == RunState.Running || reading },
+        otherOperationRunning = { busy },
         transports = transports,
         trace = { trace(it) },
         info = { info(it) },
@@ -399,6 +452,7 @@ class ResetViewModel(
     sealed interface ScanState {
         data object Idle : ScanState
         data object Scanning : ScanState
+        data object Stopped : ScanState
         data object Done : ScanState
         data class LibraryMissing(val detail: String, val hint: String) : ScanState
         data class Failed(val message: String) : ScanState
@@ -422,7 +476,7 @@ class ResetViewModel(
     val searchResults: List<PrinterModel>
         get() = database?.search(query) ?: emptyList()
 
-    enum class Tab { RESET, MODELS, INSPECT, MAINTENANCE, SNAPSHOTS }
+    enum class Tab { COUNTERS, MAINTENANCE, SNAPSHOTS, INSPECT, MODELS }
 
     enum class MatrixFilter(val label: String) {
         ALL("All"),
@@ -467,13 +521,30 @@ class ResetViewModel(
             }
         }
 
-    fun selectModelAndShowReset(capability: ModelCapability) {
+    fun selectModelAndShowCounters(capability: ModelCapability) {
+        if (!canChangeTarget) {
+            warn("Wait for the current printer operation to finish before changing the target.")
+            return
+        }
         selectModel(capability.model)
         query = capability.name
-        tab = Tab.RESET
+        tab = Tab.COUNTERS
     }
 
-    private val busy: Boolean get() = runState == RunState.Running || reading || maintenance.running != null
+    private val printerOperationRunning: Boolean
+        get() = runState == RunState.Running ||
+            reading ||
+            testing ||
+            inspect.inspecting ||
+            maintenance.running != null
+
+    /** Operations cannot start during a scan, but the target menu remains usable so it can stop it. */
+    private val busy: Boolean get() = printerOperationRunning || scanState is ScanState.Scanning
+
+    /** A running operation owns the printer/model pair until its result has been published. */
+    val canChangeTarget: Boolean get() = !printerOperationRunning
+
+    val canScan: Boolean get() = !printerOperationRunning
 
     /** The selected model contradicts what the printer said it is, or null when they agree. */
     val modelMismatch: String?
@@ -504,7 +575,13 @@ class ResetViewModel(
             // another is wrong over USB for exactly the same reason it is wrong over SNMP.
             targetModelBlockedReason?.let { return it }
 
-            if (selectedDevice?.device?.isNetwork != true) return null
+            val selected = selectedDevice ?: return null
+            if (!selected.device.reachable) {
+                return "The selected printer was not reached. Rescan or test its connection " +
+                    "before using live mode."
+            }
+
+            if (!selected.device.isNetwork) return null
 
             val test = lastTest ?: return null
             if (!test.overNetwork || test.reach != ConnectionTest.Reach.STATUS_ONLY) return null
@@ -517,7 +594,7 @@ class ResetViewModel(
     val canRun: Boolean
         get() = !busy &&
             selectedModel?.hasResettableCounters == true &&
-            (dryRun || (selectedDevice != null && writeBlockedReason == null))
+            (dryRun || (selectedDevice?.device?.reachable == true && writeBlockedReason == null))
 
     /** Reading has the same prerequisites but never writes, so it needs no confirmation. */
     val canRead: Boolean get() = canRun
@@ -533,7 +610,7 @@ class ResetViewModel(
             // and that offer depends on knowing what is already on disk. Reading a directory is
             // cheap;
             snapshot.refreshNow()
-            scanNow()
+            scanNow(beginScan())
         }
     }
 
@@ -602,17 +679,45 @@ class ResetViewModel(
     }
 
     fun scan() {
-        scope.launch { scanNow() }
+        if (scanState is ScanState.Scanning) {
+            stopScan()
+            return
+        }
+        if (!canScan) {
+            warn("Wait for the current printer operation to finish before scanning again.")
+            return
+        }
+        val generation = beginScan()
+        scope.launch { scanNow(generation) }
+    }
+
+    private var scanGeneration = 0L
+
+    private fun beginScan(): Long {
+        scanGeneration += 1
+        return scanGeneration
+    }
+
+    fun stopScan() = stopScan(report = true)
+
+    private fun stopScan(report: Boolean) {
+        if (scanState !is ScanState.Scanning) return
+        scanGeneration += 1
+        scanState = ScanState.Stopped
+        if (report) info("Printer scan stopped.")
     }
 
     /** Scans both buses. */
-    private suspend fun scanNow() {
+    private suspend fun scanNow(generation: Long): Boolean {
+        if (generation != scanGeneration) return false
         scanState = ScanState.Scanning
         val db = database
         val discovery = withContext(io) { discover() }
+        if (generation != scanGeneration) return false
         savedNetworkPrinters = withContext(io) {
-            SavedPrinters.load().map { it.link }.toSet()
+            loadSavedPrinters().map { it.link }.toSet()
         }
+        if (generation != scanGeneration) return false
 
         val matched =
             if (db != null) {
@@ -652,20 +757,14 @@ class ResetViewModel(
         usbNote?.let { warn("$it Dry runs still work.") }
         networkNote?.let { warn("Network discovery unavailable — $it") }
 
-        val hadSelectedDevice = selectedDevice != null
-        selectedDevice = selectedDevice?.let { previous ->
+        val previousSelection = selectedDevice
+        val refreshedSelection = previousSelection?.let { previous ->
             matched.firstOrNull { it.device.id == previous.device.id }
         }
-        if (hadSelectedDevice && selectedDevice == null) {
-            status = null
-            readReport = null
-            beforeReport = null
-            readWasSimulated = false
-            identity = null
-            pendingClass = null
-            manualModelRequested = false
-            selectedModel = null
-            query = ""
+        if (previousSelection != null && refreshedSelection == null) {
+            clearSelectedTarget()
+        } else {
+            selectedDevice = refreshedSelection
         }
         refreshIdentity()
 
@@ -677,9 +776,31 @@ class ResetViewModel(
             info("Found ${matched.size} Epson device(s) — $usbCount on USB, $netCount on the network.")
             if (selectedDevice == null) matched.singleOrNull()?.let { select(it) }
         }
+        return true
+    }
+
+    private fun clearSelectedTarget() {
+        selectedDevice = null
+        lastTest = null
+        status = null
+        readReport = null
+        beforeReport = null
+        readWasSimulated = false
+        identity = null
+        pendingClass = null
+        manualModelRequested = false
+        modelSelectionVisible = false
+        selectedModel = null
+        query = ""
+        history.clearSelection()
     }
 
     fun select(device: MatchedPrinter) {
+        if (!canChangeTarget) {
+            warn("Wait for the current printer operation to finish before changing printers.")
+            return
+        }
+        stopScan(report = false)
         selectedDevice = device
         lastTest = null
         // These all belong to the printer that was selected before this one, not to this one. In
@@ -691,6 +812,7 @@ class ResetViewModel(
         identity = null
         pendingClass = null
         manualModelRequested = false
+        modelSelectionVisible = false
         selectedModel = null
         query = ""
         refreshIdentity()
@@ -709,6 +831,8 @@ class ResetViewModel(
 
         if (device.confidence == MatchedPrinter.Confidence.CLASS_ONLY) {
             classReported(device.device.product.orEmpty(), device.candidates)
+        } else if (device.confidence != MatchedPrinter.Confidence.EXACT) {
+            modelSelectionVisible = true
         }
 
         noteCrossCheck(device)
@@ -730,6 +854,7 @@ class ResetViewModel(
 
         if (fromDescriptor != null && ModelClass.recipeOf(fromDescriptor) != ModelClass.recipeOf(fromPeer)) {
             identity = null
+            modelSelectionVisible = true
             warn(
                 "This printer's descriptor matches ${fromDescriptor.name}, but the same serial " +
                     "answers SNMP at ${cross.link.where} as ${fromPeer.name} — and the two do not " +
@@ -743,6 +868,7 @@ class ResetViewModel(
         stageModel(fromPeer)
         pendingClass = null
         manualModelRequested = false
+        modelSelectionVisible = false
         info(
             "The same serial answers SNMP at ${cross.link.where} as ${fromPeer.name}. Using that: " +
                 "the descriptor says only \"${device.device.product}\", which names a family.",
@@ -761,12 +887,14 @@ class ResetViewModel(
             pendingClass = null
             identity = Identity(remembered, Identity.Via.CONFIRMED, reported)
             stageModel(remembered)
+            modelSelectionVisible = false
             info("\"$reported\" names a family; this printer was confirmed as ${remembered.name} before.")
             return
         }
 
         identity = null
         pendingClass = PendingClass(reported, candidates)
+        modelSelectionVisible = true
         selectedModel = null
         query = ""
         warn(
@@ -832,44 +960,69 @@ class ResetViewModel(
             warn("'$networkAddressInput' is not an address or hostname.")
             return
         }
+        if (printerOperationRunning) {
+            warn("Wait for the current printer operation to finish before adding a printer.")
+            return
+        }
+        stopScan(report = false)
 
         scope.launch {
             networkAddressInput = ""
             info("Added ${link.where}. Asking what is there…")
-            withContext(io) { SavedPrinters.add(SavedPrinters.Saved(link)) }
+            withContext(io) { addSavedPrinter(SavedPrinters.Saved(link)) }
 
             // Listed and selected before the probe, not after.
-            scanNow()
+            if (!scanNow(beginScan())) return@launch
             val added = devices.firstOrNull { it.device.link == link }
             added?.let { select(it) }
 
-            val probe = withContext(io) {
-                ConnectionTest.run(added?.device ?: DetectedPrinter(link), selectedModel)
+            testing = true
+            try {
+                val probe = withContext(io) {
+                    connectionTest(added?.device ?: DetectedPrinter(link), selectedModel)
+                }
+                reportTest(probe, link)
+            } finally {
+                testing = false
             }
-            reportTest(probe, link)
         }
     }
 
     /** Drops a hand-added address. Discovered printers come back on the next scan regardless. */
     fun forgetNetworkPrinter(printer: MatchedPrinter) {
+        if (!canChangeTarget) {
+            warn("Wait for the current printer operation to finish before forgetting a printer.")
+            return
+        }
+        stopScan(report = false)
         val link = printer.device.link as? Link.Network ?: return
         scope.launch {
-            withContext(io) { SavedPrinters.remove(link) }
+            val remaining = withContext(io) { removeSavedPrinter(link) }
+            savedNetworkPrinters = remaining.map { it.link }.toSet()
+            devices.removeAll { it.device.link == link }
+            if (selectedDevice?.device?.link == link) clearSelectedTarget()
             info("Forgot ${link.where}.")
-            scanNow()
         }
     }
 
     /** Checks the selected printer answers, without writing. */
     fun testConnection() {
+        if (!canTestConnection) {
+            warn("Wait for the current printer operation to finish before testing the connection.")
+            return
+        }
+        stopScan(report = false)
         val device = selectedDevice ?: return
+        testing = true
 
         scope.launch {
-            testing = true
-            info("Testing ${device.device.displayName} on ${device.device.link.kind}…")
-            val result = withContext(io) { ConnectionTest.run(device.device, selectedModel) }
-            reportTest(result, device.device.link as? Link.Network)
-            testing = false
+            try {
+                info("Testing ${device.device.displayName} on ${device.device.link.kind}…")
+                val result = withContext(io) { connectionTest(device.device, selectedModel) }
+                reportTest(result, device.device.link as? Link.Network)
+            } finally {
+                testing = false
+            }
         }
     }
 
@@ -877,6 +1030,21 @@ class ResetViewModel(
     private suspend fun reportTest(result: ConnectionTest.Result, link: Link.Network?) {
         lastTest = result
         result.status?.let { status = it }
+
+        // A saved address starts as merely remembered. A connection test is fresh evidence either
+        // way, so keep both the list and the app-wide target chip honest without requiring a rescan.
+        selectedDevice?.takeIf { it.device.link == link }?.let { selected ->
+            val reachable = result.opened && (result.answered || result.identity != null || result.status != null)
+            val updated = selected.copy(
+                device = selected.device.copy(
+                    accessNote = if (reachable) null else "Saved address did not answer the connection test.",
+                    reachable = reachable,
+                ),
+            )
+            val index = devices.indexOfFirst { it.device.id == selected.device.id }
+            if (index >= 0) devices[index] = updated
+            selectedDevice = updated
+        }
 
         if (result.usable) good(result.headline) else warn(result.headline)
         result.advice?.let { info(it) }
@@ -886,7 +1054,7 @@ class ResetViewModel(
 
         val reported = result.model
         if (reported != null && link != null) {
-            withContext(io) { SavedPrinters.add(SavedPrinters.Saved(link, reported)) }
+            withContext(io) { addSavedPrinter(SavedPrinters.Saved(link, reported)) }
         }
 
         // An identified printer should land on its database entry the same way a USB one does,
@@ -906,6 +1074,7 @@ class ResetViewModel(
                     stageModel(it)
                     pendingClass = null
                     manualModelRequested = false
+                    modelSelectionVisible = false
                     info("Matched to ${it.name} from what the printer reported.")
                 }
             }
@@ -934,9 +1103,22 @@ class ResetViewModel(
             beforeReport = null
             readWasSimulated = false
         }
+        // No device selected means nothing to show; a selected device with no serial still opens the
+        // panel, where select() explains why its reads cannot be joined.
+        val device = selectedDevice
+        if (device == null) {
+            history.clearSelection()
+        } else {
+            history.select(identifyingSerial(device), model.name)
+        }
     }
 
-    fun selectModel(model: PrinterModel) {
+    fun selectModel(model: PrinterModel): Boolean {
+        if (!canChangeTarget) {
+            warn("Wait for the current printer operation to finish before changing models.")
+            return false
+        }
+        stopScan(report = false)
         stageModel(model)
 
         val pending = pendingClass
@@ -950,8 +1132,10 @@ class ResetViewModel(
         }
 
         if (runState is RunState.Finished) runState = RunState.Idle
+        modelSelectionVisible = false
         // Every other decision that could end badly is in the log; this one belongs there too.
         modelMismatch?.let { warn("$it Dry runs still work; a live run will refuse.") }
+        return true
     }
 
     /** The user settled which member of a family this printer is. Keep it, so it is asked once. */
@@ -959,6 +1143,7 @@ class ResetViewModel(
         pendingClass = null
         identity = Identity(model, Identity.Via.CONFIRMED, reported)
         manualModelRequested = false
+        modelSelectionVisible = false
         query = model.name
 
         val key = printerKeys.firstOrNull()
@@ -978,6 +1163,10 @@ class ResetViewModel(
 
     /** Drops a remembered answer and asks again — for when the wrong member was confirmed. */
     fun forgetModelChoice() {
+        if (!canChangeTarget) {
+            warn("Wait for the current printer operation to finish before changing the target.")
+            return
+        }
         val reported = confirmedClass ?: return
         val db = database ?: return
         val key = printerKeys.firstOrNull()
@@ -996,20 +1185,27 @@ class ResetViewModel(
                 return@launch
             }
             pendingClass = PendingClass(reported, candidates)
+            modelSelectionVisible = true
             info("Forgot the choice for this printer. It reports \"$reported\" — pick again.")
         }
     }
 
     /** Puts back the model the last session ended on. */
     fun restoreModel(model: PrinterModel) {
+        if (!canChangeTarget) return
         if (selectedModel != null || identifiedModel != null) return
         stageModel(model)
     }
 
     /** Puts the selection back on what the printer said it was, and re-locks the picker. */
     fun useIdentifiedModel() {
+        if (!canChangeTarget) {
+            warn("Wait for the current printer operation to finish before changing the target.")
+            return
+        }
         val model = identifiedModel ?: return
         manualModelRequested = false
+        modelSelectionVisible = false
         if (selectedModel?.name != model.name) {
             stageModel(model)
             if (runState is RunState.Finished) runState = RunState.Idle
@@ -1024,6 +1220,10 @@ class ResetViewModel(
 
     /** Samples the model's counter addresses without writing anything. */
     fun readCounters() {
+        if (busy) {
+            warn("Wait for the current printer operation to finish before reading counters.")
+            return
+        }
         val model = selectedModel ?: return
         val device = selectedDevice
         val isDry = dryRun
@@ -1066,6 +1266,7 @@ class ResetViewModel(
         // A percentage typed against the previous reading would silently pair with this one.
         calibration.resetForm()
         status = read
+        if (!isDry) history.acceptLive(report, identifyingSerial(device, read?.serial))
         read?.let { s ->
             s.inkLevels.takeIf { it.isNotEmpty() }?.let { levels ->
                 info("Ink: " + levels.joinToString(", ") { "${it.colour} ${it.percent}%" })
@@ -1093,6 +1294,10 @@ class ResetViewModel(
     }
 
     fun run() {
+        if (busy) {
+            warn("Wait for the current printer operation to finish before starting a reset.")
+            return
+        }
         val model = selectedModel ?: return
         val device = selectedDevice
         val isDry = dryRun
@@ -1135,6 +1340,7 @@ class ResetViewModel(
             // the same session to be worth comparing.
             var before: CounterReader.Report? = null
             var after: CounterReader.Report? = null
+            var sampledStatus: Status.Report? = null
 
             var backupFile: File? = null
 
@@ -1151,6 +1357,7 @@ class ResetViewModel(
 
                         // Ask who this is while the channel is open.
                         val sampled = CounterReader.readStatus(it)
+                        sampledStatus = sampled
                         onMain { sampled?.let { s -> status = s } }
 
                         // The same block answers a second question worth asking before the first
@@ -1199,6 +1406,10 @@ class ResetViewModel(
             beforeReport = before
             readReport = after
             readWasSimulated = isDry
+            if (!isDry) {
+                before?.let { history.acceptLive(it, identifyingSerial(device, sampledStatus?.serial)) }
+                after?.let { history.acceptLive(it, identifyingSerial(device, sampledStatus?.serial)) }
+            }
             // The counters have just been zeroed, so nothing on this reading measures a maximum.
             calibration.resetForm()
             lastBackup = backupFile

@@ -397,3 +397,35 @@ class CrossLinkTest {
         assertEquals("ET-2820", DeviceMatcher.match(onUsb(), db).model?.name)
     }
 }
+
+class NetworkPresenceTest {
+
+    @Test
+    fun `a remembered address with a cached name is not reachable when it did not answer`() {
+        val printer = PrinterDiscovery.identified(
+            link = Link.Network("192.168.2.39"),
+            fallbackProduct = "ET-2825",
+            manufacturer = null,
+            advertisedNow = false,
+            identity = null,
+        )
+
+        assertEquals("ET-2825", printer.displayName)
+        assertFalse(printer.reachable)
+        assertEquals("Saved address did not answer this scan.", printer.accessNote)
+    }
+
+    @Test
+    fun `a current advertisement is reachability evidence when identity is silent`() {
+        val printer = PrinterDiscovery.identified(
+            link = Link.Network("192.168.2.39"),
+            fallbackProduct = "EPSON ET-2820 Series",
+            manufacturer = "EPSON",
+            advertisedNow = true,
+            identity = null,
+        )
+
+        assertTrue(printer.reachable)
+        assertNull(printer.accessNote)
+    }
+}

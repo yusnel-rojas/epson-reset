@@ -27,13 +27,22 @@ import nl.redlabs.epsonreset.db.PrinterModel
 
 /** Model half of the app-wide target menu. */
 @Composable
-fun ModelPicker(vm: ResetViewModel, modifier: Modifier = Modifier, onModelSelected: () -> Unit = {}) {
+fun ModelPicker(
+    vm: ResetViewModel,
+    modifier: Modifier = Modifier,
+    onBack: () -> Unit = {},
+    onModelSelected: () -> Unit = {},
+) {
     Column(modifier.padding(vertical = 12.dp)) {
-        Text(
-            "Printer model",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                "Printer model",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Spacer(Modifier.weight(1f))
+            TextButton(onClick = onBack) { Text("Back") }
+        }
 
         // Only reachable over the top of a printer that named itself, and that is worth saying
         // where the choosing happens rather than only at the moment the run is refused.
@@ -42,12 +51,15 @@ fun ModelPicker(vm: ResetViewModel, modifier: Modifier = Modifier, onModelSelect
             OverrideWarning(vm, identified)
         }
 
-        val scopedChoice = vm.pendingClass ?: vm.confirmedClass?.takeIf { vm.manualModelRequested }?.let { reported ->
-            ResetViewModel.PendingClass(reported, vm.scopedModelCandidates)
-        }
-        scopedChoice?.let { pending ->
+        val scopedCandidates = vm.scopedModelCandidates
+        if (scopedCandidates.isNotEmpty()) {
             Spacer(Modifier.height(10.dp))
-            ClassChoice(vm, pending, onModelSelected)
+            ScopedModelChoice(
+                vm = vm,
+                reported = vm.pendingClass?.reported ?: vm.confirmedClass,
+                candidates = scopedCandidates,
+                onModelSelected = onModelSelected,
+            )
             return@Column
         }
 
@@ -58,6 +70,7 @@ fun ModelPicker(vm: ResetViewModel, modifier: Modifier = Modifier, onModelSelect
             onValueChange = { vm.query = it },
             label = { Text("Search ${vm.database?.size ?: 0} models") },
             singleLine = true,
+            enabled = vm.canChangeTarget,
             modifier = Modifier.fillMaxWidth(),
         )
 
@@ -85,7 +98,7 @@ fun ModelPicker(vm: ResetViewModel, modifier: Modifier = Modifier, onModelSelect
             verticalArrangement = Arrangement.spacedBy(3.dp),
         ) {
             results.forEach { model ->
-                ModelRow(model, model.name == vm.selectedModel?.name) {
+                ModelRow(model, model.name == vm.selectedModel?.name, vm.canChangeTarget) {
                     vm.selectModel(model)
                     onModelSelected()
                 }
@@ -100,7 +113,12 @@ fun ModelPicker(vm: ResetViewModel, modifier: Modifier = Modifier, onModelSelect
  * of 1588" is not.
  */
 @Composable
-private fun ClassChoice(vm: ResetViewModel, pending: ResetViewModel.PendingClass, onModelSelected: () -> Unit) {
+private fun ScopedModelChoice(
+    vm: ResetViewModel,
+    reported: String?,
+    candidates: List<PrinterModel>,
+    onModelSelected: () -> Unit,
+) {
     Column(
         Modifier
             .fillMaxWidth()
@@ -110,27 +128,29 @@ private fun ClassChoice(vm: ResetViewModel, pending: ResetViewModel.PendingClass
             .padding(10.dp),
     ) {
         Text(
-            "This printer reports \"${pending.reported}\" — a family, not a model.",
+            reported?.let { "This printer reports \"$it\" — choose the model on its label." }
+                ?: "Choose the model printed on this printer.",
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.SemiBold,
             color = StatusColors.warn,
         )
         Spacer(Modifier.height(4.dp))
         Text(
-            "Its ${pending.candidates.size} members do not share a reset recipe, so the right one " +
-                "has to come off the label on the printer. The choice is remembered.",
+            "Only the ${candidates.size} model${if (candidates.size == 1) "" else "s"} in the " +
+                "identified series ${if (candidates.size == 1) "is" else "are"} shown. " +
+                "The choice is remembered.",
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
 
         Spacer(Modifier.height(8.dp))
 
-        pending.candidates.forEach { model ->
+        candidates.forEach { model ->
             Row(
                 Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(6.dp))
-                    .clickable {
+                    .clickable(enabled = vm.canChangeTarget) {
                         vm.selectModel(model)
                         onModelSelected()
                     }
@@ -191,68 +211,8 @@ private fun OverrideWarning(vm: ResetViewModel, identified: PrinterModel) {
     }
 }
 
-/**
- * The collapsed form of the picker: the one model that is staged, and no way to mis-click another.
- */
 @Composable
-fun SelectedModelCard(vm: ResetViewModel, modifier: Modifier = Modifier) {
-    // Only reached with the two in agreement — `modelPickerExpanded` opens the list otherwise.
-    val model = vm.identifiedModel ?: return
-
-    Column(modifier.padding(vertical = 12.dp)) {
-        Text(
-            "Printer model",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
-        )
-
-        Spacer(Modifier.height(10.dp))
-
-        Column(
-            Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(8.dp))
-                .background(MaterialTheme.colorScheme.surface)
-                .border(1.dp, MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(8.dp))
-                .padding(12.dp),
-        ) {
-            Text(
-                model.name,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Spacer(Modifier.height(4.dp))
-            // The card asserts where the name came from, so a name the user supplied must not be
-            // dressed up as one the printer gave.
-            Text(
-                vm.confirmedClass?.let { "✓ confirmed by you — the printer says only \"$it\"" }
-                    ?: "✓ named by the printer",
-                style = MaterialTheme.typography.labelSmall,
-                color = StatusColors.good,
-            )
-            Spacer(Modifier.height(6.dp))
-            Text(
-                "rkey ${model.readKey} · ${model.writeCount} writes",
-                style = MaterialTheme.typography.labelSmall,
-                fontFamily = FontFamily.Monospace,
-                color = StatusColors.muted,
-            )
-        }
-
-        vm.confirmedClass?.let {
-            Spacer(Modifier.height(4.dp))
-            TextButton(onClick = { vm.manualModelRequested = true }) {
-                Text("Choose another in this series…", style = MaterialTheme.typography.labelSmall)
-            }
-            TextButton(onClick = { vm.forgetModelChoice() }) {
-                Text("Forget this choice", style = MaterialTheme.typography.labelSmall)
-            }
-        }
-    }
-}
-
-@Composable
-private fun ModelRow(model: PrinterModel, selected: Boolean, onClick: () -> Unit) {
+private fun ModelRow(model: PrinterModel, selected: Boolean, enabled: Boolean, onClick: () -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()
@@ -264,7 +224,7 @@ private fun ModelRow(model: PrinterModel, selected: Boolean, onClick: () -> Unit
                     MaterialTheme.colorScheme.surface
                 },
             )
-            .clickable(onClick = onClick)
+            .clickable(enabled = enabled, onClick = onClick)
             .padding(horizontal = 10.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

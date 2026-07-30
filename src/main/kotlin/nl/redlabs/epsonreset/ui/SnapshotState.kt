@@ -42,7 +42,7 @@ class SnapshotState(
     private val status: () -> Status.Report?,
     private val specsFor: (PrinterModel) -> List<CounterSpec>,
     private val performRead: suspend (PrinterModel, MatchedPrinter?, Boolean) -> Unit,
-    private val selectModel: (PrinterModel) -> Unit,
+    private val selectModel: (PrinterModel) -> Boolean,
     private val updateQuery: (String) -> Unit,
     private val openSnapshotsTab: () -> Unit,
     private val openTransport: (MatchedPrinter?, Boolean) -> Transport?,
@@ -88,6 +88,10 @@ class SnapshotState(
 
     /** Writes the bytes from [backup] back to the addresses they came from. */
     fun restore(backup: EepromBackup) {
+        if (busy()) {
+            bad("Another printer operation is already in progress.")
+            return
+        }
         val model = selectedModel() ?: run {
             bad("Pick the model first — a restore needs its write key.")
             return
@@ -210,6 +214,10 @@ class SnapshotState(
 
     /** Takes a fresh real-printer reading, then saves it. This action never reuses an old report. */
     fun readAndSaveSnapshot() {
+        if (busy() || reading()) {
+            bad("Nothing saved — another printer operation is already in progress.")
+            return
+        }
         val model = selectedModel() ?: return
         val device = selectedDevice() ?: return
         createSnapshotBlockedReason?.let {
@@ -259,6 +267,10 @@ class SnapshotState(
 
     /** Saves the counters on screen as a snapshot, at whatever moment the user asks for one. */
     fun saveSnapshot() {
+        if (busy()) {
+            bad("Nothing saved — another printer operation is already in progress.")
+            return
+        }
         val model = selectedModel() ?: return
         val report = readReport() ?: return
 
@@ -417,6 +429,10 @@ class SnapshotState(
 
     /** Reads the printer now and compares the selected snapshot against it. */
     fun readForComparison() {
+        if (busy() || reading()) {
+            bad("Cannot read for comparison — another printer operation is already in progress.")
+            return
+        }
         val model = selectedModel() ?: return
         compareReadBlockedReason?.let {
             bad("Cannot read for comparison — $it")
@@ -507,6 +523,7 @@ class SnapshotState(
     /** Why the selected snapshot cannot be written back right now, or null when it can. */
     val snapshotRestoreBlockedReason: String?
         get() {
+            if (busy()) return "Another printer operation is already in progress."
             val backup = selectedSnapshot?.backup ?: return "Select a snapshot."
             val model = selectedModel()
                 ?: return "Choose ${backup.model} in the target above — a restore needs its write key."
@@ -524,7 +541,7 @@ class SnapshotState(
             bad("'${backup.model}' is not in the database, so its write key is unavailable.")
             return
         }
-        selectModel(model)
+        if (!selectModel(model)) return
         updateQuery(model.name)
         info("Selected ${model.name} — the model this snapshot was taken from.")
     }

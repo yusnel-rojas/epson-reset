@@ -41,8 +41,14 @@ fun PrinterChip(vm: ResetViewModel, modifier: Modifier = Modifier) {
     val scanning = vm.scanState is ResetViewModel.ScanState.Scanning
     val model = vm.selectedModel
     val targetReady = selected != null && model != null && vm.pendingClass == null && vm.modelMismatch == null
-    val tone = if (targetReady) StatusColors.good else StatusColors.warn
+    val reachable = selected?.reachable == true
+    val tone = when {
+        selected != null && !reachable -> StatusColors.muted
+        targetReady -> StatusColors.good
+        else -> StatusColors.warn
+    }
     val detail = when {
+        selected != null && !reachable -> "Saved · not reached · ${model?.name ?: "choose model"}"
         vm.pendingClass != null -> "${selected?.link?.kind ?: "Printer"} · choose model"
         selected != null && model != null -> "${selected.link.kind} · ${model.name}"
         selected != null -> "${selected.link.kind} · choose model"
@@ -58,6 +64,8 @@ fun PrinterChip(vm: ResetViewModel, modifier: Modifier = Modifier) {
                 .clip(RoundedCornerShape(20.dp))
                 .background(tone.copy(alpha = 0.10f))
                 .border(1.dp, tone.copy(alpha = 0.35f), RoundedCornerShape(20.dp))
+                // The menu is also the home of connection progress and results. Keep it readable
+                // during an operation; the individual target-changing controls remain disabled.
                 .clickable { menuExpanded = true },
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -102,11 +110,6 @@ fun PrinterChip(vm: ResetViewModel, modifier: Modifier = Modifier) {
                 PrinterSelectorContent(
                     vm = vm,
                     modifier = Modifier.fillMaxWidth(),
-                    onPrinterSelected = {
-                        if (vm.pendingClass == null && vm.selectedModel != null) {
-                            menuExpanded = false
-                        }
-                    },
                     onModelSelected = { menuExpanded = false },
                 )
             }

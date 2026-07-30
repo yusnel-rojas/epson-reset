@@ -13,6 +13,7 @@ All of them take their arguments through Gradle's `--args`, quoted as one string
 | Task | What it does |
 |---|---|
 | `run` | Starts the app. |
+| `hotRun --auto` | Starts the app with Compose Hot Reload. Saving Kotlin code recompiles and reloads the affected UI while preserving compatible state. |
 | `diagnose` | Self-check: environment, database, libusb, connected printers, then a dry run for the named model (`L3150` if you name none). `--live` reads the real printer instead of the simulated EEPROM. Never writes. |
 | `restore` | Lists saved snapshots; a filename previews one, `--live` writes it back — [Backup and recovery](backup-and-restore.md#restoring). |
 | `netProbe` | Staged network probe of one address: is SNMP answering, what does it say it is, does the command passthrough exist, and `--read` for whether the firmware allows an EEPROM read — [Network printers](network-printers.md#probing-one-from-the-command-line). |

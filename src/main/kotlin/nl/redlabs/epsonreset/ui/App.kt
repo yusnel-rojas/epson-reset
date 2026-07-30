@@ -50,7 +50,7 @@ fun App() {
                 HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
 
                 when (vm.tab) {
-                    ResetViewModel.Tab.RESET ->
+                    ResetViewModel.Tab.COUNTERS ->
                         // Printer and model now form one application-scoped target in the top bar.
                         ModelPanel(vm, Modifier.fillMaxWidth().weight(1f))
 
@@ -102,6 +102,13 @@ private fun RememberedState(vm: ResetViewModel) {
         vm.checkForUpdates = PreferencesStore.current().checkForUpdates
         snapshotFlow { vm.checkForUpdates }.collect { on ->
             PreferencesStore.update { it.copy(checkForUpdates = on) }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        vm.keepCounterHistory = PreferencesStore.current().keepCounterHistory
+        snapshotFlow { vm.keepCounterHistory }.collect { on ->
+            PreferencesStore.update { it.copy(keepCounterHistory = on) }
         }
     }
 
@@ -178,11 +185,11 @@ private fun Tabs(vm: ResetViewModel) {
             .background(MaterialTheme.colorScheme.surfaceVariant)
             .padding(3.dp),
     ) {
-        Tab("Reset", vm.tab == ResetViewModel.Tab.RESET) { vm.tab = ResetViewModel.Tab.RESET }
-        Tab("Models", vm.tab == ResetViewModel.Tab.MODELS) { vm.tab = ResetViewModel.Tab.MODELS }
-        Tab("Inspect", vm.tab == ResetViewModel.Tab.INSPECT) { vm.tab = ResetViewModel.Tab.INSPECT }
+        Tab("Counters", vm.tab == ResetViewModel.Tab.COUNTERS) { vm.tab = ResetViewModel.Tab.COUNTERS }
         Tab("Maintenance", vm.tab == ResetViewModel.Tab.MAINTENANCE) { vm.tab = ResetViewModel.Tab.MAINTENANCE }
         Tab("Snapshots", vm.tab == ResetViewModel.Tab.SNAPSHOTS) { vm.tab = ResetViewModel.Tab.SNAPSHOTS }
+        Tab("Inspect", vm.tab == ResetViewModel.Tab.INSPECT) { vm.tab = ResetViewModel.Tab.INSPECT }
+        Tab("Models", vm.tab == ResetViewModel.Tab.MODELS) { vm.tab = ResetViewModel.Tab.MODELS }
     }
 }
 

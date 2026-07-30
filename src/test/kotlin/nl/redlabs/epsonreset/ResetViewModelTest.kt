@@ -2,22 +2,29 @@
 
 package nl.redlabs.epsonreset
 
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import nl.redlabs.epsonreset.backup.EepromBackup
 import nl.redlabs.epsonreset.db.CounterSpecs
 import nl.redlabs.epsonreset.db.PadGroup
 import nl.redlabs.epsonreset.db.PrinterDatabase
 import nl.redlabs.epsonreset.db.PrinterModel
+import nl.redlabs.epsonreset.device.ConnectionTest
 import nl.redlabs.epsonreset.device.DetectedPrinter
 import nl.redlabs.epsonreset.device.Link
 import nl.redlabs.epsonreset.device.MatchedPrinter
 import nl.redlabs.epsonreset.device.ModelChoices
 import nl.redlabs.epsonreset.device.PrinterDiscovery
 import nl.redlabs.epsonreset.device.PrinterTransports
+import nl.redlabs.epsonreset.history.CounterJournal
+import nl.redlabs.epsonreset.net.SavedPrinters
+import nl.redlabs.epsonreset.protocol.CounterReader
+import nl.redlabs.epsonreset.protocol.DeviceId
 import nl.redlabs.epsonreset.protocol.Executor
 import nl.redlabs.epsonreset.protocol.Maintenance
 import nl.redlabs.epsonreset.protocol.Status
@@ -27,6 +34,9 @@ import nl.redlabs.epsonreset.ui.ResetViewModel
 import nl.redlabs.epsonreset.ui.SnapshotState
 import nl.redlabs.epsonreset.usb.UsbPrinterScanner
 import java.io.File
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import kotlin.coroutines.CoroutineContext
 import kotlin.io.path.createTempDirectory
 import kotlin.test.Test
 import kotlin.test.assertContains
@@ -187,21 +197,133 @@ private fun discovery(vararg printers: MatchedPrinter) = PrinterDiscovery.Result
 
 private fun TestScope.viewModel(
     transport: Transport = ScriptedPrinter(),
+    io: CoroutineContext = UnconfinedTestDispatcher(testScheduler),
     discover: () -> PrinterDiscovery.Result = { discovery() },
+    connectionTest: (DetectedPrinter, PrinterModel?) -> ConnectionTest.Result = ConnectionTest::run,
+    loadSavedPrinters: () -> List<SavedPrinters.Saved> = { emptyList() },
+    addSavedPrinter: (SavedPrinters.Saved) -> List<SavedPrinters.Saved> = { listOf(it) },
+    removeSavedPrinter: (Link.Network) -> List<SavedPrinters.Saved> = { emptyList() },
     backupDir: File = createTempDirectory("vm-test").toFile(),
     openFailure: PrinterTransports.OpenResult.Failed? = null,
     choicesFile: File = File(createTempDirectory("vm-test").toFile(), "model-choices.txt"),
+    historyFile: File = File(createTempDirectory("vm-test").toFile(), "counter-history.jsonl"),
 ) = ResetViewModel(
     scope = this,
-    io = UnconfinedTestDispatcher(testScheduler),
+    io = io,
     transports = { openFailure ?: PrinterTransports.OpenResult.Ok(transport) },
     discover = discover,
+    connectionTest = connectionTest,
+    loadSavedPrinters = loadSavedPrinters,
+    addSavedPrinter = addSavedPrinter,
+    removeSavedPrinter = removeSavedPrinter,
     backupDir = { backupDir },
     choicesFile = { choicesFile },
+    historyFile = { historyFile },
 )
 
 private val ResetViewModel.lastLine: String get() = log.last().text
 private fun ResetViewModel.said(fragment: String) = log.any { it.text.contains(fragment) }
+
+class ViewModelCounterHistoryTest {
+
+    @Test
+    fun `selecting a known printer loads its existing history before another read`() = runTest {
+        val file = File(createTempDirectory("vm-test").toFile(), "counter-history.jsonl")
+        CounterJournal(file).append(
+            "UNIT0001",
+            CounterReader.Report(
+                "TEST-1",
+                listOf(
+                    CounterReader.Reading(58, 0x19, 0, "Waste"),
+                    CounterReader.Reading(59, 0x0F, 0, "Waste"),
+                ),
+            ),
+        )
+        val vm = viewModel(historyFile = file)
+
+        vm.select(printer(serial = "UNIT0001"))
+        advanceUntilIdle()
+
+        assertEquals(1, assertNotNull(vm.history.view).samples.size)
+    }
+
+    @Test
+    fun `a partly encoded USB descriptor loads history recorded with the plain serial`() = runTest {
+        val file = File(createTempDirectory("vm-test").toFile(), "counter-history.jsonl")
+        CounterJournal(file).append(
+            "QWER012345",
+            CounterReader.Report(
+                "TEST-1",
+                listOf(
+                    CounterReader.Reading(58, 0x19, 0, "Waste"),
+                    CounterReader.Reading(59, 0x0F, 0, "Waste"),
+                ),
+            ),
+        )
+        val vm = viewModel(historyFile = file)
+
+        vm.select(printer(serial = "515745523031323345"))
+        advanceUntilIdle()
+
+        val history = assertNotNull(vm.history.view)
+        assertEquals("QWER012345", history.serial)
+        assertEquals(1, history.samples.size)
+    }
+
+    @Test
+    fun `a successful live read is journalled under the canonical printer serial`() = runTest {
+        val file = File(createTempDirectory("vm-test").toFile(), "counter-history.jsonl")
+        val hardware = ScriptedPrinter(serial = "QWER012345", memory = mapOf(58 to 0x19, 59 to 0x0F))
+        val vm = viewModel(transport = hardware, historyFile = file)
+
+        vm.select(printer(serial = "51574552303132333435"))
+        vm.dryRun = false
+        vm.readCounters()
+        advanceUntilIdle()
+
+        val sample = CounterJournal(file).load("QWER012345").single()
+        assertEquals("TEST-1", sample.report.model)
+        assertEquals(2, sample.report.answered)
+        assertEquals("QWER012345", assertNotNull(vm.history.view).serial)
+    }
+
+    @Test
+    fun `dry runs and a disabled preference do not append history`() = runTest {
+        val file = File(createTempDirectory("vm-test").toFile(), "counter-history.jsonl")
+        val vm = viewModel(historyFile = file)
+        vm.select(printer(serial = "UNIT0001"))
+
+        vm.dryRun = true
+        vm.readCounters()
+        advanceUntilIdle()
+        assertFalse(file.exists())
+
+        vm.keepCounterHistory = false
+        vm.dryRun = false
+        vm.readCounters()
+        advanceUntilIdle()
+
+        assertFalse(file.exists())
+        assertTrue(assertNotNull(vm.history.view).samples.isEmpty())
+    }
+
+    @Test
+    fun `a live reset journals both the pre-write sample and successful verification`() = runTest {
+        val file = File(createTempDirectory("vm-test").toFile(), "counter-history.jsonl")
+        val hardware = ScriptedPrinter(serial = "UNIT0001", memory = mapOf(58 to 0x19, 59 to 0x0F))
+        val vm = viewModel(transport = hardware, historyFile = file)
+
+        vm.select(printer(serial = "UNIT0001"))
+        vm.dryRun = false
+        vm.run()
+        advanceUntilIdle()
+
+        val samples = CounterJournal(file).load("UNIT0001")
+        assertEquals(2, samples.size)
+        assertEquals(listOf(0x19, 0x0F), samples.first().report.readings.map { it.value })
+        assertEquals(listOf(0, 0), samples.last().report.readings.map { it.value })
+    }
+}
 
 class ViewModelBackupGateTest {
 
@@ -777,6 +899,29 @@ class ViewModelModelLockTest {
         assertTrue(vm.said("do not share a reset recipe"), vm.lastLine)
     }
 
+    @Test
+    fun `model confirmation is a dismissible second step and one choice settles it`() = runTest {
+        val vm = viewModel()
+        vm.database = classDatabase
+
+        vm.select(classPrinter())
+
+        assertTrue(vm.modelSelectionVisible)
+        assertEquals(listOf("TEST-1", "OTHER-9"), vm.scopedModelCandidates.map { it.name })
+
+        vm.leaveModelSelection()
+        assertFalse(vm.modelSelectionVisible)
+        assertNotNull(vm.pendingClass, "Back returns to printers without guessing a model")
+
+        vm.requestModelSelection()
+        vm.selectModel(otherModel)
+        advanceUntilIdle()
+
+        assertFalse(vm.modelSelectionVisible)
+        assertNull(vm.pendingClass)
+        assertEquals("OTHER-9", assertNotNull(vm.selectedModel).name)
+    }
+
     /** A family has no effective model until the user picks the unit printed on the label. */
     @Test
     fun `an unsettled family does not stage a guessed model even for a dry run`() = runTest {
@@ -880,6 +1025,7 @@ class ViewModelModelLockTest {
         assertEquals("OTHER-9", identity.model.name)
         assertEquals(ResetViewModel.Identity.Via.SNMP_CROSS_LINK, identity.via)
         assertNull(vm.pendingClass, "SNMP answered it, so there is nothing to ask")
+        assertFalse(vm.modelSelectionVisible, "a cross-checked unit does not need the model step")
     }
 
     /**
@@ -1395,7 +1541,7 @@ class ViewModelComparisonTest {
     }
 
     /**
-     * The Reset tab hands off rather than growing a second comparison view, so what it offers has
+     * The Counters tab hands off rather than growing a second comparison view, so what it offers has
      * to be a real pairing — a model with something saved, and a reading worth comparing.
      */
     @Test
@@ -1425,6 +1571,61 @@ class ViewModelComparisonTest {
 
 class ViewModelScanTest {
 
+    @Test
+    fun `an unreachable saved printer allows simulation but not live controls`() = runTest {
+        val unreachable = printer(
+            serial = null,
+            link = Link.Network("192.168.1.50"),
+        ).let { it.copy(device = it.device.copy(reachable = false)) }
+        val vm = viewModel()
+        vm.select(unreachable)
+
+        vm.dryRun = false
+        assertFalse(vm.canRead)
+        assertFalse(vm.canRun)
+        assertContains(assertNotNull(vm.writeBlockedReason), "was not reached")
+
+        vm.dryRun = true
+        assertTrue(vm.canRead)
+        assertTrue(vm.canRun)
+    }
+
+    @Test
+    fun `forget removes a saved printer without starting another scan`() = runTest {
+        val link = Link.Network("192.168.1.50")
+        val remembered = printer(serial = null, link = link)
+        var saved = listOf(SavedPrinters.Saved(link, remembered.device.product))
+        var scans = 0
+        val vm = viewModel(
+            discover = {
+                scans++
+                discovery(remembered)
+            },
+            loadSavedPrinters = { saved },
+            removeSavedPrinter = { removed ->
+                saved = saved.filterNot { it.link == removed }
+                saved
+            },
+        )
+
+        vm.start()
+        advanceUntilIdle()
+        assertEquals(1, scans)
+        val selected = assertNotNull(vm.selectedDevice)
+        assertTrue(vm.isSaved(selected))
+
+        vm.forgetNetworkPrinter(selected)
+        advanceUntilIdle()
+
+        assertEquals(1, scans, "forget must not start discovery")
+        assertTrue(saved.isEmpty())
+        assertTrue(vm.devices.isEmpty())
+        assertNull(vm.selectedDevice)
+        assertNull(vm.selectedModel)
+        assertFalse(vm.isSaved(selected))
+        assertIs<ResetViewModel.ScanState.Done>(vm.scanState)
+    }
+
     /**
      * The whole chain: what discovery returned, run through the matcher against the real database,
      * selected, and the model adopted — which is what gives the reset path a write key.
@@ -1441,6 +1642,80 @@ class ViewModelScanTest {
         assertEquals(found.device.id, assertNotNull(vm.selectedDevice).device.id)
         assertEquals(MatchedPrinter.Confidence.EXACT, vm.devices.single().confidence)
         assertEquals("L3150", assertNotNull(vm.selectedModel).name)
+    }
+
+    @Test
+    fun `a successful test promotes a remembered address from not reached to reachable`() = runTest {
+        val remembered = printer(
+            serial = null,
+            link = Link.Network("192.168.1.50"),
+        ).let {
+            it.copy(
+                device = it.device.copy(
+                    accessNote = "Saved address did not answer this scan.",
+                    reachable = false,
+                ),
+            )
+        }
+        val vm = viewModel(
+            discover = { discovery(remembered) },
+            connectionTest = { _, _ ->
+                ConnectionTest.Result(
+                    opened = true,
+                    identity = DeviceId.Id(mapOf("MDL" to "EPSON TEST-1")),
+                    answered = true,
+                    status = null,
+                    overNetwork = true,
+                    reach = ConnectionTest.Reach.STATUS_ONLY,
+                )
+            },
+        )
+
+        vm.start()
+        advanceUntilIdle()
+        assertFalse(assertNotNull(vm.selectedDevice).device.reachable)
+
+        vm.testConnection()
+        advanceUntilIdle()
+
+        assertTrue(assertNotNull(vm.selectedDevice).device.reachable)
+        assertTrue(vm.devices.single().device.reachable)
+        assertNull(vm.devices.single().device.accessNote)
+    }
+
+    @Test
+    fun `the target menu stays available during a scan and a manual choice cancels stale results`() = runTest {
+        val enteredDiscovery = CountDownLatch(1)
+        val releaseDiscovery = CountDownLatch(1)
+        val latePrinter = printer(serial = "TOO-LATE")
+        val vm = viewModel(
+            io = Dispatchers.Default,
+            discover = {
+                enteredDiscovery.countDown()
+                check(releaseDiscovery.await(2, TimeUnit.SECONDS))
+                discovery(latePrinter)
+            },
+        )
+
+        try {
+            vm.scan()
+            runCurrent()
+            assertTrue(enteredDiscovery.await(2, TimeUnit.SECONDS))
+            assertIs<ResetViewModel.ScanState.Scanning>(vm.scanState)
+            assertTrue(vm.canChangeTarget)
+            assertTrue(vm.canScan)
+
+            vm.selectModel(otherModel)
+
+            assertIs<ResetViewModel.ScanState.Stopped>(vm.scanState)
+            assertEquals(otherModel, vm.selectedModel)
+        } finally {
+            releaseDiscovery.countDown()
+        }
+        advanceUntilIdle()
+
+        assertTrue(vm.devices.isEmpty(), "a stopped scan must not publish a late result")
+        assertEquals(otherModel, vm.selectedModel)
     }
 
     @Test

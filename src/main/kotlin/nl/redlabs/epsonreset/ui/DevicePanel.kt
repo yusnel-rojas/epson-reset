@@ -19,7 +19,6 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -38,17 +37,22 @@ import nl.redlabs.epsonreset.device.MatchedPrinter
 
 /** Contents of the top-bar printer menu. */
 @Composable
-fun PrinterSelectorContent(
-    vm: ResetViewModel,
-    modifier: Modifier = Modifier,
-    onPrinterSelected: () -> Unit = {},
-    onModelSelected: () -> Unit = {},
-) {
+fun PrinterSelectorContent(vm: ResetViewModel, modifier: Modifier = Modifier, onModelSelected: () -> Unit = {}) {
     Column(modifier.padding(16.dp)) {
         // The explicit IP action is its own short task. Replacing the picker keeps the field at the
         // point of attention instead of making the user find it underneath an arbitrary list.
         if (vm.addByAddressRequested) {
-            AddByAddress(vm, dismissible = true)
+            AddByAddress(vm)
+            return@Column
+        }
+
+        if (vm.modelSelectionVisible) {
+            ModelPicker(
+                vm = vm,
+                modifier = Modifier.fillMaxWidth(),
+                onBack = vm::leaveModelSelection,
+                onModelSelected = onModelSelected,
+            )
             return@Column
         }
 
@@ -68,8 +72,12 @@ fun PrinterSelectorContent(
 
         // Scanning both buses is the path; manual network entry hangs off the chevron.
         SplitButton(
-            label = if (vm.devices.isEmpty()) "Scan USB and network" else "Rescan",
-            primaryEnabled = vm.scanState !is ResetViewModel.ScanState.Scanning,
+            label = when {
+                vm.scanState is ResetViewModel.ScanState.Scanning -> "Stop scanning"
+                vm.devices.isEmpty() -> "Scan USB and network"
+                else -> "Rescan"
+            },
+            primaryEnabled = vm.canScan,
             onPrimary = { vm.scan() },
             actions = listOf(
                 SplitAction("Add printer by IP address…") { vm.addByAddressRequested = true },
@@ -80,6 +88,16 @@ fun PrinterSelectorContent(
         Spacer(Modifier.height(12.dp))
 
         when (val state = vm.scanState) {
+            is ResetViewModel.ScanState.Scanning -> if (vm.devices.isEmpty()) {
+                Notice(
+                    title = "Scanning…",
+                    body = "You can stop the scan or add a printer by address from the scan menu.",
+                    tone = StatusColors.muted,
+                )
+            } else {
+                DeviceList(vm)
+            }
+
             is ResetViewModel.ScanState.LibraryMissing -> Notice(
                 title = "Nothing found",
                 body = "libusb is missing, so USB detection is off, and nothing answered on the " +
@@ -96,14 +114,24 @@ fun PrinterSelectorContent(
 
             is ResetViewModel.ScanState.Done -> if (vm.devices.isEmpty()) {
                 Notice(
-                    title = "No Epson found",
+                    title = "No Epson printers found",
                     body = "Connect the printer over USB or put it on this network, switch it on, " +
                         "then rescan. A printer that doesn't advertise itself can be added by " +
                         "address.",
                     tone = StatusColors.muted,
                 )
             } else {
-                DeviceList(vm, onPrinterSelected)
+                DeviceList(vm)
+            }
+
+            is ResetViewModel.ScanState.Stopped -> if (vm.devices.isEmpty()) {
+                Notice(
+                    title = "Scan stopped",
+                    body = "Scan again, or add a printer by address from the scan menu.",
+                    tone = StatusColors.muted,
+                )
+            } else {
+                DeviceList(vm)
             }
 
             else -> Notice(
@@ -125,31 +153,12 @@ fun PrinterSelectorContent(
                 FootNote("Network discovery: $it")
             }
         }
-
-        // After an empty scan, manual entry remains an inline fallback. The explicit action above
-        // gets the focused view instead.
-        val scanning = vm.scanState is ResetViewModel.ScanState.Scanning
-        val nothingFound = vm.devices.isEmpty() && !scanning &&
-            vm.scanState !is ResetViewModel.ScanState.Idle
-
-        if (nothingFound) {
-            Spacer(Modifier.height(16.dp))
-            AddByAddress(vm, dismissible = false)
-        }
-
-        Spacer(Modifier.height(16.dp))
-        HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
-        if (vm.modelPickerExpanded) {
-            ModelPicker(vm, Modifier.fillMaxWidth(), onModelSelected)
-        } else {
-            SelectedModelCard(vm, Modifier.fillMaxWidth())
-        }
     }
 }
 
 /** Manual entry. */
 @Composable
-private fun AddByAddress(vm: ResetViewModel, dismissible: Boolean) {
+private fun AddByAddress(vm: ResetViewModel) {
     Column {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
@@ -157,10 +166,8 @@ private fun AddByAddress(vm: ResetViewModel, dismissible: Boolean) {
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            if (dismissible) {
-                Spacer(Modifier.weight(1f))
-                TextButton(onClick = { vm.addByAddressRequested = false }) { Text("Back") }
-            }
+            Spacer(Modifier.weight(1f))
+            TextButton(onClick = { vm.addByAddressRequested = false }) { Text("Back") }
         }
         Spacer(Modifier.height(6.dp))
 
@@ -208,28 +215,37 @@ private fun AddByAddress(vm: ResetViewModel, dismissible: Boolean) {
  * its own bounded scrolling when its contents grow taller than the window.
  */
 @Composable
-private fun DeviceList(vm: ResetViewModel, onPrinterSelected: () -> Unit) {
+private fun DeviceList(vm: ResetViewModel) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         for (entry in vm.devices) {
             DeviceCard(
                 vm = vm,
                 entry = entry,
                 selected = vm.selectedDevice?.device?.id == entry.device.id,
-                onClick = {
-                    vm.select(entry)
-                    onPrinterSelected()
-                },
+                enabled = vm.canChangeTarget,
+                onClick = { vm.select(entry) },
             )
         }
     }
 }
 
 @Composable
-private fun DeviceCard(vm: ResetViewModel, entry: MatchedPrinter, selected: Boolean, onClick: () -> Unit) {
+private fun DeviceCard(
+    vm: ResetViewModel,
+    entry: MatchedPrinter,
+    selected: Boolean,
+    enabled: Boolean,
+    onClick: () -> Unit,
+) {
     val border = if (selected) {
         MaterialTheme.colorScheme.primary
     } else {
         MaterialTheme.colorScheme.surfaceVariant
+    }
+    val presenceTone = when {
+        !entry.device.reachable -> StatusColors.muted
+        selected -> StatusColors.good
+        else -> StatusColors.muted
     }
 
     Column(
@@ -238,7 +254,7 @@ private fun DeviceCard(vm: ResetViewModel, entry: MatchedPrinter, selected: Bool
             .clip(RoundedCornerShape(8.dp))
             .background(MaterialTheme.colorScheme.surface)
             .border(if (selected) 2.dp else 1.dp, border, RoundedCornerShape(8.dp))
-            .clickable(onClick = onClick)
+            .clickable(enabled = enabled, onClick = onClick)
             .padding(12.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -246,7 +262,7 @@ private fun DeviceCard(vm: ResetViewModel, entry: MatchedPrinter, selected: Bool
                 Modifier
                     .size(8.dp)
                     .clip(CircleShape)
-                    .background(if (selected) MaterialTheme.colorScheme.primary else StatusColors.muted),
+                    .background(presenceTone),
             )
             Spacer(Modifier.size(8.dp))
             Text(
@@ -256,9 +272,9 @@ private fun DeviceCard(vm: ResetViewModel, entry: MatchedPrinter, selected: Bool
                 modifier = Modifier.weight(1f),
             )
             Text(
-                entry.device.link.kind,
+                if (entry.device.reachable) entry.device.link.kind else "Saved · not reached",
                 style = MaterialTheme.typography.labelSmall,
-                color = StatusColors.muted,
+                color = presenceTone,
             )
         }
 
@@ -324,8 +340,9 @@ private fun DeviceCard(vm: ResetViewModel, entry: MatchedPrinter, selected: Bool
                 OutlinedButton(
                     onClick = { vm.testConnection() },
                     enabled = vm.canTestConnection,
+                    modifier = Modifier.width(112.dp),
                 ) {
-                    Text(if (vm.testing) "Testing…" else "Test connection")
+                    Text(if (vm.testing) "Testing…" else "Test", maxLines = 1)
                 }
                 if (vm.isSaved(entry)) {
                     Spacer(Modifier.width(8.dp))
@@ -343,6 +360,16 @@ private fun DeviceCard(vm: ResetViewModel, entry: MatchedPrinter, selected: Bool
                 result.advice?.let {
                     Spacer(Modifier.height(2.dp))
                     Text(it, style = MaterialTheme.typography.labelSmall, color = StatusColors.muted)
+                }
+            }
+
+            if (vm.selectedModel != null) {
+                Spacer(Modifier.height(2.dp))
+                TextButton(
+                    onClick = vm::requestModelSelection,
+                    enabled = vm.canChangeTarget,
+                ) {
+                    Text("Change model…", style = MaterialTheme.typography.labelSmall)
                 }
             }
         }

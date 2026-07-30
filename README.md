@@ -5,11 +5,12 @@
 
 A desktop app (macOS, Windows, Linux) for reading and resetting the waste ink pad counters on Epson printers.
 
-<img src="docs/images/screenshot-01.png" alt="The full-width Reset tab with an ET-2820 and its ET-2825 model in the app-wide target chip" width="900" />
+<img src="docs/images/screenshot-01.png" alt="The full-width Counters tab with an ET-2820 and its ET-2825 model in the app-wide target chip" width="900" />
 
 - **Finds your printer** — on USB, or on the network over SNMP, which reports the exact model
 - **Identifies it** — against a database of 1588 models, browsable in the app before you plug anything in
 - **Reads the waste ink counters** — grouped addresses decoded into real values (`[48,49]` → `3865`)
+- **Remembers their trend** — successful live reads build a local per-printer history and project a measured maximum
 - **Resets them** — each write checked for the printer's `:42:OK;` acknowledgement
 - **Backs up first** — the bytes a live run is about to overwrite are saved, and can be compared and restored
 - **Dry run** — the whole sequence against a simulated EEPROM, touching no hardware. It's the default
@@ -36,6 +37,16 @@ If that is not a trade you want to make, stay in dry run: it writes nothing.
 ```bash
 ./gradlew run
 ```
+
+For UI development, start the app with Compose Hot Reload instead:
+
+```bash
+./gradlew hotRun --auto
+```
+
+Saving a Kotlin file recompiles and reloads the affected UI while keeping compatible state. Use the
+hot-reload toolbar's reset/restart action after changes to startup, USB/network transports or other
+long-lived resources.
 
 Or build an installer for the machine you're on (dmg / exe / deb):
 
@@ -99,10 +110,11 @@ network resets, the inspector's key discovery, percentages — is in
 | [Network printers](docs/network-printers.md) | SNMP identity, the command passthrough, the write gate, refusals, `netProbe` |
 | [USB connections](docs/usb-connection.md) | libusb, claiming the interface, per-platform remedies |
 | [Backup and recovery](docs/backup-and-restore.md) | Snapshots, comparison, restoring, where a restore may land |
+| [Counter history](docs/counter-history.md) | The local live-read journal, fill rates, reset handling and projections |
 | [Counter database](docs/counter-database.md) | The two data files, model capabilities, overlays, resyncing |
 | [Measuring a maximum](docs/calibration.md) | Where a percentage comes from, and how to contribute one |
 | [Printers not in the database](docs/inspect.md) | The read-only Inspect tab |
-| [Preferences](docs/preferences.md) | `preferences.json`, window placement, the update check |
+| [Preferences](docs/preferences.md) | `preferences.json`, window placement, history recording, the update check |
 | [Command line](docs/command-line.md) | The headless tasks behind the window: `diagnose`, `restore`, the probes |
 | [Architecture](docs/architecture.md) · [Implementation notes](docs/implementation-notes.md) · [Tests](docs/testing.md) · [Formatting](docs/formatting.md) · [Builds and releases](docs/releases.md) | Working on the app itself |
 

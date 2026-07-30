@@ -73,7 +73,7 @@ fun CapabilityMatrix(vm: ResetViewModel, modifier: Modifier = Modifier) {
                         CapabilityRow(
                             capability = capability,
                             selected = capability.name == vm.selectedModel?.name,
-                            onClick = { vm.selectModelAndShowReset(capability) },
+                            onClick = { vm.selectModelAndShowCounters(capability) },
                         )
                     }
                 }

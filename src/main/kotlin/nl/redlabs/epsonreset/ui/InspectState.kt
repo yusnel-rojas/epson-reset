@@ -25,6 +25,7 @@ class InspectState(
     private val openTransport: (MatchedPrinter?, Boolean) -> Transport?,
     private val transportError: () -> String,
     private val specsFor: (PrinterModel) -> List<CounterSpec>,
+    private val otherOperationRunning: () -> Boolean,
     private val resetCancellation: () -> Unit,
     private val isCancelled: () -> Boolean,
     private val updateProgress: (Float, String) -> Unit,
@@ -52,7 +53,8 @@ class InspectState(
     var modelName by mutableStateOf("")
 
     /** Requires real hardware; a fake EEPROM would invent keys and candidate counters. */
-    val canInspect: Boolean get() = !inspecting && database() != null && selectedDevice() != null
+    val canInspect: Boolean
+        get() = !inspecting && !otherOperationRunning() && database() != null && selectedDevice() != null
 
     /** Highest address the sweep will reach. 0x1FF covers every mem_high in the database. */
     var rangeEnd by mutableStateOf(0x1FF)
@@ -84,6 +86,10 @@ class InspectState(
 
     /** Tries the database's known read keys against the attached printer. */
     fun discoverReadKey() {
+        if (!canInspect) {
+            bad("Another printer operation is already in progress.")
+            return
+        }
         val db = database() ?: return
         val device = selectedDevice() ?: return
 
@@ -133,6 +139,10 @@ class InspectState(
 
     /** Reads every address up to [rangeEnd] with the chosen key. Never writes. */
     fun sweepAddresses() {
+        if (!canInspect) {
+            bad("Another printer operation is already in progress.")
+            return
+        }
         val selectedKey = key ?: return
         val device = selectedDevice() ?: return
         val end = rangeEnd

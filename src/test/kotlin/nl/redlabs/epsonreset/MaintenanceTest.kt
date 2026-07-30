@@ -74,6 +74,13 @@ class MaintenanceCommandTest {
         assertEquals(Maintenance.InkCost.HEAVY, Maintenance.Operation.POWER_CLEANING.inkCost)
         assertEquals(Maintenance.InkCost.SMALL, Maintenance.Operation.NOZZLE_CHECK.inkCost)
     }
+
+    @Test
+    fun `hardware-run operations report proven confidence`() {
+        assertEquals(Maintenance.Confidence.PROVEN, Maintenance.Operation.NOZZLE_CHECK.confidence)
+        assertEquals(Maintenance.Confidence.PROVEN, Maintenance.Operation.HEAD_CLEANING.confidence)
+        assertEquals(Maintenance.Confidence.INFERRED, Maintenance.Operation.POWER_CLEANING.confidence)
+    }
 }
 
 class RemoteModeTest {
@@ -216,6 +223,21 @@ class MaintenanceRunTest {
             fields
     }
 
+    /** A valid status block that answers, but does not say whether the printer is idle. */
+    private fun st2WithoutState(): ByteArray {
+        val fields = byteArrayOf(
+            Status.TYPE_SERIAL.toByte(),
+            0x04,
+            'T'.code.toByte(),
+            'E'.code.toByte(),
+            'S'.code.toByte(),
+            'T'.code.toByte(),
+        )
+        return "@BDC ST2\r\n".toByteArray(Charsets.ISO_8859_1) +
+            byteArrayOf((fields.size and 0xFF).toByte(), ((fields.size shr 8) and 0xFF).toByte()) +
+            fields
+    }
+
     /**
      * A printer that answers status queries from a script and records the commands it was asked
      * for. Channel and credit packets are accepted in silence, as a real one accepts them.
@@ -234,6 +256,9 @@ class MaintenanceRunTest {
         /** True once an ESC/P2 remote sequence has been written to this connection. */
         var sawRemoteSequence = false
             private set
+
+        /** Makes the status query answer without the state field required by the safety gate. */
+        var statusWithoutState = false
 
         /** How many times 1284.4 was negotiated on this connection. */
         var handshakes = 0
@@ -258,9 +283,13 @@ class MaintenanceRunTest {
 
             pending = when {
                 command == "st" -> {
-                    val state = if (queue.isEmpty()) lastState else queue.removeFirst()
-                    lastState = state
-                    state?.let { st2(it) } ?: ByteArray(0)
+                    if (statusWithoutState) {
+                        st2WithoutState()
+                    } else {
+                        val state = if (queue.isEmpty()) lastState else queue.removeFirst()
+                        lastState = state
+                        state?.let { st2(it) } ?: ByteArray(0)
+                    }
                 }
 
                 refusal != null -> refusal!!.toByteArray(Charsets.ISO_8859_1)
@@ -394,6 +423,14 @@ class MaintenanceRunTest {
         assertNotNull(Maintenance.blockedReason(Status.parse(st2(Status.STATE_CLEANING))))
     }
 
+    @Test
+    fun `a status block without a state is not treated as idle`() {
+        val status = assertNotNull(Status.parse(st2WithoutState()))
+
+        assertNull(status.state)
+        assertContains(assertNotNull(Maintenance.blockedReason(status)), "did not report whether it is idle")
+    }
+
     /**
      * The one that was learned the expensive way, on an ET-2820 over USB on 2026-07-29.
      *
@@ -515,6 +552,22 @@ class MaintenanceRunTest {
 
         assertNotNull(result.error)
         assertTrue(connections.opened.none { it.sawRemoteSequence })
+    }
+
+    @Test
+    fun `the precheck refuses a status response without an idle state`() {
+        val opened = mutableListOf<ScriptedPrinter>()
+        val connections = Maintenance.Connection {
+            ScriptedPrinter(Status.STATE_IDLE).also {
+                it.statusWithoutState = true
+                opened += it
+            }
+        }
+
+        val result = Maintenance.runInRemoteMode(connections, Maintenance.Operation.HEAD_CLEANING)
+
+        assertContains(assertNotNull(result.error), "did not report whether it is idle")
+        assertTrue(opened.none { it.sawRemoteSequence })
     }
 
     /** The protocol override remains available for experiments, and says nothing about before. */

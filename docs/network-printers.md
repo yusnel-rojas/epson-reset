@@ -73,6 +73,14 @@ Discovery is a convenience, not a requirement — a guest network, a VPN, or a s
 pass multicast each break it without stopping SNMP working. So **Add printer by IP address…** is
 always available from the printer menu in the top bar.
 
+The printer menu remains available while a scan is running. Its main scan button becomes **Stop
+scanning**; adding an address or choosing a printer/model also stops the current scan, and a late
+reply from that stopped scan is ignored rather than allowed to replace the manual choice.
+
+A saved address stays in the printer menu when it does not answer. It is shown in gray as
+**Saved · not reached**, rather than with the green reachable indicator; a rescan or a successful
+**Test connection** turns the indicator green again.
+
 ## Probing one from the command line
 
 `netProbe` is the staged version, for finding out what a printer actually does. Each stage answers

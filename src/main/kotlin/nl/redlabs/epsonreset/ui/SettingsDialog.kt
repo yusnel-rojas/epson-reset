@@ -21,7 +21,11 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -32,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogWindow
 import androidx.compose.ui.window.rememberDialogState
 import kotlinx.coroutines.launch
+import nl.redlabs.epsonreset.AppPaths
 import nl.redlabs.epsonreset.update.AppVersion
 
 /**
@@ -52,6 +57,8 @@ fun SettingsDialog(vm: ResetViewModel, updates: AppUpdates) {
             Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp)) {
                 Identification(vm)
                 Divider()
+                CounterHistory(vm)
+                Divider()
                 Database(vm)
                 Divider()
                 AppUpdate(vm, updates)
@@ -69,6 +76,78 @@ fun SettingsDialog(vm: ResetViewModel, updates: AppUpdates) {
             }
         }
     }
+}
+
+@Composable
+private fun CounterHistory(vm: ResetViewModel) {
+    var confirmingDelete by remember { mutableStateOf(false) }
+    val stats = vm.history.stats
+
+    Section("Counter history")
+
+    Toggle(
+        label = "Keep counter history on this computer",
+        checked = vm.keepCounterHistory,
+        onChange = { vm.keepCounterHistory = it },
+        body = "Appends successful live counter reads to a local journal. Dry runs and reads from " +
+            "snapshot files are never recorded. Turning this off pauses collection without " +
+            "deleting what is already here.",
+    )
+
+    Spacer(Modifier.height(8.dp))
+    Text(
+        "${stats.samples} sample(s) · ${stats.printers} printer(s) · ${formatBytes(stats.bytes)}",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    Text(
+        AppPaths.counterHistory.path,
+        style = MaterialTheme.typography.labelSmall,
+        fontFamily = FontFamily.Monospace,
+        color = StatusColors.muted,
+    )
+
+    Spacer(Modifier.height(8.dp))
+    if (confirmingDelete) {
+        Text(
+            "Delete every printer's counter history? This cannot be undone.",
+            style = MaterialTheme.typography.labelSmall,
+            color = StatusColors.bad,
+        )
+        Spacer(Modifier.height(6.dp))
+        Row {
+            OutlinedButton(
+                onClick = {
+                    confirmingDelete = false
+                    vm.history.deleteAll()
+                },
+                colors = dangerOutline(),
+            ) { Text("Delete history") }
+            Spacer(Modifier.width(8.dp))
+            TextButton(onClick = { confirmingDelete = false }) { Text("Cancel") }
+        }
+    } else {
+        OutlinedButton(
+            onClick = { confirmingDelete = true },
+            enabled = stats.samples > 0,
+            colors = dangerOutline(),
+        ) { Text("Delete counter history…") }
+    }
+
+    vm.history.actionStatus?.let { status ->
+        Spacer(Modifier.height(6.dp))
+        Text(
+            status,
+            style = MaterialTheme.typography.labelSmall,
+            color = if (status.contains("deleted", ignoreCase = true)) StatusColors.good else StatusColors.bad,
+        )
+    }
+}
+
+private fun formatBytes(bytes: Long): String = when {
+    bytes < 1024L -> "$bytes B"
+    bytes < 1024L * 1024L -> "%.1f KiB".format(bytes / 1024.0)
+    else -> "%.1f MiB".format(bytes / (1024.0 * 1024.0))
 }
 
 @Composable
@@ -218,7 +297,7 @@ private fun DataDirectory(vm: ResetViewModel) {
     Section("Data directory")
 
     Text(
-        "The database cache, saved snapshots, the overlay, remembered choices and preferences. " +
+        "The database cache, saved snapshots, counter history, the overlay, remembered choices and preferences. " +
             "Every one of them is a plain file you can read, edit or delete.",
         style = MaterialTheme.typography.labelSmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -279,13 +358,16 @@ private fun RememberedChoices(vm: ResetViewModel) {
                     color = StatusColors.muted,
                 )
             }
-            TextButton(onClick = { vm.forgetRememberedChoice(choice.key) }) { Text("Forget") }
+            TextButton(
+                onClick = { vm.forgetRememberedChoice(choice.key) },
+                enabled = vm.canChangeTarget,
+            ) { Text("Forget") }
         }
         HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
     }
 
     Spacer(Modifier.height(8.dp))
-    TextButton(onClick = { vm.forgetAllRememberedChoices() }) {
+    TextButton(onClick = { vm.forgetAllRememberedChoices() }, enabled = vm.canChangeTarget) {
         Text("Forget all", color = StatusColors.bad)
     }
 }

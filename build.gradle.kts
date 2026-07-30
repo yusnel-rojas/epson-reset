@@ -44,8 +44,9 @@ kotlin {
 
 dependencies {
     implementation(compose.desktop.currentOs)
-    implementation(compose.material3)
-    implementation(compose.components.resources)
+    // Compose 1.10 deprecates the plugin's library aliases in favour of direct coordinates.
+    implementation("org.jetbrains.compose.material3:material3:1.10.0-alpha05")
+    implementation("org.jetbrains.compose.components:components-resources:1.10.3")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.0")
 
     // USB transport. usb4java ships no darwin-aarch64 native, so libusb is bound directly through

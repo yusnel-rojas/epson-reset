@@ -18,6 +18,8 @@ backup/     EepromBackup — the snapshot (taken before a write, or on request),
             blocks a run without one, and the read-back that makes a saved one viewable
             SnapshotComparison — two samples and what moved between them, at the counter
             level and the byte level
+history/    CounterJournal — append-only live readings joined across equivalent serial spellings
+            CounterProjection — reset-aware counter rates and measured-maximum dates
 device/     DetectedPrinter + Link (USB or network), DeviceMatcher, PrinterDiscovery,
             PrinterTransports — the one place that knows a printer can be attached two ways —
             ConnectionTest, and ModelChoices (which unit a printer that names only its family is)
@@ -49,13 +51,23 @@ indistinguishable from a measured one once it's in a file.
 transport opening, settings, cancellation, the tab, and the common log/progress facilities. Each
 larger area is constructed from narrow getters and callbacks into that core, with no holder keeping
 a back-reference to the whole view model. UI call sites make the boundary visible (`vm.snapshot`,
-`vm.calibration`, `vm.inspect`, `vm.maintenance`).
+`vm.calibration`, `vm.inspect`, `vm.maintenance`, `vm.history`).
+
+Every successful real-printer `CounterReader.Report` passes through `CounterHistoryState`. The
+journal keeps `Serials.readings` aliases and joins them with `Serials.same`, because some USB
+descriptors encode only part of the serial and cannot be reduced safely to one spelling without a
+second source. Dry runs and reports reconstructed from snapshot files never enter that path.
+Projection compares dated journal samples independently per decoded counter. A drop begins a new
+monotonic segment, so the read after a reset becomes a fresh baseline rather than a negative fill
+rate.
 
 Printer and model form one target with the same application scope. The top-bar chip shows both on
 every tab and opens their only selector: exact identifications choose the model automatically, a
 family exposes only its possible units, and no printer leaves the complete model search available
 for dry runs. Changing printers clears the previous model before resolving the new one. Reset is
-therefore full-width, while Snapshots retains its separate file selector.
+therefore full-width, while Snapshots retains its separate file selector. A printer operation owns
+the target until its result is published: target changes, scans, tests, reads, resets, restores,
+inspection and maintenance all share the same exclusion gate.
 
 ## Families, and why a match is not always an identification
 

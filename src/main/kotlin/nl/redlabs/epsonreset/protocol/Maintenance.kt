@@ -97,7 +97,7 @@ object Maintenance {
             remotePrelude = listOf("VI" to listOf(0x00, 0x00), "NC" to listOf(0x00, 0x10)),
             printsPage = true,
             inkCost = InkCost.SMALL,
-            confidence = Confidence.PARTIAL,
+            confidence = Confidence.PROVEN,
         ),
 
         /** The ordinary cleaning cycle. */
@@ -110,7 +110,7 @@ object Maintenance {
             remoteParameters = listOf(0x00, 0x00),
             printsPage = false,
             inkCost = InkCost.MODERATE,
-            confidence = Confidence.INFERRED,
+            confidence = Confidence.PROVEN,
         ),
 
         /**
@@ -236,7 +236,12 @@ object Maintenance {
      * on it before it gets this far.
      */
     fun blockedReason(status: Status.Report?): String? {
-        val busy = status?.busyReason ?: return null
+        val report = status ?: return null
+        if (report.state == null) {
+            return "The printer answered, but did not report whether it is idle. " +
+                "Nothing will be sent until its state can be established."
+        }
+        val busy = report.busyReason ?: return null
         return "$busy Wait for it to finish, then try again."
     }
 

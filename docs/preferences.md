@@ -16,8 +16,12 @@ launch, and a file that isn't JSON at all just starts the app as if it were the 
 `crossCheckOverSnmp` (on by default) lets a USB printer take its exact model from its own network
 entry — see
 [the other link usually knows](architecture.md#the-other-link-usually-knows). It has a switch in
-**Settings → Identification**, alongside the automatic update check, the database download, and the
-list of [remembered model choices](architecture.md#families-and-why-a-match-is-not-always-an-identification).
+**Settings → Identification**. `keepCounterHistory` (also on by default) controls whether successful
+live reads are appended locally; disabling it preserves the existing journal. Deleting that data is
+a separate confirmed action under **Settings → Counter history**. See [Counter history](counter-history.md).
+
+The same window holds the automatic update check, the database download, and the list of
+[remembered model choices](architecture.md#families-and-why-a-match-is-not-always-an-identification).
 
 A remembered window position that no longer lands on a screen is dropped and the window manager
 places the window instead — an unplugged second monitor should not open the app somewhere you
