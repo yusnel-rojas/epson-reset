@@ -29,12 +29,13 @@ jobs:
             glob: build/installer/windows/*.exe
             artifact: EpsonReset-windows-x64
           - os: ubuntu-22.04        # Linux x64 .deb
-            task: packageDeb
+            # createDistributable makes the app-image dir the AppImage step needs; packageDeb the .deb.
+            task: createDistributable packageDeb
             glob: build/compose/binaries/main/deb/*.deb
             artifact: EpsonReset-linux-x64
             appimage_arch: x86_64
           - os: ubuntu-22.04-arm    # Linux arm64 .deb / Raspberry Pi OS 64-bit
-            task: packageDeb
+            task: createDistributable packageDeb
             glob: build/compose/binaries/main/deb/*.deb
             artifact: EpsonReset-linux-arm64
             appimage_arch: aarch64
