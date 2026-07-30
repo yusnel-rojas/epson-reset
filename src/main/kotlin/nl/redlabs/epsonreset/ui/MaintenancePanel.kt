@@ -12,7 +12,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
@@ -64,13 +63,6 @@ fun MaintenancePanel(vm: ResetViewModel, modifier: Modifier = Modifier) {
         maintenance.lastResult?.error?.let {
             Spacer(Modifier.height(5.dp))
             Note("The last operation was not sent — $it", StatusColors.bad)
-        }
-
-        if (maintenance.running != null) {
-            Spacer(Modifier.height(12.dp))
-            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-            Spacer(Modifier.height(4.dp))
-            Note("Sending ${maintenance.running?.label?.lowercase()}…", StatusColors.muted)
         }
 
         Spacer(Modifier.height(16.dp))

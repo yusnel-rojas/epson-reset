@@ -146,8 +146,34 @@ class ExecutorTest {
 
         assertTrue(result.success, result.error)
         assertEquals(2, result.writesTotal)
-        assertEquals(2, result.writesVerified)
+        assertEquals(2, result.writesAcknowledged)
         assertEquals(sequence.size, result.packetsSent)
+    }
+
+    @Test
+    fun `write listener identifies each address as it starts and is acknowledged`() {
+        val events = mutableListOf<Triple<Int, Int, Executor.WriteState>>()
+
+        Executor.execute(
+            transport = FakeTransport(ackWrites = true),
+            sequence = SequenceGenerator.generate(model),
+            options = Executor.Options(interPacketDelayMs = 0, retryDelayMs = 0),
+            listener = object : Executor.Listener {
+                override fun onWrite(address: Int, value: Int, state: Executor.WriteState) {
+                    events += Triple(address, value, state)
+                }
+            },
+        )
+
+        assertEquals(
+            listOf(
+                Triple(58, 0, Executor.WriteState.WRITING),
+                Triple(58, 0, Executor.WriteState.ACKNOWLEDGED),
+                Triple(59, 0, Executor.WriteState.WRITING),
+                Triple(59, 0, Executor.WriteState.ACKNOWLEDGED),
+            ),
+            events,
+        )
     }
 
     @Test

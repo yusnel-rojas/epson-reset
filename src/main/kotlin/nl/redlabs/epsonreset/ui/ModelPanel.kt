@@ -16,11 +16,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -33,11 +30,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.DialogWindow
-import androidx.compose.ui.window.rememberDialogState
-import nl.redlabs.epsonreset.db.PadKind
 import nl.redlabs.epsonreset.db.PrinterModel
 import nl.redlabs.epsonreset.protocol.Executor
 
@@ -58,29 +51,37 @@ fun ModelPanel(vm: ResetViewModel, modifier: Modifier = Modifier) {
         Spacer(Modifier.height(16.dp))
         RunControls(vm, model, confirming, onConfirmChange = { confirming = it })
 
-        val hasResults = vm.readReport != null || vm.runState is ResetViewModel.RunState.Finished
-        if (hasResults) {
+        val hasFinishedRun = vm.runState is ResetViewModel.RunState.Finished
+        if (hasFinishedRun) {
             Spacer(Modifier.height(20.dp))
             ResultBanner(vm)
+        }
 
-            vm.readReport?.let { report ->
-                Spacer(Modifier.height(12.dp))
+        vm.counterDisplayReport?.let { report ->
+            Spacer(Modifier.height(if (hasFinishedRun) 12.dp else 20.dp))
+            if (vm.status != null) {
                 InkLevels(vm.status)
                 Spacer(Modifier.height(12.dp))
-                // The action belongs on the counters, since a maximum is what the "no limit" in
-                // them is missing. The form itself opens in its own window — see CalibrationDialog.
-                DecodedCounters(
-                    counters = vm.decodedCounters,
-                    onCalibrate = if (vm.readWasSimulated) null else vm.calibration::open,
-                )
-                CalibrationDialog(vm)
-                Spacer(Modifier.height(12.dp))
-                CounterTable(report, vm.beforeReport)
+            }
+            // The model supplies addresses, types, and reset targets before a printer has answered.
+            // Current values are filled into this same table as reads and writes progress.
+            CounterOverview(
+                counters = vm.displayDecodedCounters,
+                report = report,
+                before = vm.beforeReport,
+                byteStates = vm.counterByteStates,
+                simulated = vm.dryRun,
+                onCalibrate = if (vm.readReport != null && !vm.readWasSimulated && !vm.reading) {
+                    vm.calibration::open
+                } else {
+                    null
+                },
+            )
+            CalibrationDialog(vm)
 
-                if (vm.snapshot.canOfferComparison) {
-                    Spacer(Modifier.height(12.dp))
-                    CompareOffer(vm)
-                }
+            if (vm.snapshot.canOfferComparison) {
+                Spacer(Modifier.height(12.dp))
+                CompareOffer(vm)
             }
         }
 
@@ -179,39 +180,14 @@ private fun ModelDetail(model: PrinterModel) {
             )
         }
 
-        Spacer(Modifier.height(12.dp))
-
         if (!model.hasResettableCounters) {
+            Spacer(Modifier.height(12.dp))
             Callout(
                 "No resettable counters",
                 "This entry has no EEPROM addresses, so there is nothing to write.",
                 StatusColors.bad,
             )
             return@Column
-        }
-
-        for (group in model.padGroups) {
-            val tone = when (group.effectiveKind) {
-                PadKind.PLATEN -> StatusColors.warn
-                PadKind.MAIN -> MaterialTheme.colorScheme.primary
-                PadKind.UNKNOWN -> StatusColors.muted
-            }
-
-            Row(verticalAlignment = Alignment.Top, modifier = Modifier.padding(vertical = 4.dp)) {
-                Text(
-                    group.description.ifBlank { "Waste counters" },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = tone,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier.width(160.dp),
-                )
-                Text(
-                    group.addresses.joinToString(" ") { "%d".format(it) },
-                    style = MaterialTheme.typography.labelSmall,
-                    fontFamily = FontFamily.Monospace,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
         }
 
         if (model.isPlatenOnly) {
@@ -244,7 +220,7 @@ private fun RunControls(
         // in ResetConfirmation.
         Row(verticalAlignment = Alignment.CenterVertically) {
             DryRunToggle(vm.dryRun, enabled = !running && !vm.reading) {
-                vm.dryRun = it
+                vm.changeDryRunMode(it)
                 onConfirmChange(false)
             }
             Spacer(Modifier.weight(1f))
@@ -252,17 +228,19 @@ private fun RunControls(
             if (active) {
                 OutlinedButton(onClick = { vm.cancel() }) { Text("Cancel") }
             } else {
-                // Reading never writes, so it sits outside the confirmation gate.
-                OutlinedButton(onClick = { vm.readCounters() }, enabled = vm.canRead) {
-                    Text(if (vm.dryRun) "Simulate reading" else "Read counters")
+                if (!vm.dryRun) {
+                    // Reading never writes, so it sits outside the confirmation gate.
+                    OutlinedButton(onClick = { vm.readCounters() }, enabled = vm.canRead) {
+                        Text("Read counters")
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    // Saving writes a file, not EEPROM, so it needs no confirmation either — and
+                    // belongs next to the live read whose values it preserves.
+                    OutlinedButton(onClick = { vm.snapshot.saveSnapshot() }, enabled = vm.snapshot.canSaveSnapshot) {
+                        Text("Save snapshot")
+                    }
+                    Spacer(Modifier.width(8.dp))
                 }
-                Spacer(Modifier.width(8.dp))
-                // Saving writes a file, not EEPROM, so it needs no confirmation either — and it
-                // belongs next to the read, because what it saves is whatever that read returned.
-                OutlinedButton(onClick = { vm.snapshot.saveSnapshot() }, enabled = vm.snapshot.canSaveSnapshot) {
-                    Text("Save snapshot")
-                }
-                Spacer(Modifier.width(8.dp))
                 Button(
                     onClick = { if (vm.dryRun) vm.run() else onConfirmChange(true) },
                     enabled = vm.canRun,
@@ -270,21 +248,6 @@ private fun RunControls(
                     Text(if (vm.dryRun) "Simulate reset" else "Reset counters")
                 }
             }
-        }
-
-        if (active) {
-            Spacer(Modifier.height(10.dp))
-            LinearProgressIndicator(
-                progress = { vm.progress },
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Spacer(Modifier.height(4.dp))
-            Text(
-                vm.progressLabel,
-                style = MaterialTheme.typography.labelSmall,
-                color = StatusColors.muted,
-            )
-            return@Column
         }
 
         if (!vm.dryRun && vm.selectedDevice == null) {
@@ -323,7 +286,7 @@ private fun RunControls(
 
         // Only once there are counters on screen. Before that, a disabled Save snapshot next to
         // Read counters says what it needs to say on its own.
-        if (vm.readReport != null && !vm.readWasSimulated) {
+        if (!active && vm.readReport != null && !vm.readWasSimulated) {
             vm.snapshot.snapshotBlockedReason?.let {
                 Spacer(Modifier.height(8.dp))
                 Text(
@@ -399,8 +362,8 @@ private fun ResultBanner(vm: ResetViewModel) {
     }
 
     val body = buildString {
-        append("${r.writesVerified} of ${r.writesTotal} writes verified · ")
-        append("${r.packetsSent} packets sent · ${r.ackCount} acknowledged.")
+        append("${r.writesAcknowledged} of ${r.writesTotal} writes acknowledged · ")
+        append("${r.packetsSent} packets sent.")
         if (r.error.isNotBlank()) append("\n\n${r.error}")
         if (r.success && !finished.wasDryRun) {
             append("\n\nPower-cycle the printer now to finalise the change.")
@@ -412,7 +375,7 @@ private fun ResultBanner(vm: ResetViewModel) {
     // Only offered where it can actually help: a live run that stopped after some writes had
     // already landed. A clean success needs no undo, and a run that wrote nothing has nothing to
     // put back.
-    val strandedWrites = !r.success && !finished.wasDryRun && r.writesVerified > 0
+    val strandedWrites = !r.success && !finished.wasDryRun && r.writesAcknowledged > 0
     if (strandedWrites && vm.lastBackup != null) {
         Spacer(Modifier.height(8.dp))
         RestoreOffer(vm)
@@ -480,80 +443,26 @@ private fun RestoreOffer(vm: ResetViewModel) {
 @Composable
 private fun ResetConfirmation(vm: ResetViewModel, model: PrinterModel, onDismiss: () -> Unit, onConfirm: () -> Unit) {
     val printer = vm.selectedDevice?.device?.displayName ?: "the printer"
-
-    DialogWindow(
-        onCloseRequest = onDismiss,
-        state = rememberDialogState(size = DpSize(560.dp, 460.dp)),
+    EepromWriteConfirmation(
         title = "Reset counters — ${model.name}",
-    ) {
-        Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-            Column(Modifier.fillMaxSize().padding(20.dp)) {
-                Text(
-                    "Write ${model.name}'s key to ${model.writeCount} " +
-                        "address${if (model.writeCount == 1) "" else "es"} on $printer.",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    "rkey ${model.readKey} · ${model.writeCount} writes",
-                    style = MaterialTheme.typography.labelSmall,
-                    fontFamily = FontFamily.Monospace,
-                    color = StatusColors.muted,
-                )
-
-                // Only where the name above was a person's answer rather than the printer's, which
-                // is exactly where a last look at it is worth prompting for.
-                vm.confirmedClass?.let {
-                    Spacer(Modifier.height(12.dp))
-                    Text(
-                        "This printer reports only \"$it\". ${model.name} is the model you " +
-                            "confirmed it to be — a near neighbour's key is not the same key, so " +
-                            "it is worth checking against the label on the printer.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = StatusColors.warn,
-                    )
-                }
-
-                Spacer(Modifier.height(16.dp))
-                Paragraph(
-                    "This clears the printer's record of the ink its pad has absorbed. The ink is " +
-                        "still in the pad, and a pad at the end of its life still needs servicing.",
-                )
-                Spacer(Modifier.height(10.dp))
-                Paragraph(
-                    "The bytes about to be overwritten are saved to a snapshot first, and the run " +
-                        "stops rather than proceeding if that cannot be done.",
-                )
-                Spacer(Modifier.height(10.dp))
-                Paragraph(
-                    "Whether to do this is your decision, and what follows from it is yours to " +
-                        "carry: this software comes with no warranty, and its authors are not " +
-                        "accountable for what happens to your printer.",
-                )
-
-                Spacer(Modifier.weight(1f))
-
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Spacer(Modifier.weight(1f))
-                    OutlinedButton(onClick = onDismiss) { Text("Back") }
-                    Spacer(Modifier.width(8.dp))
-                    Button(
-                        onClick = onConfirm,
-                        colors = dangerButtonColors(),
-                    ) { Text("Yes, write EEPROM") }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun Paragraph(text: String) {
-    Text(
-        text,
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        headline = "Write ${model.name}'s key to ${model.writeCount} " +
+            "address${if (model.writeCount == 1) "" else "es"} on $printer.",
+        metadata = "rkey ${model.readKey} · ${model.writeCount} writes",
+        warning = vm.confirmedClass?.let {
+            "This printer reports only \"$it\". ${model.name} is the model you confirmed it " +
+                "to be — a near neighbour's key is not the same key, so check the printer label."
+        },
+        paragraphs = listOf(
+            "This clears the printer's record of the ink its pad has absorbed. The ink is " +
+                "still in the pad, and a pad at the end of its life still needs servicing.",
+            "The bytes about to be overwritten are saved to a snapshot first, and the run " +
+                "stops rather than proceeding if that cannot be done.",
+            "Whether to do this is your decision, and what follows from it is yours to " +
+                "carry: this software comes with no warranty, and its authors are not " +
+                "accountable for what happens to your printer.",
+        ),
+        onDismiss = onDismiss,
+        onConfirm = onConfirm,
     )
 }
 

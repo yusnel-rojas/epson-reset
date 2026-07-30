@@ -1,7 +1,9 @@
 package nl.redlabs.epsonreset.protocol
 
-/** Drives a generated sequence over a [Transport], verifying each EEPROM write. */
+/** Drives a generated sequence over a [Transport], requiring an OK acknowledgement for each EEPROM write. */
 object Executor {
+
+    enum class WriteState { WRITING, ACKNOWLEDGED, FAILED }
 
     data class Options(val maxWriteAttempts: Int = 3, val interPacketDelayMs: Long = 100, val retryDelayMs: Long = 200)
 
@@ -10,7 +12,7 @@ object Executor {
         val packetsSent: Int = 0,
         val ackCount: Int = 0,
         val writesTotal: Int = 0,
-        val writesVerified: Int = 0,
+        val writesAcknowledged: Int = 0,
         val writesRejected: Int = 0,
         val error: String = "",
     )
@@ -18,6 +20,7 @@ object Executor {
     /** Live feedback for the UI. [onPacket] fires once per packet, 1-based. */
     interface Listener {
         fun onPacket(index: Int, total: Int, message: String) {}
+        fun onWrite(address: Int, value: Int, state: WriteState) {}
         fun onTrace(line: String) {}
     }
 
@@ -31,7 +34,7 @@ object Executor {
         var packetsSent = 0
         var ackCount = 0
         var writesTotal = 0
-        var writesVerified = 0
+        var writesAcknowledged = 0
         var writesRejected = 0
 
         fun fail(error: String) = Result(
@@ -39,7 +42,7 @@ object Executor {
             packetsSent = packetsSent,
             ackCount = ackCount,
             writesTotal = writesTotal,
-            writesVerified = writesVerified,
+            writesAcknowledged = writesAcknowledged,
             writesRejected = writesRejected,
             error = error,
         )
@@ -66,12 +69,16 @@ object Executor {
             if (isCancelled()) return fail("Cancelled by user after $packetsSent packets.")
 
             val isWrite = isWritePacket(packet)
+            val writeTarget = writePacketTarget(packet)
             if (isWrite) writesTotal++
 
             val maxAttempts = if (isWrite) options.maxWriteAttempts else 1
             var confirmed = false
 
             for (attempt in 1..maxAttempts) {
+                writeTarget?.let { (address, value) ->
+                    listener?.onWrite(address, value, WriteState.WRITING)
+                }
                 if (attempt > 1) {
                     listener?.onPacket(i + 1, sequence.size, "Retrying write ($attempt/$maxAttempts)…")
                     if (options.retryDelayMs > 0) Thread.sleep(options.retryDelayMs)
@@ -84,7 +91,12 @@ object Executor {
                     }
                 }
 
-                val ack = sendAndDrain(packet, i) ?: return fail(sendFailure(i))
+                val ack = sendAndDrain(packet, i) ?: run {
+                    writeTarget?.let { (address, value) ->
+                        listener?.onWrite(address, value, WriteState.FAILED)
+                    }
+                    return fail(sendFailure(i))
+                }
 
                 if (!isWrite) {
                     listener?.onPacket(
@@ -98,6 +110,9 @@ object Executor {
 
                 if (isWriteNgAck(ack)) {
                     writesRejected++
+                    writeTarget?.let { (address, value) ->
+                        listener?.onWrite(address, value, WriteState.FAILED)
+                    }
                     listener?.onPacket(i + 1, sequence.size, "EEPROM write REJECTED (||:42:NG;).")
                     return fail(
                         "Printer REJECTED the EEPROM write (packet ${i + 1}, reply ':42:NG;'). " +
@@ -106,9 +121,12 @@ object Executor {
                 }
 
                 if (isWriteOkAck(ack)) {
-                    writesVerified++
+                    writesAcknowledged++
                     confirmed = true
-                    listener?.onPacket(i + 1, sequence.size, "EEPROM write verified (||:42:OK;).")
+                    writeTarget?.let { (address, value) ->
+                        listener?.onWrite(address, value, WriteState.ACKNOWLEDGED)
+                    }
+                    listener?.onPacket(i + 1, sequence.size, "EEPROM write acknowledged (||:42:OK;).")
                     break
                 }
 
@@ -116,6 +134,9 @@ object Executor {
             }
 
             if (isWrite && !confirmed) {
+                writeTarget?.let { (address, value) ->
+                    listener?.onWrite(address, value, WriteState.FAILED)
+                }
                 return fail("EEPROM write not acknowledged after $maxAttempts attempts (packet ${i + 1}).")
             }
         }
@@ -127,18 +148,18 @@ object Executor {
             return fail("The printer did not acknowledge any packets. The sequence was rejected or ignored.")
         }
 
-        val success = writesVerified == writesTotal
+        val success = writesAcknowledged == writesTotal
         return Result(
             success = success,
             packetsSent = packetsSent,
             ackCount = ackCount,
             writesTotal = writesTotal,
-            writesVerified = writesVerified,
+            writesAcknowledged = writesAcknowledged,
             writesRejected = writesRejected,
             error = if (success) {
                 ""
             } else {
-                "Incomplete EEPROM write: verified $writesVerified of $writesTotal write operations."
+                "Incomplete EEPROM write: acknowledged $writesAcknowledged of $writesTotal write operations."
             },
         )
     }

@@ -222,4 +222,19 @@ class DecodedCounterTest {
         assertTrue(report.readings.any { it.address == 900 }, "spec-only address should be sampled")
         assertTrue(report.readings.any { it.address == 901 })
     }
+
+    @Test
+    fun `counter reader publishes each value as soon as that address answers`() {
+        val published = mutableListOf<CounterReader.Reading>()
+        val listener = object : CounterReader.Listener {
+            override fun onReading(reading: CounterReader.Reading) {
+                published += reading
+            }
+        }
+
+        val report = CounterReader.readAll(FakeTransport(), model, listener = listener)
+
+        assertEquals(report.readings, published)
+        assertTrue(published.all { it.value == 0x7F })
+    }
 }

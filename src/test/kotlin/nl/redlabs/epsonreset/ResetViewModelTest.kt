@@ -285,6 +285,13 @@ class ViewModelCounterHistoryTest {
         assertEquals("TEST-1", sample.report.model)
         assertEquals(2, sample.report.answered)
         assertEquals("QWER012345", assertNotNull(vm.history.view).serial)
+        assertEquals(
+            mapOf(
+                58 to ResetViewModel.CounterByteState.READ,
+                59 to ResetViewModel.CounterByteState.READ,
+            ),
+            vm.counterByteStates,
+        )
     }
 
     @Test
@@ -326,6 +333,29 @@ class ViewModelCounterHistoryTest {
 }
 
 class ViewModelBackupGateTest {
+
+    @Test
+    fun `a selected model supplies an immediate dry preview without pretending it was read`() = runTest {
+        val vm = viewModel()
+
+        vm.selectModel(testModel)
+
+        assertNull(vm.readReport)
+        assertEquals(listOf(0x7F, 0x7F), assertNotNull(vm.counterDisplayReport).readings.map { it.value })
+    }
+
+    @Test
+    fun `live mode keeps model addresses visible while current values remain unknown`() = runTest {
+        val vm = viewModel()
+        vm.selectModel(testModel)
+
+        vm.changeDryRunMode(false)
+
+        val report = assertNotNull(vm.counterDisplayReport)
+        assertEquals(listOf(58, 59), report.readings.map { it.address })
+        assertEquals(listOf(null, null), report.readings.map { it.value })
+        assertEquals(listOf(0, 0), report.readings.map { it.expectedAfterReset })
+    }
 
     /**
      * The load-bearing one. An address that did not answer has no byte to put back, so the run must
@@ -383,6 +413,13 @@ class ViewModelBackupGateTest {
         val finished = assertIs<ResetViewModel.RunState.Finished>(vm.runState)
         assertTrue(finished.result.success)
         assertTrue(vm.said("Verified by read-back"), vm.lastLine)
+        assertEquals(
+            mapOf(
+                58 to ResetViewModel.CounterByteState.VERIFIED,
+                59 to ResetViewModel.CounterByteState.VERIFIED,
+            ),
+            vm.counterByteStates,
+        )
     }
 
     /** A dry run reaches the simulated EEPROM and never the real one — not even to read. */
@@ -404,6 +441,21 @@ class ViewModelBackupGateTest {
         assertTrue(vm.said("would be backed up; no file written"), vm.lastLine)
     }
 
+    @Test
+    fun `switching to live does not carry the previous dry run result banner`() = runTest {
+        val vm = viewModel()
+        vm.selectModel(testModel)
+        vm.run()
+        advanceUntilIdle()
+        assertIs<ResetViewModel.RunState.Finished>(vm.runState)
+
+        vm.changeDryRunMode(false)
+
+        assertEquals(ResetViewModel.RunState.Idle, vm.runState)
+        assertNull(vm.readReport)
+        assertTrue(vm.counterByteStates.isEmpty())
+    }
+
     /**
      * A printer can acknowledge every write and commit none of them, which is precisely what the
      * read-back exists to catch — the `:42:OK;` count alone would call this a success.
@@ -419,6 +471,9 @@ class ViewModelBackupGateTest {
         advanceUntilIdle()
 
         assertTrue(vm.said("not at the reset value"), vm.lastLine)
+        assertFalse(assertIs<ResetViewModel.RunState.Finished>(vm.runState).result.success)
+        assertEquals(ResetViewModel.CounterByteState.FAILED, vm.counterByteStates[58])
+        assertEquals(ResetViewModel.CounterByteState.FAILED, vm.counterByteStates[59])
     }
 
     /** Deliberately *not* blocked here. */

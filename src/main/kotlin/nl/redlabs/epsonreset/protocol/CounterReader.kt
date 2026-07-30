@@ -7,6 +7,8 @@ import nl.redlabs.epsonreset.db.PrinterModel
 /** Reads EEPROM bytes back off the printer. */
 object CounterReader {
 
+    private data class Target(val address: Int, val expected: Int, val group: PadGroup)
+
     /** One address sampled off the device. [value] is null when the printer didn't answer. */
     data class Reading(
         val address: Int,
@@ -30,6 +32,7 @@ object CounterReader {
 
     interface Listener {
         fun onProgress(done: Int, total: Int, address: Int) {}
+        fun onReading(reading: Reading) {}
         fun onTrace(line: String) {}
     }
 
@@ -55,6 +58,22 @@ object CounterReader {
             )
         }
     }
+
+    /**
+     * The part of a counter report known from the model database alone. [defaultValue] is used by
+     * the dry-run preview; null deliberately means that no printer value has been read yet.
+     */
+    fun layout(model: PrinterModel, specs: List<CounterSpec> = emptyList(), defaultValue: Int? = null): Report = Report(
+        model = model.name,
+        readings = targets(model, specs).map { target ->
+            Reading(
+                address = target.address,
+                value = defaultValue,
+                expectedAfterReset = target.expected,
+                groupDescription = target.group.description,
+            )
+        },
+    )
 
     /** Asks the printer for its own status block (serial, ink levels, state). */
     fun readStatus(transport: Transport, listener: Listener? = null): Status.Report? {
@@ -89,22 +108,7 @@ object CounterReader {
         listener: Listener? = null,
         isCancelled: () -> Boolean = { false },
     ): Report {
-        val fromPadGroups = model.padGroups.flatMap { group ->
-            group.addresses.indices.map { i ->
-                Triple(group.addresses[i], group.resetValues[i], group)
-            }
-        }
-
-        // Counter specs can name addresses the pad groups omit. Read those too, or a counter would
-        // decode to null purely because one of its bytes was never sampled.
-        val known = fromPadGroups.map { it.first }.toSet()
-        val extraGroup = PadGroup("Counter layout", "", emptyList(), emptyList())
-        val extras = specs.flatMap { it.addresses }
-            .distinct()
-            .filter { it !in known }
-            .map { Triple(it, 0, extraGroup) }
-
-        val targets = fromPadGroups + extras
+        val targets = targets(model, specs)
         if (targets.isEmpty()) return Report(model.name, emptyList(), "This model has no known counter addresses.")
 
         for (packet in SequenceGenerator.handshake()) {
@@ -126,6 +130,7 @@ object CounterReader {
             listener?.onProgress(index + 1, targets.size, address)
             val reading = readOne(transport, model, address, expected, group, listener)
             readings += reading
+            listener?.onReading(reading)
 
             // A firmware that declines factory commands declines all of them, so there is nothing
             // to learn from the remaining addresses and a reason to stop asking: the run should say
@@ -136,6 +141,28 @@ object CounterReader {
         }
 
         return Report(model.name, readings)
+    }
+
+    private fun targets(model: PrinterModel, specs: List<CounterSpec>): List<Target> {
+        val fromPadGroups = model.padGroups.flatMap { group ->
+            group.addresses.indices.map { i ->
+                Target(group.addresses[i], group.resetValues[i], group)
+            }
+        }
+
+        // Counter specs can name addresses the pad groups omit. Read those too, or a counter would
+        // decode to null purely because one of its bytes was never sampled.
+        val known = fromPadGroups.map { it.address }.toSet()
+        val extras = specs.flatMap { spec ->
+            val group = PadGroup(spec.description, "", emptyList(), emptyList())
+            spec.addresses.mapIndexed { index, address ->
+                Target(address, spec.resetValues.getOrNull(index) ?: 0, group)
+            }
+        }
+            .distinctBy { it.address }
+            .filter { it.address !in known }
+
+        return fromPadGroups + extras
     }
 
     private fun readOne(

@@ -40,6 +40,7 @@ object StatusColors {
     val good: Color @Composable get() = if (isSystemInDarkTheme()) Color(0xFF6BD98F) else Color(0xFF1B7A3F)
     val warn: Color @Composable get() = if (isSystemInDarkTheme()) Color(0xFFE8B84B) else Color(0xFF8A6100)
     val bad: Color @Composable get() = if (isSystemInDarkTheme()) Color(0xFFFF6B6B) else Color(0xFFB3261E)
+    val changed: Color @Composable get() = if (isSystemInDarkTheme()) Color(0xFFC69CFF) else Color(0xFF6F42C1)
     val muted: Color @Composable get() = if (isSystemInDarkTheme()) Color(0xFF7E8F98) else Color(0xFF6B7A82)
 
     /**

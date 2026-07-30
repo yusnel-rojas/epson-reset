@@ -1,24 +1,33 @@
 package nl.redlabs.epsonreset.ui
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -26,14 +35,19 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import nl.redlabs.epsonreset.backup.SnapshotComparison
+import nl.redlabs.epsonreset.db.PadGroup
+import nl.redlabs.epsonreset.db.PadKind
 import nl.redlabs.epsonreset.protocol.CounterReader
 import nl.redlabs.epsonreset.protocol.Status
 
-/** The decoded view: each counter as a single number, assembled from its grouped addresses. */
+/** Decoded counters and the EEPROM bytes behind them, kept together so neither view repeats the other. */
 @Composable
-fun DecodedCounters(
+fun CounterOverview(
     counters: List<CounterReader.DecodedCounter>,
+    report: CounterReader.Report,
+    before: CounterReader.Report? = null,
+    byteStates: Map<Int, ResetViewModel.CounterByteState> = emptyMap(),
+    simulated: Boolean = false,
     modifier: Modifier = Modifier,
     /**
      * Opens the contribution form. Null where there is nothing to contribute from — a snapshot read
@@ -41,7 +55,17 @@ fun DecodedCounters(
      */
     onCalibrate: (() -> Unit)? = null,
 ) {
-    if (counters.isEmpty()) return
+    val readings = report.readings.associateBy { it.address }
+    val previous = before?.readings?.associate { it.address to it.value }.orEmpty()
+    val showBefore = previous.isNotEmpty()
+    val previousCounters = before?.let { sample ->
+        CounterReader.decode(sample.readings, counters.map { it.spec })
+    }.orEmpty()
+    val decodedAddresses = counters.flatMapTo(mutableSetOf()) { it.spec.addresses }
+    val otherBytes = report.readings.filter { it.address !in decodedAddresses }
+    val layoutOnly = report.readings.isNotEmpty() &&
+        report.readings.all { it.value == null && it.error == null } &&
+        report.error == null
 
     Column(
         modifier
@@ -51,82 +75,102 @@ fun DecodedCounters(
             .border(1.dp, MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(10.dp))
             .padding(12.dp),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.height(24.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(
                 "Counters",
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
             )
             Spacer(Modifier.weight(1f))
-            onCalibrate?.let {
+            Text(
+                when {
+                    simulated -> "Simulated values"
+                    layoutOnly -> "Current values not read"
+                    else -> "${report.answered}/${report.total} answered"
+                },
+                style = MaterialTheme.typography.labelSmall,
+                color = when {
+                    simulated -> StatusColors.muted
+                    layoutOnly -> StatusColors.muted
+                    report.answered == report.total -> StatusColors.good
+                    else -> StatusColors.warn
+                },
+            )
+            onCalibrate?.takeIf { counters.isNotEmpty() }?.let {
                 // The one action a "no limit" invites. It lives up here rather than as a panel
                 // below, because measuring a maximum is a once-ever errand and the counters are
                 // what the tab is for.
-                TextButton(onClick = it, contentPadding = PaddingValues(horizontal = 8.dp)) {
-                    Text(
-                        if (counters.any { c -> c.percent == null }) {
-                            "Measure a maximum…"
-                        } else {
-                            "Check the maximums…"
-                        },
-                        style = MaterialTheme.typography.labelSmall,
-                    )
-                }
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    if (counters.any { c -> c.percent == null }) {
+                        "Measure a maximum…"
+                    } else {
+                        "Check the maximums…"
+                    },
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.clickable(onClick = it).padding(horizontal = 8.dp, vertical = 2.dp),
+                )
             }
+        }
+
+        report.error?.let {
+            Spacer(Modifier.height(6.dp))
+            Text(it, style = MaterialTheme.typography.bodySmall, color = StatusColors.bad)
         }
         Spacer(Modifier.height(10.dp))
 
-        for (c in counters) {
-            Row(Modifier.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        counters.forEachIndexed { index, counter ->
+            if (index > 0) HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
+            CounterByteRow(
+                counter = counter,
+                cells = counter.spec.addresses.mapIndexed { byteIndex, address ->
+                    val reading = readings[address]
+                    ByteCell(
+                        address = address,
+                        current = reading?.value,
+                        reset = reading?.expectedAfterReset ?: counter.spec.resetValues.getOrNull(byteIndex),
+                        previous = previous[address],
+                        kind = reading.kind(),
+                        error = reading?.error,
+                        state = byteStates[address],
+                    )
+                },
+                showBefore = showBefore,
+                previousValue = previousCounters.getOrNull(index)?.value,
+            )
+        }
+
+        if (otherBytes.isNotEmpty()) {
+            if (counters.isNotEmpty()) HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
+            Column(Modifier.padding(vertical = 5.dp)) {
                 Text(
-                    c.display,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontFamily = FontFamily.Monospace,
+                    if (counters.isEmpty()) "EEPROM bytes" else "Other EEPROM bytes",
+                    style = MaterialTheme.typography.bodySmall,
                     fontWeight = FontWeight.SemiBold,
-                    color = if (c.value == null) StatusColors.bad else MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.width(90.dp),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        c.spec.description + if (c.spec.isUncertain) "  (layout uncertain)" else "",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = if (c.spec.isUncertain) {
-                            StatusColors.warn
-                        } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        },
-                    )
-                    Text(
-                        "addr ${c.spec.addresses.joinToString(",")}  ·  bytes ${c.hexBytes}",
-                        style = MaterialTheme.typography.labelSmall,
-                        fontFamily = FontFamily.Monospace,
-                        color = StatusColors.muted,
-                    )
-                }
-
-                c.percent?.let { pct ->
-                    Text(
-                        // Two decimals so the figure lines up with what other tools report,
-                        // rather than looking like a near-miss.
-                        "%.2f%%".format(pct),
-                        style = MaterialTheme.typography.titleSmall,
-                        fontFamily = FontFamily.Monospace,
-                        color = when {
-                            pct >= 100 -> StatusColors.bad
-                            pct >= 90 -> StatusColors.warn
-                            else -> StatusColors.good
-                        },
-                    )
-                } ?: Text(
-                    "no limit",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = StatusColors.muted,
+                Spacer(Modifier.height(6.dp))
+                ByteStrip(
+                    cells = otherBytes.map { reading ->
+                        ByteCell(
+                            address = reading.address,
+                            current = reading.value,
+                            reset = reading.expectedAfterReset,
+                            previous = previous[reading.address],
+                            kind = reading.kind(),
+                            error = reading.error,
+                            state = byteStates[reading.address],
+                        )
+                    },
+                    showBefore = showBefore,
                 )
             }
         }
 
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(10.dp))
+        ByteLegend(showBefore)
+        Spacer(Modifier.height(6.dp))
         Text(
             "Multi-byte counters are little-endian. A percentage appears only where the layout " +
                 "data declares a maximum.",
@@ -136,97 +180,292 @@ fun DecodedCounters(
     }
 }
 
-/** The same counters, across two samples: what each one was, what it is, and how far it moved. */
-@Composable
-fun CounterDeltas(deltas: List<SnapshotComparison.CounterDelta>, modifier: Modifier = Modifier) {
-    if (deltas.isEmpty()) return
+private data class ByteCell(
+    val address: Int,
+    val current: Int?,
+    val reset: Int?,
+    val previous: Int?,
+    val kind: PadKind,
+    val error: String?,
+    val state: ResetViewModel.CounterByteState?,
+)
 
-    Column(
-        modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
-            .background(MaterialTheme.colorScheme.surface)
-            .border(1.dp, MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(10.dp))
-            .padding(12.dp),
-    ) {
+private data class ByteTransition(val left: String, val right: String)
+
+private fun CounterReader.Reading?.kind(): PadKind =
+    this?.let { PadGroup.kindFromDescription(it.groupDescription) } ?: PadKind.UNKNOWN
+
+@Composable
+private fun CounterByteRow(
+    counter: CounterReader.DecodedCounter,
+    cells: List<ByteCell>,
+    showBefore: Boolean,
+    previousValue: Long?,
+) {
+    Column(Modifier.padding(vertical = 5.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                "Counters, before and after",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold,
+                counter.spec.description + if (counter.spec.isUncertain) "  (layout uncertain)" else "",
+                style = MaterialTheme.typography.bodySmall,
+                color = if (counter.spec.isUncertain) StatusColors.warn else MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f),
             )
-            Spacer(Modifier.weight(1f))
-            Text(
-                "${deltas.count { it.moved }} of ${deltas.size} moved",
-                style = MaterialTheme.typography.labelSmall,
-                color = StatusColors.muted,
-            )
-        }
 
-        Spacer(Modifier.height(10.dp))
-
-        for (d in deltas) {
-            Row(Modifier.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (counter.value == null) {
                 Text(
-                    d.deltaLabel,
+                    if (cells.all { it.current == null && it.error == null }) "?" else counter.display,
                     style = MaterialTheme.typography.titleMedium,
                     fontFamily = FontFamily.Monospace,
-                    fontWeight = if (d.moved) FontWeight.SemiBold else FontWeight.Normal,
-                    color = deltaColour(d),
-                    modifier = Modifier.width(90.dp),
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (cells.all { it.current == null && it.error == null }) {
+                        StatusColors.muted
+                    } else {
+                        StatusColors.bad
+                    },
                 )
-
-                Column(Modifier.weight(1f)) {
+            } else {
+                Text(
+                    if (showBefore && previousValue != null) {
+                        "$previousValue→${counter.value}"
+                    } else {
+                        counter.value.toString()
+                    },
+                    style = MaterialTheme.typography.titleMedium,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+                counter.percent?.let { pct ->
+                    Spacer(Modifier.width(10.dp))
                     Text(
-                        d.label,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = if (d.spec.isUncertain) {
-                            StatusColors.warn
-                        } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant
+                        "%.2f%%".format(pct),
+                        style = MaterialTheme.typography.titleSmall,
+                        fontFamily = FontFamily.Monospace,
+                        color = when {
+                            pct >= 100 -> StatusColors.bad
+                            pct >= 90 -> StatusColors.warn
+                            else -> StatusColors.good
                         },
                     )
-                    Text(
-                        "addr ${d.spec.addresses.joinToString(",")}",
-                        style = MaterialTheme.typography.labelSmall,
-                        fontFamily = FontFamily.Monospace,
-                        color = StatusColors.muted,
-                    )
                 }
-
-                Text(
-                    d.display,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontFamily = FontFamily.Monospace,
-                    color = if (d.moved) {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    } else {
-                        StatusColors.muted
-                    },
-                    modifier = Modifier.width(180.dp),
-                )
             }
         }
 
-        Spacer(Modifier.height(8.dp))
-        Text(
-            "A counter that went up was used between the two samples; one that went down was reset. " +
-                "A counter shown as unmoved is one whose bytes are identical on both sides.",
-            style = MaterialTheme.typography.labelSmall,
-            color = StatusColors.muted,
-        )
+        Spacer(Modifier.height(1.dp))
+        ByteStrip(cells, showBefore)
     }
 }
 
-/** Down is good, up is ordinary. */
 @Composable
-private fun deltaColour(d: SnapshotComparison.CounterDelta): Color {
-    val delta = d.delta
-    return when {
-        !d.moved -> StatusColors.muted
-        delta == null -> StatusColors.warn
-        delta < 0 -> StatusColors.good
-        else -> MaterialTheme.colorScheme.primary
+private fun ByteStrip(cells: List<ByteCell>, showBefore: Boolean, modifier: Modifier = Modifier) {
+    Row(modifier.horizontalScroll(rememberScrollState())) {
+        cells.forEachIndexed { index, cell ->
+            if (index > 0) Spacer(Modifier.width(4.dp))
+            ByteChip(cell, showBefore)
+        }
+    }
+}
+
+@Composable
+private fun ByteChip(cell: ByteCell, showBefore: Boolean) {
+    val tone = when (cell.kind) {
+        PadKind.MAIN -> MaterialTheme.colorScheme.primary
+        PadKind.PLATEN -> StatusColors.warn
+        PadKind.UNKNOWN -> StatusColors.muted
+    }
+    val marker = when (cell.kind) {
+        PadKind.MAIN -> "M"
+        PadKind.PLATEN -> "P"
+        PadKind.UNKNOWN -> "?"
+    }
+    val shownCurrent = when (cell.state) {
+        ResetViewModel.CounterByteState.ACKNOWLEDGED,
+        ResetViewModel.CounterByteState.VERIFIED,
+        -> cell.reset
+        else -> cell.current
+    }
+    val current = shownCurrent?.let { byteHex(it) } ?: "?"
+    val reset = byteHex(cell.reset)
+    val transition = if (showBefore) ByteTransition(byteHex(cell.previous), current) else ByteTransition(current, reset)
+    val changed = showBefore && cell.previous != null && shownCurrent != null && cell.previous != shownCurrent
+    val stateTone = when (cell.state) {
+        ResetViewModel.CounterByteState.READING,
+        ResetViewModel.CounterByteState.WRITING,
+        ResetViewModel.CounterByteState.ACKNOWLEDGED,
+        -> StatusColors.warn
+        ResetViewModel.CounterByteState.READ,
+        ResetViewModel.CounterByteState.VERIFIED,
+        -> StatusColors.good
+        ResetViewModel.CounterByteState.FAILED -> StatusColors.bad
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    val animatedStateTone by animateColorAsState(stateTone, tween(220), label = "counter byte state")
+    val currentTone = when {
+        cell.error != null -> StatusColors.bad
+        cell.current == null && cell.state == null -> StatusColors.muted
+        else -> animatedStateTone
+    }
+
+    Column(
+        Modifier
+            .width(56.dp)
+            .clip(RoundedCornerShape(6.dp))
+            .background(if (changed) StatusColors.changed.copy(alpha = 0.14f) else Color.Transparent)
+            .border(1.dp, tone.copy(alpha = 0.75f), RoundedCornerShape(6.dp)),
+    ) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .background(tone.copy(alpha = 0.18f))
+                .padding(horizontal = 4.dp, vertical = 2.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                cell.address.toString(),
+                style = MaterialTheme.typography.labelSmall,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.SemiBold,
+                color = tone,
+            )
+            Spacer(Modifier.weight(1f))
+            val stateMarker = when (cell.state) {
+                ResetViewModel.CounterByteState.READING -> "●"
+                ResetViewModel.CounterByteState.READ -> "✓"
+                ResetViewModel.CounterByteState.WRITING -> "●"
+                ResetViewModel.CounterByteState.ACKNOWLEDGED -> "…"
+                ResetViewModel.CounterByteState.VERIFIED -> "✓"
+                ResetViewModel.CounterByteState.FAILED -> "✕"
+                else -> null
+            }
+            if (stateMarker != null) {
+                Text(stateMarker, style = MaterialTheme.typography.labelSmall, color = animatedStateTone)
+                Spacer(Modifier.width(2.dp))
+            }
+            Text(
+                marker,
+                style = MaterialTheme.typography.labelSmall,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.SemiBold,
+                color = tone,
+            )
+        }
+        AnimatedContent(
+            targetState = transition,
+            transitionSpec = {
+                (fadeIn(tween(180)) + slideInVertically(tween(180)) { it / 2 }) togetherWith
+                    (fadeOut(tween(120)) + slideOutVertically(tween(120)) { -it / 2 })
+            },
+            contentAlignment = Alignment.Center,
+            label = "counter byte value",
+            modifier = Modifier.fillMaxWidth(),
+        ) { value ->
+            Row(
+                Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                horizontalArrangement = Arrangement.Center,
+            ) {
+                Text(
+                    value.left,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.SemiBold,
+                    color = when {
+                        changed -> StatusColors.changed
+                        showBefore -> StatusColors.muted
+                        else -> currentTone
+                    },
+                    maxLines = 1,
+                )
+                Text(
+                    " → ",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontFamily = FontFamily.Monospace,
+                    color = StatusColors.muted,
+                    maxLines = 1,
+                )
+                Text(
+                    value.right,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.SemiBold,
+                    color = when {
+                        changed -> StatusColors.changed
+                        showBefore -> currentTone
+                        else -> StatusColors.bad
+                    },
+                    maxLines = 1,
+                )
+            }
+        }
+    }
+}
+
+private fun byteHex(value: Int?): String = value?.let { "%02X".format(it) } ?: "--"
+
+@Composable
+private fun ByteLegend(showBefore: Boolean) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        LegendItem("M", "Main", MaterialTheme.colorScheme.primary)
+        Spacer(Modifier.width(12.dp))
+        LegendItem("P", "Platen", StatusColors.warn)
+        Spacer(Modifier.width(12.dp))
+        LegendItem("?", "Unclassified", StatusColors.muted)
+        Spacer(Modifier.weight(1f))
+        if (showBefore) {
+            Row {
+                Text(
+                    "7F → 00  before → current  ·  ",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontFamily = FontFamily.Monospace,
+                    color = StatusColors.muted,
+                )
+                Text(
+                    "changed values highlighted",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.SemiBold,
+                    color = StatusColors.changed,
+                )
+            }
+        } else {
+            Row {
+                Text(
+                    "7F → ",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontFamily = FontFamily.Monospace,
+                    color = StatusColors.muted,
+                )
+                Text(
+                    "00",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.SemiBold,
+                    color = StatusColors.bad,
+                )
+                Text(
+                    "  reset target",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontFamily = FontFamily.Monospace,
+                    color = StatusColors.muted,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun LegendItem(marker: String, label: String, tone: Color) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            Modifier
+                .clip(RoundedCornerShape(4.dp))
+                .background(tone.copy(alpha = 0.18f))
+                .border(1.dp, tone.copy(alpha = 0.75f), RoundedCornerShape(4.dp))
+                .padding(horizontal = 5.dp, vertical = 1.dp),
+        ) {
+            Text(marker, style = MaterialTheme.typography.labelSmall, color = tone, fontWeight = FontWeight.Bold)
+        }
+        Spacer(Modifier.width(4.dp))
+        Text(label, style = MaterialTheme.typography.labelSmall, color = StatusColors.muted)
     }
 }
 
@@ -309,117 +548,4 @@ private fun inkColour(name: String, isLow: Boolean): Color = when {
     name.contains("Magenta") -> Color(0xFFD81B60)
     name.contains("Yellow") -> Color(0xFFF9A825)
     else -> MaterialTheme.colorScheme.primary
-}
-
-/** Shows what the EEPROM actually holds, address by address. */
-@Composable
-fun CounterTable(report: CounterReader.Report, before: CounterReader.Report?, modifier: Modifier = Modifier) {
-    val previous = before?.readings?.associate { it.address to it.value } ?: emptyMap()
-    val showBefore = previous.isNotEmpty()
-
-    Column(
-        modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
-            .background(MaterialTheme.colorScheme.surface)
-            .border(1.dp, MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(10.dp))
-            .padding(12.dp),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                "Counter values",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Spacer(Modifier.weight(1f))
-            Text(
-                "${report.answered}/${report.total} answered",
-                style = MaterialTheme.typography.labelSmall,
-                color = if (report.answered == report.total) StatusColors.good else StatusColors.warn,
-            )
-        }
-
-        report.error?.let {
-            Spacer(Modifier.height(6.dp))
-            Text(it, style = MaterialTheme.typography.bodySmall, color = StatusColors.bad)
-        }
-
-        Spacer(Modifier.height(10.dp))
-
-        Row {
-            HeaderCell("Address", 80.dp)
-            if (showBefore) HeaderCell("Before", 70.dp)
-            HeaderCell(if (showBefore) "After" else "Value", 70.dp)
-            HeaderCell("Reset to", 70.dp)
-            HeaderCell("Group", 160.dp)
-        }
-
-        Spacer(Modifier.height(4.dp))
-
-        LazyColumn(Modifier.heightIn(max = 260.dp)) {
-            items(report.readings) { r ->
-                val old = previous[r.address]
-                val changed = showBefore && old != null && r.value != null && old != r.value
-
-                Row(Modifier.padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Cell("%d".format(r.address), 80.dp, StatusColors.muted)
-
-                    if (showBefore) {
-                        Cell(old?.let { "0x%02X".format(it) } ?: "—", 70.dp, StatusColors.muted)
-                    }
-
-                    Cell(
-                        r.hex,
-                        70.dp,
-                        when {
-                            r.value == null -> StatusColors.bad
-                            r.isAtResetValue -> StatusColors.good
-                            else -> MaterialTheme.colorScheme.onSurfaceVariant
-                        },
-                        bold = changed,
-                    )
-
-                    Cell("0x%02X".format(r.expectedAfterReset), 70.dp, StatusColors.muted)
-
-                    Text(
-                        r.error ?: r.groupDescription,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = if (r.error != null) StatusColors.bad else StatusColors.muted,
-                        modifier = Modifier.width(160.dp),
-                    )
-                }
-            }
-        }
-
-        Spacer(Modifier.height(8.dp))
-        Text(
-            "Raw EEPROM bytes. This database carries no counter maximums, so these are not " +
-                "percentages — the useful comparison is against the reset column.",
-            style = MaterialTheme.typography.labelSmall,
-            color = StatusColors.muted,
-        )
-    }
-}
-
-@Composable
-private fun HeaderCell(text: String, width: androidx.compose.ui.unit.Dp) {
-    Text(
-        text,
-        style = MaterialTheme.typography.labelSmall,
-        fontWeight = FontWeight.SemiBold,
-        color = StatusColors.muted,
-        modifier = Modifier.width(width),
-    )
-}
-
-@Composable
-private fun Cell(text: String, width: androidx.compose.ui.unit.Dp, color: Color, bold: Boolean = false) {
-    Text(
-        text,
-        style = MaterialTheme.typography.labelSmall,
-        fontFamily = FontFamily.Monospace,
-        fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal,
-        color = color,
-        modifier = Modifier.width(width),
-    )
 }

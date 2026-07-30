@@ -135,7 +135,7 @@ class SnapshotState(
             finishRun(result, isDry)
 
             if (result.success) {
-                good("Restore complete — ${result.writesVerified}/${result.writesTotal} writes verified.")
+                good("Restore complete — ${result.writesAcknowledged}/${result.writesTotal} writes acknowledged.")
                 warn("Power-cycle the printer to finalise the change.")
             } else {
                 bad(result.error.ifBlank { "The restore did not complete." })

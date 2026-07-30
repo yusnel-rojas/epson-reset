@@ -315,6 +315,41 @@ class ResetViewModel(
             return CounterReader.decode(report.readings, specsFor(model))
         }
 
+    /**
+     * What the Counters screen can show right now. The model supplies the layout even before a live
+     * read; dry-run mode additionally has a deterministic fake starting value.
+     */
+    val counterDisplayReport: CounterReader.Report?
+        get() {
+            val model = selectedModel ?: return null
+            val base = readReport?.takeIf { readWasSimulated == dryRun }
+                ?: CounterReader.layout(model, specsFor(model), defaultValue = if (dryRun) 0x7F else null)
+            if (counterByteStates.isEmpty()) return base
+            return base.copy(
+                readings = base.readings.map { reading ->
+                    when (counterByteStates[reading.address]) {
+                        CounterByteState.ACKNOWLEDGED,
+                        CounterByteState.VERIFIED,
+                        -> reading.copy(value = reading.expectedAfterReset)
+                        else -> reading
+                    }
+                },
+            )
+        }
+
+    val displayDecodedCounters: List<CounterReader.DecodedCounter>
+        get() {
+            val model = selectedModel ?: return emptyList()
+            val report = counterDisplayReport ?: return emptyList()
+            return CounterReader.decode(report.readings, specsFor(model))
+        }
+
+    enum class CounterByteState { PENDING, READING, READ, WRITING, ACKNOWLEDGED, VERIFIED, FAILED }
+
+    /** Per-address state for the current or most recent reset attempt. */
+    var counterByteStates by mutableStateOf<Map<Int, CounterByteState>>(emptyMap())
+        private set
+
     fun specsFor(model: PrinterModel): List<CounterSpec> = counterSpecs?.get(model.name) ?: emptyList()
 
     val history = CounterHistoryState(
@@ -446,6 +481,15 @@ class ResetViewModel(
         warn = { warn(it) },
         bad = { bad(it) },
     )
+
+    /** Operation feedback rendered by the fixed status bar instead of shifting individual panels. */
+    val globalProgressLabel: String?
+        get() = progressLabel.takeIf { it.isNotBlank() }
+            ?: maintenance.running?.let { "Sending ${it.label.lowercase()}…" }
+
+    /** Null means that the active operation has no meaningful percentage and should be indeterminate. */
+    val globalProgressValue: Float?
+        get() = progress.takeIf { progressLabel.isNotBlank() }
 
     private val cancelFlag = AtomicBoolean(false)
 
@@ -598,6 +642,18 @@ class ResetViewModel(
 
     /** Reading has the same prerequisites but never writes, so it needs no confirmation. */
     val canRead: Boolean get() = canRun
+
+    /** Switches preview sources without carrying fake values into Live or live values into Dry run. */
+    fun changeDryRunMode(value: Boolean) {
+        if (dryRun == value) return
+        dryRun = value
+        readReport = null
+        beforeReport = null
+        readWasSimulated = false
+        counterByteStates = emptyMap()
+        if (runState is RunState.Finished) runState = RunState.Idle
+        calibration.resetForm()
+    }
 
     /**
      * Startup sequence. The scan has to wait for the database, or matching runs against nothing and
@@ -786,6 +842,7 @@ class ResetViewModel(
         readReport = null
         beforeReport = null
         readWasSimulated = false
+        counterByteStates = emptyMap()
         identity = null
         pendingClass = null
         manualModelRequested = false
@@ -809,6 +866,7 @@ class ResetViewModel(
         readReport = null
         beforeReport = null
         readWasSimulated = false
+        counterByteStates = emptyMap()
         identity = null
         pendingClass = null
         manualModelRequested = false
@@ -1102,6 +1160,7 @@ class ResetViewModel(
             readReport = null
             beforeReport = null
             readWasSimulated = false
+            counterByteStates = emptyMap()
         }
         // No device selected means nothing to show; a selected device with no serial still opens the
         // panel, where select() explains why its reads cannot be joined.
@@ -1177,6 +1236,7 @@ class ResetViewModel(
         readReport = null
         beforeReport = null
         readWasSimulated = false
+        counterByteStates = emptyMap()
         scope.launch {
             if (key != null) withContext(io) { ModelChoices.forget(choicesFile(), key) }
             val candidates = DeviceMatcher.resolve(reported, db).candidates
@@ -1235,6 +1295,10 @@ class ResetViewModel(
     private suspend fun performRead(model: PrinterModel, device: MatchedPrinter?, isDry: Boolean) {
         cancelFlag.set(false)
         reading = true
+        beforeReport = null
+        readReport = CounterReader.layout(model, specsFor(model))
+        readWasSimulated = isDry
+        counterByteStates = readReport?.readings.orEmpty().associate { it.address to CounterByteState.PENDING }
         progress = 0f
         progressLabel = "Reading counters…"
 
@@ -1242,6 +1306,22 @@ class ResetViewModel(
             override fun onProgress(done: Int, total: Int, address: Int) = onMain {
                 progress = done.toFloat() / total
                 progressLabel = "Reading address $address ($done / $total)"
+                val current = counterByteStates[address]
+                if (current != CounterByteState.READ && current != CounterByteState.FAILED) {
+                    counterByteStates = counterByteStates + (address to CounterByteState.READING)
+                }
+            }
+
+            override fun onReading(reading: CounterReader.Reading) = onMain {
+                val current = counterByteStates[reading.address]
+                if (current == CounterByteState.READ || current == CounterByteState.FAILED) return@onMain
+                readReport = readReport?.copy(
+                    readings = readReport?.readings.orEmpty().map { existing ->
+                        if (existing.address == reading.address) reading else existing
+                    },
+                )
+                val next = if (reading.value != null) CounterByteState.READ else CounterByteState.FAILED
+                counterByteStates = counterByteStates + (reading.address to next)
             }
 
             override fun onTrace(line: String) = onMain { trace(line) }
@@ -1260,9 +1340,13 @@ class ResetViewModel(
             } ?: CounterReader.Report(model.name, emptyList(), transportError)
         }
 
-        beforeReport = null
         readReport = report
         readWasSimulated = isDry
+        val finalReadings = report.readings.associateBy { it.address }
+        counterByteStates = counterByteStates.mapValues { (address, state) ->
+            finalReadings[address]?.let { if (it.value != null) CounterByteState.READ else CounterByteState.FAILED }
+                ?: state.takeIf { it == CounterByteState.PENDING } ?: CounterByteState.FAILED
+        }
         // A percentage typed against the previous reading would silently pair with this one.
         calibration.resetForm()
         status = read
@@ -1317,6 +1401,8 @@ class ResetViewModel(
             progressLabel = "Generating sequence…"
 
             val sequence = SequenceGenerator.generate(model)
+            counterByteStates = sequence.mapNotNull(Executor::writePacketTarget)
+                .associate { (address, _) -> address to CounterByteState.PENDING }
             info(
                 "Generated ${sequence.size} packets for ${model.name} " +
                     "(${model.writeCount} EEPROM writes).",
@@ -1330,6 +1416,17 @@ class ResetViewModel(
                 override fun onPacket(index: Int, total: Int, message: String) = onMain {
                     progress = index.toFloat() / total
                     progressLabel = "Packet $index / $total — $message"
+                }
+
+                override fun onWrite(address: Int, value: Int, state: Executor.WriteState) = onMain {
+                    val current = counterByteStates[address]
+                    if (current == CounterByteState.VERIFIED || current == CounterByteState.FAILED) return@onMain
+                    val next = when (state) {
+                        Executor.WriteState.WRITING -> CounterByteState.WRITING
+                        Executor.WriteState.ACKNOWLEDGED -> CounterByteState.ACKNOWLEDGED
+                        Executor.WriteState.FAILED -> CounterByteState.FAILED
+                    }
+                    counterByteStates = counterByteStates + (address to next)
                 }
 
                 override fun onTrace(line: String) = onMain { trace(line) }
@@ -1349,6 +1446,11 @@ class ResetViewModel(
                     transport?.let {
                         onMain { progressLabel = "Reading counters before reset…" }
                         before = CounterReader.readAll(it, model, specsFor(model)) { cancelFlag.get() }
+                        onMain {
+                            beforeReport = before
+                            readReport = before
+                            readWasSimulated = isDry
+                        }
 
                         // A read that failed for a reason the printer gave — a refusal, most likely
                         // — is reported as that reason.
@@ -1404,8 +1506,32 @@ class ResetViewModel(
             progress = 1f
             progressLabel = ""
             beforeReport = before
-            readReport = after
+            readReport = after ?: before
             readWasSimulated = isDry
+            if (result.success) {
+                val verifiedByAddress = after?.readings?.associateBy { it.address }.orEmpty()
+                counterByteStates = counterByteStates.mapValues { (address, _) ->
+                    if (verifiedByAddress[address]?.isAtResetValue == true) {
+                        CounterByteState.VERIFIED
+                    } else {
+                        CounterByteState.FAILED
+                    }
+                }
+            }
+            val verificationFailure = if (!result.success) {
+                null
+            } else {
+                when {
+                    after == null -> "Writes were acknowledged, but the counters could not be read back."
+                    after?.error != null -> "Writes were acknowledged, but read-back failed: ${after?.error}"
+                    after?.answered != after?.total ->
+                        "Writes were acknowledged, but only ${after?.answered}/${after?.total} addresses were read back."
+                    after?.allAtResetValue != true ->
+                        "Writes were acknowledged, but read-back found values that did not reset."
+                    else -> null
+                }
+            }
+            val finalResult = verificationFailure?.let { result.copy(success = false, error = it) } ?: result
             if (!isDry) {
                 before?.let { history.acceptLive(it, identifyingSerial(device, sampledStatus?.serial)) }
                 after?.let { history.acceptLive(it, identifyingSerial(device, sampledStatus?.serial)) }
@@ -1413,29 +1539,29 @@ class ResetViewModel(
             // The counters have just been zeroed, so nothing on this reading measures a maximum.
             calibration.resetForm()
             lastBackup = backupFile
-            runState = RunState.Finished(result, isDry)
+            runState = RunState.Finished(finalResult, isDry)
 
             reportVerification(before, after)
 
             // A run that stopped partway is the case the backup was taken for, so the filename goes
             // in front of the user rather than into a log they have to scroll.
-            if (!result.success && backupFile != null && result.writesVerified > 0) {
+            if (!finalResult.success && backupFile != null && finalResult.writesAcknowledged > 0) {
                 warn(
-                    "${result.writesVerified} write(s) landed before this stopped. The pre-write " +
+                    "${finalResult.writesAcknowledged} write(s) were acknowledged before this stopped. The pre-write " +
                         "bytes are saved in ${backupFile?.name} — restore it to put them back.",
                 )
             }
 
             when {
-                result.success && isDry ->
+                finalResult.success && isDry ->
                     good(
-                        "Dry run complete — ${result.writesTotal} writes generated and verified against the fake device.",
+                        "Dry run complete — ${finalResult.writesTotal} writes generated and verified against the fake device.",
                     )
-                result.success -> {
-                    good("Reset complete — ${result.writesVerified}/${result.writesTotal} EEPROM writes verified.")
+                finalResult.success -> {
+                    good("Reset complete — all ${finalResult.writesTotal} EEPROM values verified by read-back.")
                     warn("Power-cycle the printer now to finalise the change.")
                 }
-                else -> bad(result.error.ifBlank { "The reset did not complete." })
+                else -> bad(finalResult.error.ifBlank { "The reset did not complete." })
             }
         }
     }

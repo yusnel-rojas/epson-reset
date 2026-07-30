@@ -47,13 +47,14 @@ fun PrinterChip(vm: ResetViewModel, modifier: Modifier = Modifier) {
         targetReady -> StatusColors.good
         else -> StatusColors.warn
     }
+    val title = selected?.displayName ?: model?.name ?: "No printer"
     val detail = when {
         selected != null && !reachable -> "Saved · not reached · ${model?.name ?: "choose model"}"
         vm.pendingClass != null -> "${selected?.link?.kind ?: "Printer"} · choose model"
         selected != null && model != null -> "${selected.link.kind} · ${model.name}"
         selected != null -> "${selected.link.kind} · choose model"
-        model != null -> "No printer · ${model.name}"
-        else -> "Select printer and model"
+        model != null -> "Model only · no printer selected"
+        else -> "Open to scan for printers"
     }
 
     Box(modifier) {
@@ -78,7 +79,7 @@ fun PrinterChip(vm: ResetViewModel, modifier: Modifier = Modifier) {
             Spacer(Modifier.width(8.dp))
             Column(Modifier.weight(1f)) {
                 Text(
-                    selected?.displayName ?: "No printer",
+                    title,
                     style = MaterialTheme.typography.labelMedium,
                     color = tone,
                     fontWeight = FontWeight.SemiBold,

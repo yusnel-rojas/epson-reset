@@ -19,10 +19,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -260,14 +258,9 @@ private fun SnapshotDetail(vm: ResetViewModel, modifier: Modifier = Modifier) {
         }
 
         val counters = vm.snapshot.snapshotCounters
-        if (counters.isNotEmpty()) {
-            Spacer(Modifier.height(16.dp))
-            DecodedCounters(counters)
-        }
-
         vm.snapshot.snapshotReport?.let { report ->
-            Spacer(Modifier.height(12.dp))
-            CounterTable(report, before = null)
+            Spacer(Modifier.height(16.dp))
+            CounterOverview(counters = counters, report = report)
         }
 
         if (counters.isEmpty()) {
@@ -425,18 +418,16 @@ private fun ComparisonResult(result: SnapshotComparison.Result) {
             }
         }
 
-        if (result.counters.isNotEmpty()) {
-            Spacer(Modifier.height(12.dp))
-            CounterDeltas(result.counters)
-        }
-
         if (result.unexplained.isNotEmpty()) {
             Spacer(Modifier.height(12.dp))
             UnexplainedChanges(result.unexplained)
         }
 
         Spacer(Modifier.height(12.dp))
-        CounterTable(
+        CounterOverview(
+            counters = result.counters.map { delta ->
+                CounterReader.DecodedCounter(delta.spec, delta.after, delta.afterBytes)
+            },
             report = CounterReader.Report(result.after.model, result.after.readings),
             before = CounterReader.Report(result.before.model, result.before.readings),
         )
@@ -564,25 +555,6 @@ private fun RestoreControls(vm: ResetViewModel, backup: EepromBackup) {
             when {
                 running -> OutlinedButton(onClick = { vm.cancel() }) { Text("Cancel") }
 
-                confirming -> {
-                    Text(
-                        "Write ${backup.entries.size} saved bytes into " +
-                            "${vm.selectedDevice?.device?.displayName ?: "the printer"}?",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = StatusColors.warn,
-                    )
-                    Spacer(Modifier.width(10.dp))
-                    OutlinedButton(onClick = { confirming = false }) { Text("Back") }
-                    Spacer(Modifier.width(8.dp))
-                    Button(
-                        onClick = {
-                            confirming = false
-                            vm.snapshot.restoreSelectedSnapshot()
-                        },
-                        colors = dangerButtonColors(),
-                    ) { Text("Yes, write it back") }
-                }
-
                 vm.dryRun -> Button(
                     onClick = { vm.snapshot.restoreSelectedSnapshot() },
                     enabled = blocked == null,
@@ -602,20 +574,21 @@ private fun RestoreControls(vm: ResetViewModel, backup: EepromBackup) {
             )
         }
 
+        if (confirming && !vm.dryRun) {
+            RestoreConfirmation(
+                vm = vm,
+                backup = backup,
+                onDismiss = { confirming = false },
+                onConfirm = {
+                    confirming = false
+                    vm.snapshot.restoreSelectedSnapshot()
+                },
+            )
+        }
+
         blocked?.let {
             Spacer(Modifier.height(8.dp))
             Text(it, style = MaterialTheme.typography.labelSmall, color = StatusColors.warn)
-        }
-
-        if (running) {
-            Spacer(Modifier.height(10.dp))
-            LinearProgressIndicator(progress = { vm.progress }, modifier = Modifier.fillMaxWidth())
-            Spacer(Modifier.height(4.dp))
-            Text(
-                vm.progressLabel,
-                style = MaterialTheme.typography.labelSmall,
-                color = StatusColors.muted,
-            )
         }
 
         Spacer(Modifier.height(8.dp))
@@ -626,4 +599,32 @@ private fun RestoreControls(vm: ResetViewModel, backup: EepromBackup) {
             color = StatusColors.muted,
         )
     }
+}
+
+@Composable
+private fun RestoreConfirmation(
+    vm: ResetViewModel,
+    backup: EepromBackup,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit,
+) {
+    val printer = vm.selectedDevice?.device?.displayName ?: "the printer"
+    EepromWriteConfirmation(
+        title = "Restore EEPROM — ${backup.model}",
+        headline = "Write ${backup.entries.size} saved EEPROM bytes into $printer.",
+        metadata = "${backup.model} · snapshot ${backup.takenAt}",
+        warning = "These are historical values. They can increase counters and replace newer printer data.",
+        paragraphs = listOf(
+            "Use this only to recover from an interrupted reset or restore. It is not an undo for " +
+                "a successful reset.",
+            "The restore does not first save the values currently in the printer. Continue only " +
+                "if this snapshot is the recovery point you intend to apply.",
+            "Whether to do this is your decision, and what follows from it is yours to carry: this " +
+                "software comes with no warranty, and its authors are not accountable for what " +
+                "happens to your printer.",
+        ),
+        onDismiss = onDismiss,
+        onConfirm = onConfirm,
+        confirmLabel = "Yes, restore EEPROM",
+    )
 }

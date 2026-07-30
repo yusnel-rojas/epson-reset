@@ -124,7 +124,7 @@ object RestoreTool {
             options = Executor.Options(interPacketDelayMs = 0, retryDelayMs = 0),
         )
         println("result     ${if (result.success) "OK" else "FAILED — ${result.error}"}")
-        println("verified   ${result.writesVerified}/${result.writesTotal}")
+        println("write ACKs ${result.writesAcknowledged}/${result.writesTotal}")
     }
 
     private fun writeForReal(
@@ -186,7 +186,7 @@ object RestoreTool {
                 val result = Executor.execute(transport = transport, sequence = sequence)
 
                 println("result     ${if (result.success) "OK" else "FAILED — ${result.error}"}")
-                println("verified   ${result.writesVerified}/${result.writesTotal}")
+                println("write ACKs ${result.writesAcknowledged}/${result.writesTotal}")
 
                 if (result.success) {
                     val back = CounterReader.readAll(transport, model)

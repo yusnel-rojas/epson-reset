@@ -3,6 +3,7 @@ package nl.redlabs.epsonreset.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -15,6 +16,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -47,6 +49,8 @@ fun LogPanel(vm: ResetViewModel, modifier: Modifier = Modifier) {
     val listState = rememberLazyListState()
     val clipboard = LocalClipboardManager.current
     val collapsed = vm.logCollapsed
+    val operationLabel = vm.globalProgressLabel
+    val operationProgress = vm.globalProgressValue
 
     val visible = remember(vm.log.size, showTrace) {
         if (showTrace) {
@@ -60,83 +64,111 @@ fun LogPanel(vm: ResetViewModel, modifier: Modifier = Modifier) {
         if (!collapsed && visible.isNotEmpty()) listState.animateScrollToItem(visible.lastIndex)
     }
 
-    Column(
+    Box(
         modifier
             .height(if (collapsed) COLLAPSED_HEIGHT else EXPANDED_HEIGHT)
             .background(MaterialTheme.colorScheme.surface),
     ) {
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .clickable { vm.logCollapsed = !collapsed }
-                .padding(horizontal = 16.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            // The whole bar is the hit target; the chevron is just what says so.
-            Text(
-                if (collapsed) "▸" else "▾",
-                style = MaterialTheme.typography.labelLarge,
-                color = StatusColors.muted,
-                modifier = Modifier.width(16.dp),
-            )
-            Text(
-                "Log",
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.SemiBold,
-            )
+        Column(Modifier.fillMaxSize()) {
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .clickable { vm.logCollapsed = !collapsed }
+                    .padding(horizontal = 16.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                // The whole bar is the hit target; the chevron is just what says so.
+                Text(
+                    if (collapsed) "▸" else "▾",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = StatusColors.muted,
+                    modifier = Modifier.width(16.dp),
+                )
+                Text(
+                    "Log",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                )
 
-            if (collapsed) {
-                // Collapsed, the header is the status line — the latest thing that happened.
-                Spacer(Modifier.width(12.dp))
-                visible.lastOrNull()?.let { line ->
+                if (collapsed) {
+                    // Collapsed, the header is the status line. An active operation is more useful
+                    // than the last completed log entry and disappears without changing its height.
+                    Spacer(Modifier.width(12.dp))
                     Text(
-                        line.text,
+                        operationLabel ?: visible.lastOrNull()?.text.orEmpty(),
                         style = MaterialTheme.typography.labelSmall,
                         fontFamily = FontFamily.Monospace,
-                        color = levelColour(line.level),
+                        color = operationLabel?.let { MaterialTheme.colorScheme.primary }
+                            ?: visible.lastOrNull()?.let { levelColour(it.level) }
+                            ?: StatusColors.muted,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f),
                     )
-                } ?: Spacer(Modifier.weight(1f))
+                    TextButton(onClick = { vm.logCollapsed = false }) { Text("Show") }
+                } else {
+                    Spacer(Modifier.width(12.dp))
+                    if (operationLabel != null) {
+                        Text(
+                            operationLabel,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontFamily = FontFamily.Monospace,
+                            color = MaterialTheme.colorScheme.primary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f),
+                        )
+                    } else {
+                        Spacer(Modifier.weight(1f))
+                    }
+                    TextButton(onClick = { showTrace = !showTrace }) {
+                        Text(if (showTrace) "Hide packet trace" else "Show packet trace")
+                    }
+                    TextButton(onClick = { clipboard.setText(AnnotatedString(vm.exportLog())) }) {
+                        Text("Copy")
+                    }
+                    TextButton(onClick = { vm.clearLog() }) { Text("Clear") }
+                    TextButton(onClick = { vm.logCollapsed = true }) { Text("Hide") }
+                }
+            }
 
-                TextButton(onClick = { vm.logCollapsed = false }) { Text("Show") }
-            } else {
-                Spacer(Modifier.weight(1f))
-                TextButton(onClick = { showTrace = !showTrace }) {
-                    Text(if (showTrace) "Hide packet trace" else "Show packet trace")
+            if (!collapsed) {
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+                ) {
+                    items(visible) { line ->
+                        Row(Modifier.horizontalScroll(rememberScrollState())) {
+                            Text(
+                                line.time,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontFamily = FontFamily.Monospace,
+                                color = StatusColors.muted,
+                                modifier = Modifier.width(64.dp),
+                            )
+                            Text(
+                                line.text,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontFamily = FontFamily.Monospace,
+                                color = levelColour(line.level),
+                            )
+                        }
+                        Spacer(Modifier.height(2.dp))
+                    }
                 }
-                TextButton(onClick = { clipboard.setText(AnnotatedString(vm.exportLog())) }) {
-                    Text("Copy")
-                }
-                TextButton(onClick = { vm.clearLog() }) { Text("Clear") }
-                TextButton(onClick = { vm.logCollapsed = true }) { Text("Hide") }
             }
         }
 
-        if (collapsed) return@Column
-
-        LazyColumn(
-            state = listState,
-            modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
-        ) {
-            items(visible) { line ->
-                Row(Modifier.horizontalScroll(rememberScrollState())) {
-                    Text(
-                        line.time,
-                        style = MaterialTheme.typography.labelSmall,
-                        fontFamily = FontFamily.Monospace,
-                        color = StatusColors.muted,
-                        modifier = Modifier.width(64.dp),
-                    )
-                    Text(
-                        line.text,
-                        style = MaterialTheme.typography.labelSmall,
-                        fontFamily = FontFamily.Monospace,
-                        color = levelColour(line.level),
-                    )
-                }
-                Spacer(Modifier.height(2.dp))
+        if (operationLabel != null) {
+            if (operationProgress == null || operationProgress <= 0f) {
+                LinearProgressIndicator(
+                    modifier = Modifier.fillMaxWidth().height(2.dp).align(Alignment.TopCenter),
+                )
+            } else {
+                LinearProgressIndicator(
+                    progress = { operationProgress },
+                    modifier = Modifier.fillMaxWidth().height(2.dp).align(Alignment.TopCenter),
+                )
             }
         }
     }

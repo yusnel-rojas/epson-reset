@@ -16,7 +16,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -209,13 +208,6 @@ fun InspectPanel(vm: ResetViewModel, modifier: Modifier = Modifier) {
                     "(${nl.redlabs.epsonreset.AppPaths.counterOverlay}) and restart.",
                 StatusColors.muted,
             )
-        }
-
-        if (inspect.inspecting) {
-            Spacer(Modifier.height(16.dp))
-            LinearProgressIndicator(progress = { vm.progress }, modifier = Modifier.fillMaxWidth())
-            Spacer(Modifier.height(6.dp))
-            Text(vm.progressLabel, style = MaterialTheme.typography.labelSmall, color = StatusColors.muted)
         }
 
         Spacer(Modifier.height(20.dp))

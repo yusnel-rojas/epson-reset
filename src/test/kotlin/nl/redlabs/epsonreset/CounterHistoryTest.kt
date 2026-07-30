@@ -64,6 +64,20 @@ class CounterJournalTest {
     }
 
     @Test
+    fun `unchanged values are skipped against the newest sample by timestamp`() {
+        val journal = CounterJournal(file())
+
+        journal.append("QWER012345", historyReport(100), historyStart.plusSeconds(2))
+        journal.append("QWER012345", historyReport(200), historyStart.plusSeconds(1))
+        val duplicate = journal.append("QWER012345", historyReport(100), historyStart.plusSeconds(3))
+        journal.append("QWER012345", historyReport(300), historyStart.plusSeconds(4))
+
+        assertNull(duplicate)
+        assertEquals(3, journal.load("QWER012345").size)
+        assertEquals(3, journal.stats().samples)
+    }
+
+    @Test
     fun `a malformed line costs only itself`() {
         val file = file()
         file.writeText("not json\n")

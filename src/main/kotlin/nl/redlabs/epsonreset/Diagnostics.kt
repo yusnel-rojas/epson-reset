@@ -151,7 +151,7 @@ object Diagnostics {
             options = Executor.Options(interPacketDelayMs = 0, retryDelayMs = 0),
         )
         println("result     ${if (result.success) "OK" else "FAILED — ${result.error}"}")
-        println("verified   ${result.writesVerified}/${result.writesTotal}")
+        println("write ACKs ${result.writesAcknowledged}/${result.writesTotal}")
 
         val after = CounterReader.readAll(transport, model)
         println("read-back  ${if (after.allAtResetValue) "all addresses at reset values" else "MISMATCH"}")

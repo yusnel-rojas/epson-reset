@@ -21,7 +21,8 @@ import java.time.Instant
 
 /**
  * Successful live counter reads, one JSON object per line. A bad or half-written final line costs
- * that sample only; earlier history remains readable and new samples are always appended.
+ * that sample only; earlier history remains readable. Consecutive samples with unchanged values
+ * are collapsed so the journal records counter changes rather than polling frequency.
  */
 class CounterJournal(private val file: File = AppPaths.counterHistory) {
 
@@ -36,22 +37,30 @@ class CounterJournal(private val file: File = AppPaths.counterHistory) {
     data class Stats(val samples: Int, val printers: Int, val bytes: Long)
 
     /**
-     * Appends one canonical-serial sample. Null means the sample is not safe to identify or keep.
+     * Appends one canonical-serial sample. Null means the sample is not safe to identify or keep,
+     * or its address/value set is unchanged from the newest sample for this printer and model.
      * This guard is the authority on what is eligible; callers may pre-filter to avoid pointless work,
      * but a sample that reaches here is judged here.
      */
     @Synchronized
     fun append(rawSerial: String?, report: CounterReader.Report, now: Instant = Instant.now()): Sample? {
-        val serial = Serials.canonical(rawSerial) ?: return null
+        val sourceSerial = rawSerial ?: return null
+        val serial = Serials.canonical(sourceSerial) ?: return null
         if (report.model.isBlank() || report.error != null || report.answered == 0) return null
 
-        val aliases = (Serials.readings(rawSerial) + serial).filter { it.isNotBlank() }.toSet()
+        val newest = load(sourceSerial, report.model).lastOrNull()
+        if (newest != null && sameValues(newest.report, report)) return null
+
+        val aliases = (Serials.readings(sourceSerial) + serial).filter { it.isNotBlank() }.toSet()
         val sample = Sample(now, serial, report, aliases)
         file.parentFile?.mkdirs()
         val needsSeparator = file.isFile && file.length() > 0L && !endsWithNewline(file)
         file.appendText((if (needsSeparator) "\n" else "") + format(sample) + "\n")
         return sample
     }
+
+    private fun sameValues(left: CounterReader.Report, right: CounterReader.Report): Boolean =
+        left.readings.associate { it.address to it.value } == right.readings.associate { it.address to it.value }
 
     /** Oldest first, for one physical printer and optionally one model. Malformed lines are skipped. */
     @Synchronized
