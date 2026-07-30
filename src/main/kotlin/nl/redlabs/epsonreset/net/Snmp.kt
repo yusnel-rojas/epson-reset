@@ -22,7 +22,13 @@ object Snmp {
     private const val OBJECT_ID = 0x06
     private const val SEQUENCE = 0x30
     private const val GET_REQUEST = 0xA0
+    private const val GET_NEXT_REQUEST = 0xA1
     private const val GET_RESPONSE = 0xA2
+
+    // SNMPv2 application value tags, worth telling apart so an integer isn't read as text.
+    const val COUNTER32 = 0x41
+    const val GAUGE32 = 0x42
+    const val TIMETICKS = 0x43
 
     /** SNMP v1 error-status values worth telling apart. */
     private const val ERROR_NO_SUCH_NAME = 2
@@ -46,6 +52,27 @@ object Snmp {
         data class Failed(val message: String) : Result
     }
 
+    /**
+     * The answer to a GETNEXT. Unlike [Result] it carries the OID the agent *replied* about, which a
+     * walk needs to know where to step next and when it has left the subtree.
+     */
+    sealed interface Next {
+        /** [oid] is the next OID in the tree; [type] its BER value tag; [value] the raw content. */
+        data class Ok(val oid: List<Int>, val type: Int, val value: ByteArray) : Next {
+            override fun equals(other: Any?) =
+                other is Ok && oid == other.oid && type == other.type && value.contentEquals(other.value)
+
+            override fun hashCode() = (31 * oid.hashCode() + type) * 31 + value.contentHashCode()
+        }
+
+        /** The tree ended: endOfMibView, or a v1 agent's `noSuchName` past the last OID. */
+        data object EndOfMib : Next
+
+        data object Timeout : Next
+
+        data class Failed(val message: String) : Next
+    }
+
     /** One GET. */
     fun get(
         host: String,
@@ -56,40 +83,127 @@ object Snmp {
         port: Int = PORT,
     ): Result {
         val requestId = (System.nanoTime() and 0x7FFFFFFF).toInt()
-        val request = encodeGet(requestId, community, oid)
+        val request = encode(GET_REQUEST, requestId, community, oid)
 
-        return runCatching {
-            DatagramSocket().use { socket ->
-                socket.soTimeout = timeoutMs
-                val target = InetSocketAddress(InetAddress.getByName(host), port)
+        return exchange(host, request, timeoutMs, retries, port, onTimeout = Result.Timeout, ::decodeResponse)
+            .getOrElse { Result.Failed(it.message ?: it::class.simpleName ?: "SNMP failed") }
+    }
 
-                repeat(retries + 1) {
-                    socket.send(DatagramPacket(request, request.size, target))
+    /** One GETNEXT — the varbind following [oid], whatever its type. */
+    fun getNext(
+        host: String,
+        oid: List<Int>,
+        community: String = DEFAULT_COMMUNITY,
+        timeoutMs: Int = 2000,
+        retries: Int = 1,
+        port: Int = PORT,
+    ): Next {
+        val requestId = (System.nanoTime() and 0x7FFFFFFF).toInt()
+        val request = encode(GET_NEXT_REQUEST, requestId, community, oid)
 
-                    val buffer = ByteArray(RECEIVE_BUFFER)
-                    val reply = DatagramPacket(buffer, buffer.size)
+        return exchange(host, request, timeoutMs, retries, port, onTimeout = Next.Timeout, ::decodeNextResponse)
+            .getOrElse { Next.Failed(it.message ?: it::class.simpleName ?: "SNMP failed") }
+    }
 
-                    try {
-                        socket.receive(reply)
-                        return decodeResponse(reply.data.copyOfRange(0, reply.length))
-                    } catch (e: SocketTimeoutException) {
-                        // Fall through and retry; UDP loses packets and printers are slow to wake.
-                    }
+    /**
+     * Walks the subtree rooted at [root] with successive GETNEXTs, returning the varbinds inside it.
+     * Stops at the first OID outside [root], on end-of-tree, on [maxSteps], or if the agent ever
+     * fails to advance the OID — a buggy agent that repeats one must not loop the caller forever.
+     */
+    fun walk(
+        host: String,
+        root: List<Int>,
+        community: String = DEFAULT_COMMUNITY,
+        timeoutMs: Int = 2000,
+        port: Int = PORT,
+        maxSteps: Int = 256,
+    ): List<Next.Ok> {
+        val collected = mutableListOf<Next.Ok>()
+        var cursor = root
+
+        repeat(maxSteps) {
+            when (val next = getNext(host, cursor, community, timeoutMs, port = port)) {
+                is Next.Ok -> {
+                    if (!next.oid.startsWithPrefix(root)) return collected
+                    if (compareOids(next.oid, cursor) <= 0) return collected
+                    collected += next
+                    cursor = next.oid
                 }
 
-                Result.Timeout
+                Next.EndOfMib -> return collected
+                Next.Timeout, is Next.Failed -> return collected
             }
-        }.getOrElse { Result.Failed(it.message ?: it::class.simpleName ?: "SNMP failed") }
+        }
+
+        return collected
+    }
+
+    /** Reads a signed big-endian integer out of an INTEGER/Gauge/Counter value's content bytes. */
+    fun intOf(bytes: ByteArray): Long {
+        if (bytes.isEmpty()) return 0
+        var value = if (bytes[0].toInt() and 0x80 != 0) -1L else 0L
+        for (b in bytes) value = (value shl 8) or (b.toLong() and 0xFF)
+        return value
+    }
+
+    private fun List<Int>.startsWithPrefix(prefix: List<Int>): Boolean =
+        size >= prefix.size && subList(0, prefix.size) == prefix
+
+    private fun compareOids(a: List<Int>, b: List<Int>): Int {
+        for (i in 0 until minOf(a.size, b.size)) {
+            val c = a[i].compareTo(b[i])
+            if (c != 0) return c
+        }
+        return a.size.compareTo(b.size)
+    }
+
+    /** Sends one request, retrying on timeout, and decodes the first reply with [decode]. */
+    private inline fun <T> exchange(
+        host: String,
+        request: ByteArray,
+        timeoutMs: Int,
+        retries: Int,
+        port: Int,
+        onTimeout: T,
+        decode: (ByteArray) -> T,
+    ): kotlin.Result<T> = runCatching {
+        DatagramSocket().use { socket ->
+            socket.soTimeout = timeoutMs
+            val target = InetSocketAddress(InetAddress.getByName(host), port)
+
+            repeat(retries + 1) {
+                socket.send(DatagramPacket(request, request.size, target))
+
+                val buffer = ByteArray(RECEIVE_BUFFER)
+                val reply = DatagramPacket(buffer, buffer.size)
+
+                try {
+                    socket.receive(reply)
+                    return@runCatching decode(reply.data.copyOfRange(0, reply.length))
+                } catch (e: SocketTimeoutException) {
+                    // Fall through and retry; UDP loses packets and printers are slow to wake.
+                }
+            }
+
+            onTimeout
+        }
     }
 
     // ── Encoding ─────────────────────────────────────────────────────────────────────────────
 
-    internal fun encodeGet(requestId: Int, community: String, oid: List<Int>): ByteArray {
+    internal fun encodeGet(requestId: Int, community: String, oid: List<Int>): ByteArray =
+        encode(GET_REQUEST, requestId, community, oid)
+
+    internal fun encodeGetNext(requestId: Int, community: String, oid: List<Int>): ByteArray =
+        encode(GET_NEXT_REQUEST, requestId, community, oid)
+
+    /** A single-varbind request PDU. GET and GETNEXT differ only in [pduTag]. */
+    private fun encode(pduTag: Int, requestId: Int, community: String, oid: List<Int>): ByteArray {
         val varbind = tlv(SEQUENCE, encodeOid(oid) + tlv(NULL, ByteArray(0)))
         val varbinds = tlv(SEQUENCE, varbind)
 
         val pdu = tlv(
-            GET_REQUEST,
+            pduTag,
             encodeInt(requestId) + encodeInt(0) + encodeInt(0) + varbinds,
         )
 
@@ -201,6 +315,43 @@ object Snmp {
         Result.Failed("malformed SNMP reply (${it.message}) — starts $prefix")
     }
 
+    /** Pulls the first varbind's OID and value out of a GetResponse to a GETNEXT. */
+    internal fun decodeNextResponse(packet: ByteArray): Next = runCatching {
+        val reader = Ber(packet)
+
+        reader.expect(SEQUENCE)
+        reader.skipField() // version
+        reader.skipField() // community
+
+        val pduTag = reader.peekTag()
+        if (pduTag != GET_RESPONSE) {
+            val prefix = packet.take(24).joinToString(" ") { b -> "%02X".format(b.toInt() and 0xFF) }
+            return Next.Failed("not a GetResponse (tag 0x%02X) — starts %s".format(pduTag, prefix))
+        }
+        reader.expect(GET_RESPONSE)
+
+        reader.skipField() // request id
+        val errorStatus = reader.readInt()
+        reader.skipField() // error index
+
+        // A v1 agent walked off the end of the tree answers noSuchName rather than endOfMibView.
+        if (errorStatus == ERROR_NO_SUCH_NAME) return Next.EndOfMib
+        if (errorStatus != 0) return Next.Failed("error-status $errorStatus")
+
+        reader.expect(SEQUENCE) // varbind list
+        reader.expect(SEQUENCE) // first varbind
+        val oid = reader.readOid()
+
+        when (val tag = reader.peekTag()) {
+            // noSuchObject / noSuchInstance / endOfMibView all mean "nothing more here" to a walk.
+            0x80, 0x81, 0x82 -> Next.EndOfMib
+            else -> Next.Ok(oid, tag, reader.readValue(tag))
+        }
+    }.getOrElse {
+        val prefix = packet.take(24).joinToString(" ") { b -> "%02X".format(b.toInt() and 0xFF) }
+        Next.Failed("malformed SNMP reply (${it.message}) — starts $prefix")
+    }
+
     /** Just enough BER to walk a response: tags, self-describing lengths, and skipping. */
     private class Ber(private val data: ByteArray) {
         private var position = 0
@@ -231,6 +382,30 @@ object Snmp {
             var value = 0
             repeat(length) { value = (value shl 8) or readByte() }
             return value
+        }
+
+        /** Reads an OBJECT IDENTIFIER back into sub-identifiers — the reverse of [encodeOid]. */
+        fun readOid(): List<Int> {
+            val actual = readByte()
+            require(actual == OBJECT_ID) { "expected an OID, got 0x%02X".format(actual) }
+            val length = readLength()
+            require(position + length <= data.size) { "truncated OID" }
+            val end = position + length
+
+            val first = readByte()
+            val oid = mutableListOf(first / 40, first % 40)
+
+            while (position < end) {
+                var value = 0
+                var b: Int
+                do {
+                    b = readByte()
+                    value = (value shl 7) or (b and 0x7F)
+                } while (b and 0x80 != 0)
+                oid += value
+            }
+
+            return oid
         }
 
         fun readValue(tag: Int): ByteArray {

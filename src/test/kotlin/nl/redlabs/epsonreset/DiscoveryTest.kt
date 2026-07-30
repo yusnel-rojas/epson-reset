@@ -350,6 +350,16 @@ class CrossLinkTest {
         assertEquals("ET-2825", assertNotNull(joined.crossCheck).name)
     }
 
+    /** The same serial-matched peer is what a USB unit reaches for standard-MIB queries. */
+    @Test
+    fun `a cross-checked USB printer reaches SNMP through its network twin`() {
+        val usbOnly = onUsb()
+        assertNull(usbOnly.snmpLink)
+
+        val joined = PrinterDiscovery.crossChecked(listOf(usbOnly), listOf(onNetwork())).single()
+        assertEquals("192.168.2.39", assertNotNull(joined.snmpLink).host)
+    }
+
     /**
      * The fixture above is the idealised descriptor. A real ET-2820 hex-encodes only the first
      * eight characters and writes the last two literally, which read as uniform hex decode to

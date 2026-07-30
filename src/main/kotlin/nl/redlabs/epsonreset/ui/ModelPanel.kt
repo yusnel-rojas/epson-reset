@@ -59,8 +59,8 @@ fun ModelPanel(vm: ResetViewModel, modifier: Modifier = Modifier) {
 
         vm.counterDisplayReport?.let { report ->
             Spacer(Modifier.height(if (hasFinishedRun) 12.dp else 20.dp))
-            if (vm.status != null) {
-                InkLevels(vm.status)
+            if (vm.status != null || vm.printerMib != null) {
+                SuppliesCard(vm.status, vm.printerMib)
                 Spacer(Modifier.height(12.dp))
             }
             // The model supplies addresses, types, and reset targets before a printer has answered.
@@ -71,6 +71,8 @@ fun ModelPanel(vm: ResetViewModel, modifier: Modifier = Modifier) {
                 before = vm.beforeReport,
                 byteStates = vm.counterByteStates,
                 simulated = vm.dryRun,
+                // The status bar already reports a read failure; no need to say it twice.
+                showError = false,
                 onCalibrate = if (vm.readReport != null && !vm.readWasSimulated && !vm.reading) {
                     vm.calibration::open
                 } else {
@@ -278,19 +280,6 @@ private fun RunControls(
                 Spacer(Modifier.height(8.dp))
                 Text(
                     "Dry run only — $it",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = StatusColors.warn,
-                )
-            }
-        }
-
-        // Only once there are counters on screen. Before that, a disabled Save snapshot next to
-        // Read counters says what it needs to say on its own.
-        if (!active && vm.readReport != null && !vm.readWasSimulated) {
-            vm.snapshot.snapshotBlockedReason?.let {
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    "Cannot save these as a snapshot — $it.",
                     style = MaterialTheme.typography.labelSmall,
                     color = StatusColors.warn,
                 )

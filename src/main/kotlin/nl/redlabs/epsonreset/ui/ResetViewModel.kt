@@ -32,6 +32,7 @@ import nl.redlabs.epsonreset.device.PrinterTransports
 import nl.redlabs.epsonreset.device.Serials
 import nl.redlabs.epsonreset.history.CounterJournal
 import nl.redlabs.epsonreset.net.NetworkAddress
+import nl.redlabs.epsonreset.net.PrinterMib
 import nl.redlabs.epsonreset.net.SavedPrinters
 import nl.redlabs.epsonreset.prefs.PreferencesStore
 import nl.redlabs.epsonreset.protocol.CounterReader
@@ -376,6 +377,10 @@ class ResetViewModel(
 
     /** Printer's own status block: serial, ink levels, state. Null until a read runs. */
     var status by mutableStateOf<Status.Report?>(null)
+        private set
+
+    /** Standard Printer-MIB readout — lifetime pages and supply levels. Network reads only. */
+    var printerMib by mutableStateOf<PrinterMib.Reading?>(null)
         private set
 
     val calibration = CalibrationState(
@@ -839,6 +844,7 @@ class ResetViewModel(
         selectedDevice = null
         lastTest = null
         status = null
+        printerMib = null
         readReport = null
         beforeReport = null
         readWasSimulated = false
@@ -863,6 +869,7 @@ class ResetViewModel(
         // These all belong to the printer that was selected before this one, not to this one. In
         // particular, never let an unmatched printer inherit the previous printer's model.
         status = null
+        printerMib = null
         readReport = null
         beforeReport = null
         readWasSimulated = false
@@ -1356,6 +1363,17 @@ class ResetViewModel(
                 info("Ink: " + levels.joinToString(", ") { "${it.colour} ${it.percent}%" })
             }
         }
+
+        // The standard Printer-MIB is SNMP, so it needs a network address — the printer's own, or the
+        // serial-matched network twin a USB unit was cross-checked against (the same peer it borrows
+        // its model name from). Never on a dry run, which has no host to ask. It uses the same GET
+        // path the rest of the app does (port 161, community "public"), not the passthrough above.
+        val snmpHost = device?.device?.snmpLink?.host?.takeIf { !isDry }
+        printerMib = snmpHost?.let { host ->
+            withContext(io) { PrinterMib.read(host) }
+        }
+        printerMib?.lifeCount?.let { info("Lifetime pages: $it") }
+
         reading = false
         progress = 0f
         progressLabel = ""

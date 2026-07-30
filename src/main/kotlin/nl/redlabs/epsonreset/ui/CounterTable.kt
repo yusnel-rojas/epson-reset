@@ -15,6 +15,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -26,6 +27,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -37,6 +39,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import nl.redlabs.epsonreset.db.PadGroup
 import nl.redlabs.epsonreset.db.PadKind
+import nl.redlabs.epsonreset.net.PrinterMib
 import nl.redlabs.epsonreset.protocol.CounterReader
 import nl.redlabs.epsonreset.protocol.Status
 
@@ -49,6 +52,9 @@ fun CounterOverview(
     byteStates: Map<Int, ResetViewModel.CounterByteState> = emptyMap(),
     simulated: Boolean = false,
     modifier: Modifier = Modifier,
+    /** Whether to echo [report].error inline. Off where the status bar already reports it, so a live
+     *  read failure isn't said twice. */
+    showError: Boolean = true,
     /**
      * Opens the contribution form. Null where there is nothing to contribute from — a snapshot read
      * back off disk shows counters too, and none of them were measured against a printer.
@@ -114,7 +120,7 @@ fun CounterOverview(
             }
         }
 
-        report.error?.let {
+        report.error?.takeIf { showError }?.let {
             Spacer(Modifier.height(6.dp))
             Text(it, style = MaterialTheme.typography.bodySmall, color = StatusColors.bad)
         }
@@ -268,7 +274,9 @@ private fun ByteStrip(cells: List<ByteCell>, showBefore: Boolean, modifier: Modi
 
 @Composable
 private fun ByteChip(cell: ByteCell, showBefore: Boolean) {
-    val tone = when (cell.kind) {
+    // The box itself is neutral for every kind; only the M/P/? marker carries the kind's colour.
+    val boxTone = StatusColors.muted
+    val kindTone = when (cell.kind) {
         PadKind.MAIN -> MaterialTheme.colorScheme.primary
         PadKind.PLATEN -> StatusColors.warn
         PadKind.UNKNOWN -> StatusColors.muted
@@ -311,12 +319,12 @@ private fun ByteChip(cell: ByteCell, showBefore: Boolean) {
             .width(56.dp)
             .clip(RoundedCornerShape(6.dp))
             .background(if (changed) StatusColors.changed.copy(alpha = 0.14f) else Color.Transparent)
-            .border(1.dp, tone.copy(alpha = 0.75f), RoundedCornerShape(6.dp)),
+            .border(1.dp, boxTone.copy(alpha = 0.75f), RoundedCornerShape(6.dp)),
     ) {
         Row(
             Modifier
                 .fillMaxWidth()
-                .background(tone.copy(alpha = 0.18f))
+                .background(boxTone.copy(alpha = 0.18f))
                 .padding(horizontal = 4.dp, vertical = 2.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -325,7 +333,7 @@ private fun ByteChip(cell: ByteCell, showBefore: Boolean) {
                 style = MaterialTheme.typography.labelSmall,
                 fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.SemiBold,
-                color = tone,
+                color = boxTone,
             )
             Spacer(Modifier.weight(1f))
             val stateMarker = when (cell.state) {
@@ -346,7 +354,7 @@ private fun ByteChip(cell: ByteCell, showBefore: Boolean) {
                 style = MaterialTheme.typography.labelSmall,
                 fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.SemiBold,
-                color = tone,
+                color = kindTone,
             )
         }
         AnimatedContent(
@@ -470,13 +478,24 @@ private fun LegendItem(marker: String, label: String, tone: Color) {
 }
 
 /**
- * Ink levels straight from the printer's own status block — no database or calibration involved, so
- * these are exact wherever the firmware reports them.
+ * Ink and standard-MIB status in one card, split down the middle: on the left the printer's own ink
+ * block — exact, and each bar coloured by its ink — and on the right the RFC 3805 extras that block
+ * cannot give, chiefly the lifetime page count and any waste receptacle. Either side stands alone
+ * (full width, no divider) when the other has no data; the card hides entirely when neither does.
  */
 @Composable
-fun InkLevels(status: Status.Report?, modifier: Modifier = Modifier) {
+fun SuppliesCard(status: Status.Report?, mib: PrinterMib.Reading?, modifier: Modifier = Modifier) {
     val levels = status?.inkLevels.orEmpty()
-    if (levels.isEmpty()) return
+    val inkShown = levels.isNotEmpty()
+
+    // The ink block already lists the colour inks, so the right side drops those and keeps only what
+    // the block cannot show. With no ink block, the full supplies list is the only place levels appear.
+    val supplies = mib?.supplies.orEmpty().let {
+        if (inkShown) it.filterNot(PrinterMib.Supply::isInkConsumable) else it
+    }
+    val statusShown = mib != null && (mib.lifeCount != null || supplies.isNotEmpty())
+
+    if (!inkShown && !statusShown) return
 
     Column(
         modifier
@@ -486,10 +505,27 @@ fun InkLevels(status: Status.Report?, modifier: Modifier = Modifier) {
             .border(1.dp, MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(10.dp))
             .padding(14.dp),
     ) {
+        Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
+            if (inkShown) InkColumn(levels, status?.serial, Modifier.weight(1f))
+            if (inkShown && statusShown) {
+                VerticalDivider(
+                    Modifier.padding(horizontal = 14.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                )
+            }
+            if (statusShown) StatusColumn(mib?.lifeCount, supplies, Modifier.weight(1f))
+        }
+    }
+}
+
+/** The colours side: exact ink levels from the ST2 block, each bar tinted by its ink. */
+@Composable
+private fun InkColumn(levels: List<Status.InkLevel>, serial: String?, modifier: Modifier = Modifier) {
+    Column(modifier) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Ink", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.weight(1f))
-            status?.serial?.let {
+            serial?.let {
                 Text(
                     it,
                     style = MaterialTheme.typography.labelSmall,
@@ -507,7 +543,7 @@ fun InkLevels(status: Status.Report?, modifier: Modifier = Modifier) {
                     ink.colour,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.width(110.dp),
+                    modifier = Modifier.width(96.dp),
                 )
 
                 Box(
@@ -532,9 +568,47 @@ fun InkLevels(status: Status.Report?, modifier: Modifier = Modifier) {
                     fontFamily = FontFamily.Monospace,
                     fontWeight = if (ink.isLow) FontWeight.Bold else FontWeight.Normal,
                     color = if (ink.isLow) StatusColors.bad else MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.width(56.dp),
+                    modifier = Modifier.width(52.dp),
                 )
             }
+        }
+    }
+}
+
+/** The extras side: the standard-MIB figures the ink block can't give — lifetime pages, waste. */
+@Composable
+private fun StatusColumn(lifeCount: Long?, supplies: List<PrinterMib.Supply>, modifier: Modifier = Modifier) {
+    Column(modifier) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Printer status", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.weight(1f))
+            Text("standard MIB", style = MaterialTheme.typography.labelSmall, color = StatusColors.muted)
+        }
+
+        lifeCount?.let { pages ->
+            Spacer(Modifier.height(10.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "Lifetime pages",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f),
+                )
+                Text(
+                    "%,d".format(pages),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+        }
+
+        if (supplies.isNotEmpty()) {
+            Spacer(Modifier.height(10.dp))
+            HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
+            Spacer(Modifier.height(6.dp))
+            for (supply in supplies) SupplyRow(supply)
         }
     }
 }
@@ -548,4 +622,77 @@ private fun inkColour(name: String, isLow: Boolean): Color = when {
     name.contains("Magenta") -> Color(0xFFD81B60)
     name.contains("Yellow") -> Color(0xFFF9A825)
     else -> MaterialTheme.colorScheme.primary
+}
+
+@Composable
+private fun SupplyRow(supply: PrinterMib.Supply) {
+    val name = supply.description.ifBlank {
+        supply.colour ?: supply.typeLabel ?: "Supply ${supply.index}"
+    }
+
+    Row(Modifier.padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            name,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            modifier = Modifier.width(140.dp),
+        )
+
+        val percent = supply.percent
+        if (percent != null) {
+            val tone = supplyTone(supply)
+            Box(
+                Modifier
+                    .weight(1f)
+                    .height(8.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant),
+            ) {
+                Box(
+                    Modifier
+                        .fillMaxWidth(percent / 100f)
+                        .height(8.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(tone),
+                )
+            }
+            Text(
+                // A receptacle's level is how full it is; a consumable's, how much is left.
+                if (supply.isWaste) "%3d%% full".format(percent) else "%3d%%".format(percent),
+                style = MaterialTheme.typography.labelMedium,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = if (supply.isWarn) FontWeight.Bold else FontWeight.Normal,
+                color = if (supply.isWarn) StatusColors.bad else MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.width(84.dp),
+            )
+        } else {
+            Text(
+                supply.levelNote ?: "—",
+                style = MaterialTheme.typography.labelMedium,
+                color = StatusColors.muted,
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
+}
+
+/** Consumables run down (warn near empty); receptacles fill up (warn near full). Ink is tinted by
+ *  its colour — the fallback view where these are the only levels shown reads far better for it. */
+@Composable
+private fun supplyTone(supply: PrinterMib.Supply): Color = when {
+    supply.isWarn -> StatusColors.bad
+    supply.isWaste -> StatusColors.warn
+    else -> supplyInkColour(supply.colour ?: supply.description) ?: MaterialTheme.colorScheme.primary
+}
+
+/** Matches a supply's colour or description against the ink palette, case-insensitively. */
+@Composable
+private fun supplyInkColour(name: String): Color? = when {
+    name.contains("black", ignoreCase = true) ->
+        if (androidx.compose.foundation.isSystemInDarkTheme()) Color(0xFFCFD8DC) else Color(0xFF37474F)
+    name.contains("cyan", ignoreCase = true) -> Color(0xFF00ACC1)
+    name.contains("magenta", ignoreCase = true) -> Color(0xFFD81B60)
+    name.contains("yellow", ignoreCase = true) -> Color(0xFFF9A825)
+    else -> null
 }

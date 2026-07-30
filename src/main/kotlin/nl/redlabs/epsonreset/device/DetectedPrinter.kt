@@ -39,6 +39,14 @@ data class DetectedPrinter(
     val pidHex: String? get() = productId?.let { "0x%04X".format(it) }
 
     val isNetwork: Boolean get() = link is Link.Network
+
+    /**
+     * Where this printer can be reached over SNMP: its own address when it is a network entry, or
+     * else the serial-matched peer that [crossCheck] found on the network. This is what lets a
+     * USB-connected unit still answer standard-MIB queries, the same way it borrows its model name
+     * from that peer. Null when the printer is USB-only with no network twin.
+     */
+    val snmpLink: Link.Network? get() = link as? Link.Network ?: crossCheck?.link as? Link.Network
 }
 
 /**
