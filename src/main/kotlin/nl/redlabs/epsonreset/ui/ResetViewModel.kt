@@ -308,6 +308,20 @@ class ResetViewModel(
      *  cannot say which one a panel is looking at. */
     var runKind by mutableStateOf(RunKind.RESET)
         private set
+
+    /**
+     * The outcome of the run that just ended, until it has been acknowledged. A dialog says it once
+     * and closes; a card that has to be noticed to be dismissed outlives what it describes and ends
+     * up claiming a stale result over a fresh reading.
+     */
+    var completion by mutableStateOf<Completion?>(null)
+        private set
+
+    data class Completion(val kind: RunKind, val result: Executor.Result, val wasDryRun: Boolean)
+
+    fun dismissCompletion() {
+        completion = null
+    }
     var progress by mutableStateOf(0f)
         private set
     var progressLabel by mutableStateOf("")
@@ -476,6 +490,7 @@ class ResetViewModel(
         isCancelled = { cancelFlag.get() },
         startRun = { label ->
             runKind = RunKind.RESTORE
+            completion = null
             runState = RunState.Running
             progress = 0f
             progressLabel = label
@@ -484,7 +499,10 @@ class ResetViewModel(
             progress = value
             progressLabel = label
         },
-        finishRun = { result, wasDryRun -> runState = RunState.Finished(result, wasDryRun) },
+        finishRun = { result, wasDryRun ->
+            runState = RunState.Finished(result, wasDryRun)
+            completion = Completion(RunKind.RESTORE, result, wasDryRun)
+        },
         info = { info(it) },
         good = { good(it) },
         warn = { warn(it) },
@@ -1450,6 +1468,7 @@ class ResetViewModel(
         scope.launch {
             cancelFlag.set(false)
             runKind = RunKind.RESET
+            completion = null
             runState = RunState.Running
             progress = 0f
             progressLabel = "Generating sequence…"
@@ -1594,6 +1613,7 @@ class ResetViewModel(
             calibration.resetForm()
             lastBackup = backupFile
             runState = RunState.Finished(finalResult, isDry)
+            completion = Completion(RunKind.RESET, finalResult, isDry)
 
             reportVerification(before, after)
 

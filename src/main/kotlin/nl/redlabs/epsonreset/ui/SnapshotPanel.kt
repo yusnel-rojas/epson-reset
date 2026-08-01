@@ -261,9 +261,8 @@ private fun SnapshotDetail(vm: ResetViewModel, modifier: Modifier = Modifier) {
     Column(modifier.verticalScroll(rememberScrollState()).padding(20.dp)) {
         SnapshotHeader(vm, snapshot.file.name, backup)
 
-        // Whatever the last restore did, said where it was asked for rather than on the Counters
-        // screen — and only about the snapshot it actually wrote.
-        RestoreOutcome(vm, snapshot.file)
+        // Only while it runs. What it did is the completion dialog's to say, once.
+        RestoreProgress(vm, snapshot.file)
 
         // The comparison replaces the single-sample view rather than sitting under it: it shows
         // both sides already, and two tables of the same bytes differing only in which sample they
@@ -305,60 +304,29 @@ private fun SnapshotDetail(vm: ResetViewModel, modifier: Modifier = Modifier) {
     }
 }
 
-/** How the last restore of [file] went, while it runs and once it has finished. */
+/** A restore of [file] while it is running, so the panel it was started from shows it working. */
 @Composable
-private fun RestoreOutcome(vm: ResetViewModel, file: File) {
+private fun RestoreProgress(vm: ResetViewModel, file: File) {
     if (vm.runKind != ResetViewModel.RunKind.RESTORE || vm.snapshot.lastRestored != file) return
+    if (vm.runState !is ResetViewModel.RunState.Running) return
 
-    when (val state = vm.runState) {
-        is ResetViewModel.RunState.Running -> {
-            Spacer(Modifier.height(16.dp))
-            Column(
-                Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                    .padding(12.dp),
-            ) {
-                Text(
-                    "Restoring…",
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    vm.progressLabel.ifBlank { "Working…" },
-                    style = MaterialTheme.typography.labelSmall,
-                    color = StatusColors.muted,
-                )
-                Spacer(Modifier.height(8.dp))
-                LinearProgressIndicator(
-                    progress = { vm.progress },
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-        }
-
-        is ResetViewModel.RunState.Finished -> {
-            val r = state.result
-            val (title, tone) = when {
-                r.success && state.wasDryRun -> "Restore simulated" to StatusColors.good
-                r.success -> "Snapshot restored" to StatusColors.good
-                else -> "Restore failed" to StatusColors.bad
-            }
-            val body = buildString {
-                append("${r.writesAcknowledged} of ${r.writesTotal} saved bytes written back · ")
-                append("${r.packetsSent} packets sent.")
-                if (r.error.isNotBlank()) append("\n\n${r.error}")
-                if (r.success && !state.wasDryRun) {
-                    append("\n\nPower-cycle the printer now to finalise the change.")
-                }
-            }
-            Spacer(Modifier.height(16.dp))
-            Callout(title, body, tone)
-        }
-
-        ResetViewModel.RunState.Idle -> Unit
+    Spacer(Modifier.height(16.dp))
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+            .padding(12.dp),
+    ) {
+        Text("Restoring…", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(6.dp))
+        Text(
+            vm.progressLabel.ifBlank { "Working…" },
+            style = MaterialTheme.typography.labelSmall,
+            color = StatusColors.muted,
+        )
+        Spacer(Modifier.height(8.dp))
+        LinearProgressIndicator(progress = { vm.progress }, modifier = Modifier.fillMaxWidth())
     }
 }
 

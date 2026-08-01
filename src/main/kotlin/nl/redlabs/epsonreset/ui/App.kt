@@ -47,6 +47,7 @@ fun App() {
             Column(Modifier.fillMaxSize()) {
                 TopBar(vm, updates)
                 SettingsDialog(vm, updates)
+                RunCompletionDialog(vm)
                 HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
 
                 when (vm.tab) {

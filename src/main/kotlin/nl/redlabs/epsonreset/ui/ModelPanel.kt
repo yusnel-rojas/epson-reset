@@ -32,7 +32,6 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import nl.redlabs.epsonreset.db.PrinterModel
-import nl.redlabs.epsonreset.protocol.Executor
 
 /** The full-width Counters screen for the model in the application-wide target. */
 @Composable
@@ -51,17 +50,21 @@ fun ModelPanel(vm: ResetViewModel, modifier: Modifier = Modifier) {
         Spacer(Modifier.height(16.dp))
         RunControls(vm, model, confirming, onConfirmChange = { confirming = it })
 
-        // A snapshot restore drives the same run state, and its outcome is reported where it was
-        // started. Saying "counters reset" here about a restore would name the wrong operation.
-        val hasFinishedRun = vm.runState is ResetViewModel.RunState.Finished &&
-            vm.runKind == ResetViewModel.RunKind.RESET
-        if (hasFinishedRun) {
+        // The outcome itself is the completion dialog's to report, once. What stays behind is only
+        // the offer that is still actionable: a live reset that stopped with writes already landed.
+        val finished = vm.runState as? ResetViewModel.RunState.Finished
+        val stranded = finished != null &&
+            vm.runKind == ResetViewModel.RunKind.RESET &&
+            !finished.result.success &&
+            !finished.wasDryRun &&
+            finished.result.writesAcknowledged > 0
+        if (stranded && vm.lastBackup != null) {
             Spacer(Modifier.height(20.dp))
-            ResultBanner(vm)
+            RestoreOffer(vm)
         }
 
         vm.counterDisplayReport?.let { report ->
-            Spacer(Modifier.height(if (hasFinishedRun) 12.dp else 20.dp))
+            Spacer(Modifier.height(if (stranded) 12.dp else 20.dp))
             if (vm.status != null || vm.printerMib != null) {
                 SuppliesCard(vm.status, vm.printerMib)
                 Spacer(Modifier.height(12.dp))
@@ -342,39 +345,11 @@ private fun SegmentButton(label: String, active: Boolean, enabled: Boolean, onCl
     )
 }
 
-@Composable
-private fun ResultBanner(vm: ResetViewModel) {
-    val finished = vm.runState as? ResetViewModel.RunState.Finished ?: return
-    val r: Executor.Result = finished.result
-
-    val (title, tone) = when {
-        r.success && finished.wasDryRun -> "Dry run passed" to StatusColors.good
-        r.success -> "Counters reset" to StatusColors.good
-        else -> "Reset failed" to StatusColors.bad
-    }
-
-    val body = buildString {
-        append("${r.writesAcknowledged} of ${r.writesTotal} writes acknowledged · ")
-        append("${r.packetsSent} packets sent.")
-        if (r.error.isNotBlank()) append("\n\n${r.error}")
-        if (r.success && !finished.wasDryRun) {
-            append("\n\nPower-cycle the printer now to finalise the change.")
-        }
-    }
-
-    Callout(title, body, tone)
-
-    // Only offered where it can actually help: a live run that stopped after some writes had
-    // already landed. A clean success needs no undo, and a run that wrote nothing has nothing to
-    // put back.
-    val strandedWrites = !r.success && !finished.wasDryRun && r.writesAcknowledged > 0
-    if (strandedWrites && vm.lastBackup != null) {
-        Spacer(Modifier.height(8.dp))
-        RestoreOffer(vm)
-    }
-}
-
-/** The recovery path, surfaced at the only moment it is the obvious next action. */
+/**
+ * The recovery path, surfaced at the only moment it is the obvious next action: a live run that
+ * stopped after some writes had already landed. A clean success needs no undo, and a run that wrote
+ * nothing has nothing to put back.
+ */
 @Composable
 private fun RestoreOffer(vm: ResetViewModel) {
     val file = vm.lastBackup ?: return
@@ -459,7 +434,7 @@ private fun ResetConfirmation(vm: ResetViewModel, model: PrinterModel, onDismiss
 }
 
 @Composable
-internal fun Callout(title: String, body: String, tone: Color) {
+private fun Callout(title: String, body: String, tone: Color) {
     Column(
         Modifier
             .fillMaxWidth()
