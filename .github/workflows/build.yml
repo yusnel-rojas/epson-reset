@@ -128,11 +128,14 @@ jobs:
           $archive = Join-Path $env:RUNNER_TEMP "libusb.7z"
           $extract = Join-Path $env:RUNNER_TEMP "libusb"
           Invoke-WebRequest -Uri "https://github.com/libusb/libusb/releases/download/v$ver/libusb-$ver.7z" -OutFile $archive
-          # -r matches the DLL wherever the MSVC x64 build lands (VS2019/VS2022 dir varies by release).
-          & 7z e $archive -o"$extract" -r "MS64\dll\libusb-1.0.dll" -y
+          & 7z x $archive -o"$extract" -y | Out-Null
+          # Bundle the MinGW64 build: it imports only always-present system DLLs (kernel32/msvcrt/
+          # user32), whereas the MSVC build (MS64) needs VCRUNTIME140, which a clean Windows may lack.
+          $dll = Join-Path $extract "MinGW64\dll\libusb-1.0.dll"
+          if (!(Test-Path $dll)) { throw "libusb-1.0.dll not found at $dll" }
           # JNA loads the name "usb-1.0", so ship it spelled that way next to the launcher.
-          Copy-Item (Join-Path $extract "libusb-1.0.dll") (Join-Path $sourceDir "usb-1.0.dll") -Force
-          Write-Host "Bundled libusb-1.0.dll as usb-1.0.dll in the app image."
+          Copy-Item $dll (Join-Path $sourceDir "usb-1.0.dll") -Force
+          Write-Host "Bundled MinGW64 libusb-1.0.dll as usb-1.0.dll in the app image."
 
       - name: Install Inno Setup
         if: runner.os == 'Windows'
