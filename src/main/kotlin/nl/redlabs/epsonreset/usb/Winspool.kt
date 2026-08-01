@@ -13,10 +13,9 @@ import com.sun.jna.win32.W32APIOptions
  * Minimal JNA binding for the Windows print spooler — just the calls the reset flow needs to talk
  * to a printer through the driver Windows already installed, with no libusb and no Zadig.
  *
- * The reset commands ride the same USB bulk endpoints either way: over libusb we drive them
- * directly, and here `usbprint.sys` forwards a RAW job to bulk-out and hands the back-channel to
- * [WritePrinter]/[ReadPrinter]. So the transport passes the D4 packet stream through unchanged, the
- * way [LibUsbTransport] does — not stripped to ESC/P the way the SNMP passthrough needs.
+ * A RAW job written with [WritePrinter] reaches the printer's print-data service, and its
+ * back-channel comes back through [ReadPrinter]. See [WinspoolTransport] for what that means for
+ * framing (ESC/P commands, not raw 1284.4 packets).
  */
 // JNA maps struct fields by name/order onto the Win32 layout, so the field names and their order are
 // the API's and not ours to rename or camel-case; renaming compiles and then reads wrong offsets.

@@ -5,6 +5,7 @@ import com.sun.jna.WString
 import com.sun.jna.ptr.IntByReference
 import com.sun.jna.ptr.PointerByReference
 import nl.redlabs.epsonreset.device.Link
+import nl.redlabs.epsonreset.protocol.EscpRemote
 import nl.redlabs.epsonreset.protocol.Transport
 
 /**
@@ -25,11 +26,15 @@ interface RawPrinterChannel : AutoCloseable {
 /**
  * [Transport] over the Windows print spooler's raw channel.
  *
- * Windows' `usbprint.sys` forwards a RAW job to the same USB bulk endpoints libusb would use and
- * returns the printer's back-channel through `ReadPrinter`, so this passes the D4 packet stream
- * through unchanged — exactly like [LibUsbTransport], and unlike the SNMP passthrough which has to
- * unwrap each packet to a bare ESC/P command. The win over libusb is that it needs no driver
- * rebind (Zadig): the printer's own Windows driver is the pipe, and it stays usable for printing.
+ * The spooler's RAW datatype writes to the printer's **print-data** service, not the 1284.4 control
+ * socket that libusb claims. So this follows the [SnmpTransport][nl.redlabs.epsonreset.net.SnmpTransport]
+ * pattern, not [LibUsbTransport]: the 1284.4 channel-open/credit packets are dropped (they would be
+ * stray bytes in a print stream), and each data packet is sent as just its ESC/P factory command,
+ * unwrapped from its D4 frame. The win over libusb is that it needs no driver rebind (Zadig): the
+ * printer's own Windows driver is the pipe, and it stays usable for printing.
+ *
+ * Whether a given printer answers factory commands on this service is a firmware question that only
+ * real hardware settles — see the note in [docs/usb-connection.md].
  */
 class WinspoolTransport internal constructor(
     private val channel: RawPrinterChannel,
@@ -38,27 +43,29 @@ class WinspoolTransport internal constructor(
 
     private var closed = false
 
-    override fun send(packet: ByteArray): Boolean = channel.write(packet) == packet.size
+    override fun send(packet: ByteArray): Boolean {
+        // No 1284.4 channel to open and no credit to grant on the print-data service — drop those,
+        // reporting success because nothing failed (same as SnmpTransport).
+        if (EscpRemote.isChannelPacket(packet)) return true
+        val command = EscpRemote.remoteCommandOf(packet) ?: return false
+        return channel.write(command) == command.size
+    }
 
-    /** Polls the back-channel until the reply arrives and then stops, or the window elapses empty. */
+    /**
+     * Reads the reply. `ReadPrinter` blocks until the printer answers or the USB port's own timeout
+     * (seconds) elapses, so this stops the instant a whole reply is in hand — Epson factory replies
+     * end in `;` — rather than paying another blocking read for data that will never come.
+     */
     override fun drain(): ByteArray {
         val collected = java.io.ByteArrayOutputStream()
         val buffer = ByteArray(READ_CHUNK)
         val deadline = System.currentTimeMillis() + drainTimeoutMs
-        var sawData = false
 
         while (System.currentTimeMillis() < deadline) {
             val n = channel.read(buffer)
-            when {
-                n > 0 -> {
-                    collected.write(buffer, 0, n)
-                    sawData = true
-                }
-                // A gap after real data means the reply is complete; a gap before it means the
-                // printer hasn't answered yet, so keep waiting.
-                sawData -> break
-                else -> Thread.sleep(POLL_INTERVAL_MS)
-            }
+            if (n <= 0) break
+            collected.write(buffer, 0, n)
+            if (collected.toByteArray().contains(REPLY_TERMINATOR)) break
         }
 
         return collected.toByteArray()
@@ -76,9 +83,11 @@ class WinspoolTransport internal constructor(
     }
 
     companion object {
-        private const val DRAIN_TIMEOUT_MS = 1500
-        private const val POLL_INTERVAL_MS = 25L
+        private const val DRAIN_TIMEOUT_MS = 6000
         private const val READ_CHUNK = 512
+
+        /** Epson factory replies (`…EE:001C19;`, `||:42:OK;`) end here; a whole one has arrived. */
+        private const val REPLY_TERMINATOR = ';'.code.toByte()
 
         fun open(link: Link.WindowsPrinter, drainTimeoutMs: Int = DRAIN_TIMEOUT_MS): OpenResult {
             val spool = Winspool.instance

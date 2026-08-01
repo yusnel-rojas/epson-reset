@@ -1,6 +1,7 @@
 package nl.redlabs.epsonreset
 
 import nl.redlabs.epsonreset.protocol.CounterReader
+import nl.redlabs.epsonreset.protocol.EscpRemote
 import nl.redlabs.epsonreset.protocol.Executor
 import nl.redlabs.epsonreset.protocol.SequenceGenerator
 import nl.redlabs.epsonreset.usb.RawPrinterChannel
@@ -42,12 +43,12 @@ private class FakeChannel(private val reply: ByteArray = ByteArray(0), private v
 class WinspoolTransportTest {
 
     /**
-     * The framing decision that separates this from the SNMP path: the spooler RAW channel is the
-     * same USB pipe libusb drives, so the whole D4 packet goes through untouched — not unwrapped to
-     * a bare ESC/P command.
+     * The framing decision: the spooler RAW channel is the printer's print-data service, not the
+     * 1284.4 control socket, so a data packet is sent as just its ESC/P factory command with the D4
+     * frame stripped — the same bytes the SNMP passthrough sends.
      */
     @Test
-    fun `a packet goes through unchanged, D4 framing and all`() {
+    fun `a data packet is sent as its ESC-P command, D4 framing stripped`() {
         val channel = FakeChannel()
         val transport = WinspoolTransport(channel, drainTimeoutMs = 200)
 
@@ -55,7 +56,20 @@ class WinspoolTransportTest {
         assertTrue(transport.send(packet))
 
         assertEquals(1, channel.written.size)
-        assertContentEquals(packet, channel.written.single())
+        assertContentEquals(EscpRemote.remoteCommandOf(packet), channel.written.single())
+    }
+
+    /** 1284.4 channel-open and credit packets are meaningless on the print-data service — dropped. */
+    @Test
+    fun `handshake and credit packets are swallowed, not written`() {
+        val channel = FakeChannel()
+        val transport = WinspoolTransport(channel, drainTimeoutMs = 200)
+
+        for (packet in SequenceGenerator.handshake() + SequenceGenerator.creditPair()) {
+            assertTrue(transport.send(packet))
+        }
+
+        assertTrue(channel.written.isEmpty())
     }
 
     @Test
