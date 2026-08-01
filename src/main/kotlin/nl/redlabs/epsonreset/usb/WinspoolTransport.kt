@@ -26,17 +26,18 @@ interface RawPrinterChannel : AutoCloseable {
 }
 
 /**
- * [Transport] over the Windows print spooler's raw channel.
+ * [Transport] over the Windows print spooler's raw channel — the **fallback** behind
+ * [UsbPrintTransport], used only when no `usbprint.sys` interface is registered at all.
  *
  * The spooler's RAW datatype writes to the printer's **print-data** service, not the 1284.4 control
  * socket that libusb claims. So this follows the [SnmpTransport][nl.redlabs.epsonreset.net.SnmpTransport]
  * pattern, not [LibUsbTransport]: the 1284.4 channel-open/credit packets are dropped (they would be
  * stray bytes in a print stream), and each data packet is sent as just its ESC/P factory command,
- * unwrapped from its D4 frame. The win over libusb is that it needs no driver rebind (Zadig): the
- * printer's own Windows driver is the pipe, and it stays usable for printing.
+ * unwrapped from its D4 frame.
  *
- * Whether a given printer answers factory commands on this service is a firmware question that only
- * real hardware settles — see the note in [docs/usb-connection.md].
+ * Whether a given printer answers factory commands on this service is a firmware question — real
+ * hardware (an ET-2820-family unit) answered by *printing* the commands as text, which is why the
+ * direct endpoint path took over as the default; see [docs/usb-connection.md].
  */
 class WinspoolTransport internal constructor(
     private val channel: RawPrinterChannel,

@@ -3,6 +3,7 @@ package nl.redlabs.epsonreset.device
 import nl.redlabs.epsonreset.net.SnmpTransport
 import nl.redlabs.epsonreset.protocol.Transport
 import nl.redlabs.epsonreset.usb.LibUsbTransport
+import nl.redlabs.epsonreset.usb.UsbPrintTransport
 import nl.redlabs.epsonreset.usb.WinspoolTransport
 
 /** Opens whichever transport a printer's [Link] calls for. */
@@ -23,10 +24,22 @@ object PrinterTransports {
             is LibUsbTransport.OpenResult.Failed -> OpenResult.Failed(opened.message, opened.remedy)
         }
 
-        // Windows' own printer driver as the byte pipe — no libusb, no Zadig.
-        is Link.WindowsPrinter -> when (val opened = WinspoolTransport.open(link)) {
-            is WinspoolTransport.OpenResult.Ok -> OpenResult.Ok(opened.transport)
-            is WinspoolTransport.OpenResult.Failed -> OpenResult.Failed(opened.message, opened.remedy)
+        // The usbprint.sys device interface as the byte pipe — the printer's real endpoints, full
+        // 1284.4, with no libusb and no Zadig. The spooler RAW channel only reaches the print-data
+        // service (some firmwares *print* the factory commands), so it is the fallback solely for
+        // the odd setup where no usbprint interface is registered at all.
+        is Link.WindowsPrinter -> when (val direct = UsbPrintTransport.open(link)) {
+            is UsbPrintTransport.OpenResult.Ok -> OpenResult.Ok(direct.transport)
+            is UsbPrintTransport.OpenResult.Failed ->
+                if (direct.interfaceAbsent) {
+                    when (val spooled = WinspoolTransport.open(link)) {
+                        is WinspoolTransport.OpenResult.Ok -> OpenResult.Ok(spooled.transport)
+                        is WinspoolTransport.OpenResult.Failed ->
+                            OpenResult.Failed(spooled.message, spooled.remedy)
+                    }
+                } else {
+                    OpenResult.Failed(direct.message, direct.remedy)
+                }
         }
 
         // Over SNMP, not port 9100: the raw print port accepts commands and answers none of

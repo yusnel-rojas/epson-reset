@@ -2,30 +2,37 @@
 
 How USB is reached depends on the platform.
 
-## Windows — the printer's own driver, driverless from the user's side
+## Windows — the `usbprint.sys` device interface, driverless from the user's side
 
-On Windows the app talks to the printer through the **Windows print spooler**, over the driver
-Windows already installed when the printer was plugged in. There is nothing to install, nothing to
-place, and nothing to unbind: the printer stays a normal Windows printer and keeps printing.
+On Windows the app talks to the printer's **real USB endpoints** through `usbprint.sys` — the
+driver Windows itself binds to every USB printer the moment it is plugged in. That driver registers
+a device interface (`\\?\usb#vid_04b8&pid_…#…#{28d78fad-…}`) that opens with plain `CreateFile`,
+and `ReadFile`/`WriteFile` on the handle are raw bulk transfers. There is nothing to install,
+nothing to place, and nothing to unbind: the printer stays a normal Windows printer and keeps
+printing. This is the same channel Epson's own Adjustment Program uses.
 
-`WindowsPrinterScanner` enumerates installed queues with `EnumPrinters` and keeps the ones that look
-like an Epson on a USB port (`USB…`/`ESDPRT…`, not a network `WSD…`/IP port — those the SNMP path
-owns). `WinspoolTransport` opens a RAW job on that queue (`OpenPrinter` → `StartDocPrinter` →
-`WritePrinter`/`ReadPrinter`). A RAW job reaches the printer's **print-data** service, not the
-1284.4 control socket libusb claims, so the transport follows the **SNMP passthrough** pattern, not
-libusb's: it drops the 1284.4 channel-open/credit packets and sends each data packet as just its
-ESC/P factory command, unwrapped from its D4 frame. Replies come back on the `ReadPrinter`
-back-channel and end in `;`.
+Because the bytes hit the wire as-is, `UsbPrintTransport` speaks the **full 1284.4 protocol** —
+handshake, channel open, credit, D4-framed factory commands — exactly like the libusb path, and
+reaches the control socket where the waste-counter service lives. Discovery is unchanged:
+`WindowsPrinterScanner` enumerates installed queues with `EnumPrinters` and keeps the ones that
+look like an Epson on a USB port (`USB…`/`ESDPRT…`, not a network `WSD…`/IP port — those the SNMP
+path owns); the queue name is what the model matcher works from. All I/O is OVERLAPPED with
+explicit deadlines, because a synchronous read on this handle blocks until the printer talks —
+which for a wrong key is never. The handle is exclusive: a job mid-print or **EPSON Status
+Monitor** holding the port surfaces as a sharing violation, with the remedy in the UI.
 
 This replaces **Zadig**, whose driver rebind used to be required and which took the printer away from
 the Windows print subsystem entirely. libusb remains as an advanced fallback (below), but a normal
 Windows user needs none of it.
 
-> **Open question, needs real hardware.** Whether a given Epson answers factory commands on the
-> print-data service is a firmware decision. Some do; some expose the waste-counter service only on
-> the 1284.4 control socket, which a RAW spooler job cannot reach. Where the spooler comes back
-> empty, the advanced libusb fallback (or, planned, a UsbDk backend) is the route that reaches the
-> control socket. The hardware testing in [field notes](field-notes.md) was done on macOS.
+### The spooler fallback
+
+`WinspoolTransport` — a RAW job over `OpenPrinter`/`WritePrinter`/`ReadPrinter` — is kept only for
+the odd setup where no `usbprint` interface is registered at all. A RAW job reaches the printer's
+**print-data** service, not the 1284.4 control socket, so it strips the D4 framing and sends bare
+ESC/P factory commands, the SNMP-passthrough pattern. Real hardware (an ET-2820-family unit)
+answered that service by **printing the commands as text**, which is why it was demoted from
+default to last resort.
 
 ## macOS and Linux — libusb
 
