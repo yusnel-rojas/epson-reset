@@ -18,24 +18,32 @@ Reset and read are separate columns even though the bundled data answers them id
 OTA refresh or user overlay can move one without the other, and reading shouldn't inherit a "no"
 from the write path. `CapabilityTest` pins every number above.
 
-## The two files
+## One file per source, one file for the app
 
-Both are generated from reinkpy's `epson.toml`:
+Two sources feed the database and they move at different speeds — a monthly bot, and hand edits
+that must survive it. So each keeps its own files under `data/`, and nothing but its own pipeline
+ever writes them:
 
-| File | Gives |
-|---|---|
-| `database.json` | rkey / write keys / reset values in pad groups — drives the **reset** |
-| `counters.json` | which addresses group into one counter — drives the **read** |
+| File | Gives | Written by |
+|---|---|---|
+| `data/reinkpy/database.json` | rkey / write keys / reset values in pad groups — drives the **reset** | `sync-printer-data.yml`, monthly |
+| `data/reinkpy/counters.json` | which addresses group into one counter — drives the **read** | `sync-printer-data.yml`, monthly |
+| `data/curated/calibrations.json` | how full each counter can get, measured here on real hardware — drives the **percentage** | by hand, never a machine |
 
-They differ because a pad group is not a counter. A group is everything the reset writes to one
-pad, so `[48,49]` is two loose bytes to it, while reinkpy's grouping keeps it as one 2-byte
-little-endian value — the difference between showing `0x19 0x0F` and showing `3865`.
+The reinkpy pair differ because a pad group is not a counter. A group is everything the reset
+writes to one pad, so `[48,49]` is two loose bytes to it, while reinkpy's grouping keeps it as one
+2-byte little-endian value — the difference between showing `0x19 0x0F` and showing `3865`.
 
-Regenerate both:
+The app reads none of them. The `generatePrinterData` Gradle task splices them into a single
+`printers.json` on every build, one section per source, each copied through verbatim. It is a splice
+and not a merge on purpose: which maximum outranks which is a question about addresses, answered
+once in `CounterSpecs` where it is tested, and not a second time in a build script.
+
+Regenerate a source:
 
 ```bash
 curl -sL https://codeberg.org/atufi/reinkpy/raw/branch/main/reinkpy/epson.toml -o epson.toml
-python3 tools/convert_reinkpy.py epson.toml src/main/resources/counters.json src/main/resources/database.json
+python3 tools/convert_reinkpy.py epson.toml data/reinkpy/counters.json data/reinkpy/database.json
 ```
 
 ## Resyncing
@@ -43,8 +51,8 @@ python3 tools/convert_reinkpy.py epson.toml src/main/resources/counters.json src
 **Sync printer data** in the Actions tab does the same on a runner, monthly or on demand. It runs
 the tests and dry run against the result, then opens a PR listing which models were added, removed
 or changed — always a PR, never a direct commit, since a group changing shape upstream changes what
-the app reads together and what it writes. Measured maxima live in `calibrations.json` and are
-layered on at load time, so a resync never discards them.
+the app reads together and what it writes. It writes only `data/reinkpy/`, so a resync never
+discards the measured maxima in `calibrations.json`.
 
 ## Overlays
 

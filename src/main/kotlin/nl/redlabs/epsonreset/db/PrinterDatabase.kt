@@ -50,9 +50,11 @@ class PrinterDatabase private constructor(val models: List<PrinterModel>, val so
     }
 
     companion object {
-        // Our own generated copy, which the sync workflow keeps current.
+        // Our own generated copy, which the sync workflow keeps current. The reset data alone, not
+        // the spliced printers.json the app bundles: this file is what replaces the cache, and the
+        // cache holds reset recipes.
         const val OTA_URL =
-            "https://raw.githubusercontent.com/yusnel-rojas/epson-reset/main/src/main/resources/database.json"
+            "https://raw.githubusercontent.com/yusnel-rojas/epson-reset/main/data/reinkpy/database.json"
 
         /** Newest schema this parser was written against; newer loads best-effort with a warning. */
         const val MAX_SUPPORTED_SCHEMA = 3
@@ -78,9 +80,9 @@ class PrinterDatabase private constructor(val models: List<PrinterModel>, val so
 
         /** The copy baked into the jar, ignoring any cached download. */
         fun loadBundled(): PrinterDatabase {
-            val bundled = PrinterDatabase::class.java.getResourceAsStream("/database.json")
+            val bundled = PrinterDatabase::class.java.getResourceAsStream(CounterSpecs.PRINTER_DATA)
                 ?.bufferedReader()?.use { it.readText() }
-                ?: error("database.json missing from resources")
+                ?: error("${CounterSpecs.PRINTER_DATA} missing from resources")
             return parse(bundled, Source.BUNDLED)
         }
 

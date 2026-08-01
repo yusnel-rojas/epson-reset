@@ -24,13 +24,16 @@ class DatabaseTest {
         assertTrue(db.size > 1000, "expected the full database, got ${db.size}")
     }
 
+    // The file the OTA sync actually serves, read from the repo rather than the classpath: it is
+    // no longer what the app bundles, and it is the one an installed copy will download and write
+    // over its cache. If a regeneration ever puts something in it that the trust boundary rejects,
+    // that has to fail here and not on a user's machine.
     @Test
-    fun `the bundled data passes the downloaded-data trust boundary`() {
-        val text = assertNotNull(PrinterDatabase::class.java.getResourceAsStream("/database.json"))
-            .bufferedReader()
-            .use { it.readText() }
+    fun `the file the OTA sync serves passes the downloaded-data trust boundary`() {
+        val source = File("data/reinkpy/database.json")
+        assertTrue(source.isFile, "expected ${source.absolutePath} — is the test running from the project root?")
 
-        assertEquals(db.size, PrinterDatabase.parseDownloaded(text).size)
+        assertEquals(db.size, PrinterDatabase.parseDownloaded(source.readText()).size)
     }
 
     @Test

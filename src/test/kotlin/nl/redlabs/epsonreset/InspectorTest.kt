@@ -1,6 +1,7 @@
 package nl.redlabs.epsonreset
 
 import nl.redlabs.epsonreset.db.CounterSpec
+import nl.redlabs.epsonreset.db.CounterSpecs
 import nl.redlabs.epsonreset.db.PadGroup
 import nl.redlabs.epsonreset.db.PrinterDatabase
 import nl.redlabs.epsonreset.db.PrinterModel
@@ -23,7 +24,7 @@ class InspectorTest {
 
     private val db by lazy {
         val text = assertNotNull(
-            PrinterDatabase::class.java.getResourceAsStream("/database.json")
+            PrinterDatabase::class.java.getResourceAsStream(CounterSpecs.PRINTER_DATA)
                 ?.bufferedReader()?.use { it.readText() },
         )
         PrinterDatabase.parse(text)

@@ -82,6 +82,10 @@ class SnapshotState(
     var restoreTarget by mutableStateOf<File?>(null)
         private set
 
+    /** Whether that restore is a simulation, so its progress is labelled for what it actually is. */
+    var restoreSimulated by mutableStateOf(false)
+        private set
+
     /** How far each address of that restore has got. */
     var restoreStates by mutableStateOf<Map<Int, ResetViewModel.CounterByteState>>(emptyMap())
         private set
@@ -115,8 +119,18 @@ class SnapshotState(
      * [saveFirst] takes the same safety net a reset takes: the bytes about to be overwritten are
      * read and saved before the first write lands, over the connection already open. Without it a
      * restore is the one EEPROM write in this application with nothing behind it.
+     *
+     * [simulate] defaults to the application-wide dry-run mode, for the callers that sit beside its
+     * toggle. The Snapshots tab passes its own choice instead: a restore started there must not
+     * depend on the position of a switch on another tab, least of all one that silently decides
+     * whether the safety net is taken at all.
      */
-    fun restore(backup: EepromBackup, file: File? = null, saveFirst: Boolean = true): Boolean {
+    fun restore(
+        backup: EepromBackup,
+        file: File? = null,
+        saveFirst: Boolean = true,
+        simulate: Boolean = dryRun(),
+    ): Boolean {
         if (busy()) {
             bad("Another printer operation is already in progress.")
             return false
@@ -127,7 +141,7 @@ class SnapshotState(
         }
         val device = selectedDevice()
 
-        if (!allowedToLand(backup, model, device)) return false
+        if (!allowedToLand(backup, model, device, simulate)) return false
 
         // A comparison describes two samples taken before this write. Leaving it on screen while the
         // printer is being changed underneath it presents stale arithmetic as the current state.
@@ -135,6 +149,7 @@ class SnapshotState(
 
         // The write itself is what the panel shows from here, one address at a time.
         restoreTarget = file
+        restoreSimulated = simulate
         restoreStates = backup.entries.associate {
             it.address to ResetViewModel.CounterByteState.PENDING
         }
@@ -168,7 +183,7 @@ class SnapshotState(
                 override fun onTrace(line: String) = onMain { trace(line) }
             }
 
-            val isDry = dryRun()
+            val isDry = simulate
             // A dry run reads invented bytes off the fake device. Saving those would put a file in
             // the backups folder that looks like a real recovery point and is not one.
             val net = saveFirst && !isDry
@@ -281,8 +296,13 @@ class SnapshotState(
     }
 
     /** Whether this backup may be written to this printer, per [UnitSelector]. */
-    private fun allowedToLand(backup: EepromBackup, model: PrinterModel, device: MatchedPrinter?): Boolean {
-        if (dryRun()) {
+    private fun allowedToLand(
+        backup: EepromBackup,
+        model: PrinterModel,
+        device: MatchedPrinter?,
+        simulate: Boolean,
+    ): Boolean {
+        if (simulate) {
             if (!backup.model.equals(model.name, ignoreCase = true)) {
                 warn("This backup is for ${backup.model} but ${model.name} is selected. A live run would refuse.")
             }
@@ -409,13 +429,6 @@ class SnapshotState(
     }
 
     val canSaveSnapshot: Boolean get() = !busy() && snapshotBlockedReason == null
-
-    /** Maintenance can reuse a complete live reading or take the missing reading itself. */
-    val canSaveOrReadSnapshot: Boolean get() = canSaveSnapshot || canCreateSnapshot
-
-    fun saveOrReadSnapshot() {
-        if (canSaveSnapshot) saveSnapshot() else readAndSaveSnapshot()
-    }
 
     /** Saves the counters on screen as a snapshot, at whatever moment the user asks for one. */
     fun saveSnapshot() {
@@ -807,9 +820,9 @@ class SnapshotState(
     }
 
     /** Writes the selected snapshot back. Gated exactly as any other restore is. */
-    fun restoreSelectedSnapshot(saveFirst: Boolean = true) {
+    fun restoreSelectedSnapshot(saveFirst: Boolean = true, simulate: Boolean = dryRun()) {
         val selected = selectedSnapshot ?: return
-        restore(selected.backup ?: return, selected.file, saveFirst)
+        restore(selected.backup ?: return, selected.file, saveFirst, simulate)
     }
 
     private fun onMain(block: () -> Unit) {

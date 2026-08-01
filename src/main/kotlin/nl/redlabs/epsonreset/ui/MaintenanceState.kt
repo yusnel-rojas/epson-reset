@@ -91,6 +91,31 @@ class MaintenanceState(
         }
     }
 
+    /**
+     * The same observation, for someone who has already looked at a pattern this app didn't print.
+     *
+     * The gate in front of cleaning is *somebody said there are gaps*, not *this app printed the
+     * sheet* — so a person who already knows should not have to spend another sheet of paper to
+     * tell it so. What stays true either way is that no cleaning is ever sent without that
+     * assertion: this replaces the printout, not the answer.
+     */
+    fun assumeGaps() {
+        val device = selectedDevice()?.device ?: run {
+            bad("Select a connected printer from the printer menu above first.")
+            return
+        }
+        assessmentDeviceId = device.id
+        recordedAssessment = PatternAssessment.GAPS
+        warn("Recorded as gaps without printing a check. Cleaning is now available on your word for it.")
+    }
+
+    /** Back to the beginning, for a second opinion or a different printer's pattern. */
+    fun clearAssessment() {
+        assessmentDeviceId = null
+        recordedAssessment = PatternAssessment.NOT_CHECKED
+        cleanedDeviceId = null
+    }
+
     /** Runs one confirmed operation, using a fresh USB transport for every protocol phase. */
     fun run(operation: Maintenance.Operation) {
         val target = selectedDevice()?.device ?: run {

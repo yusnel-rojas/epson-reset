@@ -129,6 +129,39 @@ internal fun RunCompletionDialog(vm: ResetViewModel) {
                         }
                     }
 
+                    // Said at the end as well as before the run, because this is the moment the
+                    // printer starts working again and the moment it is easiest to conclude the
+                    // problem is dealt with. The counter is what was cleared. The pad is unchanged.
+                    if (result.success && !restore && !completion.wasDryRun) {
+                        Spacer(Modifier.height(16.dp))
+                        Column(
+                            Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(StatusColors.warn.copy(alpha = 0.12f))
+                                .border(1.dp, StatusColors.warn.copy(alpha = 0.4f), RoundedCornerShape(8.dp))
+                                .padding(12.dp),
+                        ) {
+                            Text(
+                                "The waste ink has not gone anywhere",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = StatusColors.warn,
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                "The counter is clear, so the printer will print again — but the " +
+                                    "waste ink pad, or the maintenance box if this printer uses " +
+                                    "one, still holds every drop it held a minute ago. It is a " +
+                                    "physical part, and only replacing or cleaning it changes that. " +
+                                    "One left in place after it is genuinely full overflows, and " +
+                                    "the ink goes somewhere neither you nor the printer chose.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+
                     if (stranded) {
                         Spacer(Modifier.height(14.dp))
                         Text(

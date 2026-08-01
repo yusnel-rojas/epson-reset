@@ -294,7 +294,7 @@ private fun SnapshotDetail(vm: ResetViewModel, modifier: Modifier = Modifier) {
 
         Spacer(Modifier.height(16.dp))
         when {
-            restore != null -> RestoreWrite(restore, vm.dryRun)
+            restore != null -> RestoreWrite(restore, vm.snapshot.restoreSimulated)
 
             comparison != null -> ComparisonResult(comparison)
 
@@ -403,13 +403,14 @@ private fun SnapshotActions(vm: ResetViewModel, backup: EepromBackup) {
             when {
                 running -> OutlinedButton(onClick = { vm.cancel() }) { Text("Cancel") }
 
-                vm.dryRun -> Button(
-                    onClick = { vm.snapshot.restoreSelectedSnapshot() },
-                    enabled = restoreBlocked == null,
-                ) { Text("Simulate restore") }
-
-                // Saving first is the primary action because it is the one that leaves a way back.
-                // Skipping it is available, named for what it skips, and one click further away.
+                // This tab decides for itself whether a restore is real, rather than inheriting the
+                // Maintenance tab's Dry run switch. That switch is about resetting counters, it is
+                // not visible from here, and it silently decided whether this write took a safety
+                // net — which is exactly the thing that must never depend on somewhere you aren't
+                // looking. Simulating is still one click away, just chosen on purpose.
+                //
+                // Saving first stays the primary action because it is the one that leaves a way
+                // back. Skipping it is named for what it skips.
                 else -> SplitButton(
                     label = "Save current, then restore",
                     primaryEnabled = restoreBlocked == null,
@@ -419,6 +420,10 @@ private fun SnapshotActions(vm: ResetViewModel, backup: EepromBackup) {
                             "Restore without saving first",
                             enabled = restoreBlocked == null,
                         ) { confirming = false },
+                        SplitAction(
+                            "Simulate restore — writes nothing",
+                            enabled = restoreBlocked == null,
+                        ) { vm.snapshot.restoreSelectedSnapshot(saveFirst = false, simulate = true) },
                     ),
                     modifier = Modifier.width(280.dp),
                 )
@@ -512,16 +517,9 @@ private fun SnapshotActions(vm: ResetViewModel, backup: EepromBackup) {
                     }
                 }
             }
-
-            Spacer(Modifier.weight(1f))
-            Text(
-                if (vm.dryRun) "Dry run — nothing reaches the printer" else "Live",
-                style = MaterialTheme.typography.labelSmall,
-                color = if (vm.dryRun) StatusColors.muted else StatusColors.bad,
-            )
         }
 
-        confirming?.takeIf { !vm.dryRun }?.let { saveFirst ->
+        confirming?.let { saveFirst ->
             RestoreConfirmation(
                 vm = vm,
                 backup = backup,
@@ -529,7 +527,7 @@ private fun SnapshotActions(vm: ResetViewModel, backup: EepromBackup) {
                 onDismiss = { confirming = null },
                 onConfirm = {
                     confirming = null
-                    vm.snapshot.restoreSelectedSnapshot(saveFirst)
+                    vm.snapshot.restoreSelectedSnapshot(saveFirst, simulate = false)
                 },
             )
         }

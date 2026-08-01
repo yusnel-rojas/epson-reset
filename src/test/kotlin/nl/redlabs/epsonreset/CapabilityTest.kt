@@ -103,7 +103,7 @@ class CapabilityTest {
     // machine can't move these numbers.
     private val bundledDatabase: PrinterDatabase by lazy {
         val text = assertNotNull(
-            PrinterDatabase::class.java.getResourceAsStream("/database.json")
+            PrinterDatabase::class.java.getResourceAsStream(CounterSpecs.PRINTER_DATA)
                 ?.bufferedReader()?.use { it.readText() },
         )
         PrinterDatabase.parse(text)

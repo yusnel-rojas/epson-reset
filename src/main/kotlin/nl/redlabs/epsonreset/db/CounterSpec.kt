@@ -50,7 +50,7 @@ data class CounterSpec(
     }
 }
 
-/** Per-model counter layouts, from the bundled `counters.json` plus an optional user overlay. */
+/** Per-model counter layouts, from the bundled `printers.json` plus an optional user overlay. */
 class CounterSpecs private constructor(
     private val byModel: Map<String, List<CounterSpec>>,
     val overlayLoaded: Boolean,
@@ -76,6 +76,12 @@ class CounterSpecs private constructor(
     fun addressesFor(model: String): List<Int> = get(model)?.flatMap { it.addresses }?.distinct() ?: emptyList()
 
     companion object {
+        /**
+         * The one data file the app carries. Spliced at build time from the per-source files in
+         * `data/` — see the `generatePrinterData` task — so its sections are those files verbatim.
+         */
+        const val PRINTER_DATA = "/printers.json"
+
         private val json = Json {
             ignoreUnknownKeys = true
             isLenient = true
@@ -86,21 +92,21 @@ class CounterSpecs private constructor(
 
         /** Bundled layouts and calibrations, ignoring any user overlay. */
         fun loadBundled(): CounterSpecs {
-            val counters = resource("/counters.json")
+            val data = resource(PRINTER_DATA)
                 ?: return CounterSpecs(emptyMap(), overlayLoaded = false)
 
-            val merged = LinkedHashMap(parseGroups(counters))
-            resource("/calibrations.json")?.let { applyCalibrations(merged, it) }
+            val merged = LinkedHashMap(parseGroups(data))
+            applyCalibrations(merged, data)
             return CounterSpecs(merged, overlayLoaded = false)
         }
 
         fun load(): CounterSpecs {
-            val counters = resource("/counters.json")
+            val data = resource(PRINTER_DATA)
                 ?: return CounterSpecs(emptyMap(), overlayLoaded = false)
 
             val merged = LinkedHashMap<String, List<CounterSpec>>()
-            merged.putAll(parseGroups(counters))
-            resource("/calibrations.json")?.let { applyCalibrations(merged, it) }
+            merged.putAll(parseGroups(data))
+            applyCalibrations(merged, data)
 
             // A user overlay is additive and overriding — later wins, so a corrected model
             // replaces the bundled entry outright rather than merging counter-by-counter.

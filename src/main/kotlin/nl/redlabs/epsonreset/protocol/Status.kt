@@ -57,6 +57,15 @@ object Status {
         val errorCode: Int? get() = get(TYPE_ERROR)?.value?.firstOrNull()?.toInt()?.and(0xFF)
 
         /**
+         * The error in words — "cover open" rather than `0x02`.
+         *
+         * One phrasing for the whole app: [busyReason] resolves the same codes through the same
+         * table, and a screen showing the name in one place and the raw byte in another is telling
+         * the user those are two different things.
+         */
+        val errorDescription: String? get() = errorCode?.let { describeError(it) }
+
+        /**
          * Why the printer's own account of itself argues against giving it anything to do now, or
          * null when it doesn't. Phrased without naming the operation, since every caller's answer
          * to a busy printer is the same one.
@@ -66,7 +75,7 @@ object Status {
                 val code = state ?: return null
                 if (code == STATE_IDLE) return null
 
-                val detail = errorCode?.let { " (${ERRORS[it] ?: "error code 0x%02X".format(it)})" }
+                val detail = errorCode?.let { " (${describeError(it)})" }
                 return "The printer reports it is " +
                     (STATES[code] ?: "in state 0x%02X".format(code)) + (detail ?: "") + "."
             }
@@ -128,6 +137,9 @@ object Status {
         0x08 to "in its factory-shipment state",
         0x0A to "shutting down",
     )
+
+    /** A code's name, or the code itself when [ERRORS] has never seen it. */
+    fun describeError(code: Int): String = ERRORS[code] ?: "error code 0x%02X".format(code)
 
     /**
      * Error codes for field 0x02, as far as they are agreed on. Unlisted codes are shown raw for

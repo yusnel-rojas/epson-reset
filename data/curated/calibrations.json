@@ -1,7 +1,8 @@
 {
+  "source": "measured on hardware by this project",
   "_readme": [
     "Counter maxima measured by this project, layered on top of the upstream layouts in",
-    "counters.json. Kept in a separate file so regenerating counters.json from reinkpy",
+    "data/reinkpy/counters.json. Kept in a separate file so regenerating those from reinkpy",
     "(tools/convert_reinkpy.py) never discards them.",
     "",
     "Upstream declares a max for only 2 of 626 counters, so percentages otherwise cannot be",
@@ -18,8 +19,8 @@
     "in \"percent\" are deliberate: 60.90 says the tool was read to two decimals, and 60.9 does not.",
     "",
     "Entries come from the app's Calibrate percentages card (db/Calibration.kt derives the maximum",
-    "and the range) and are merged with tools/apply_calibration.py, which checks them against",
-    "counters.json. A user overlay (counters-overlay.json) still wins over anything here."
+    "and the range) and are merged with tools/apply_calibration.py, which checks them against the",
+    "layouts. A user overlay (counters-overlay.json) still wins over anything here."
   ],
   "calibrations": [
     {

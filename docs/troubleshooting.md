@@ -61,8 +61,7 @@ open, it is normally offline or paused (Settings → Bluetooth & devices → Pri
 is stuck behind others in the queue — clear the queue and rescan. Only the *advanced libusb
 fallback* needs [Zadig](https://zadig.akeo.ie/) to bind the printer to WinUSB, which takes it away
 from the Windows print subsystem until you reinstall the vendor driver; the default spooler path
-needs none of that. The spooler back-channel is untested against real Windows hardware — reports
-welcome.
+needs none of that.
 
 **"Another process is holding the printer"** on any platform means something else got there first —
 a scanning utility, a vendor status monitor, a second copy of this app. Close it and rescan.

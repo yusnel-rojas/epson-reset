@@ -34,7 +34,10 @@ ui/         Compose screens — Overview, Models, Inspect, Maintenance, Snapshot
             printer-and-model target in the top bar; the shared ResetViewModel core coordinates
             them, while CalibrationState, InspectState, SnapshotState and MaintenanceState own
             their area's state and actions
-tools/      convert_reinkpy.py — regenerates counters.json and database.json from upstream
+data/       one file per source — reinkpy/ (layouts and reset data), curated/ (maxima measured
+            here); spliced into the single printers.json the app bundles by the
+            generatePrinterData build task
+tools/      convert_reinkpy.py — regenerates the files under data/reinkpy/ from upstream
 installer/  windows/EpsonReset.iss — Inno Setup script the Windows CI job compiles
 .github/    ci.yml (tests per push), build.yml (installers on tags), sync-printer-data.yml
 ```
@@ -65,10 +68,10 @@ Printer and model form one target with the same application scope. The top-bar c
 every tab and opens their only selector: exact identifications choose the model automatically, a
 family exposes only its possible units, and no printer leaves the complete model search available
 for dry runs. Changing printers clears the previous model before resolving the new one. Overview is
-read-only, including its counter section's Summary, Counter details and History modes; simulated and live
-resets live with routine printer maintenance, while Snapshots retains its separate file selector and
-recovery path. A printer operation owns
-the target until its result is published: target changes, scans, tests, reads, resets, restores,
+read-only, including its Counters view — the summary with the per-address detail folded under it —
+and its History view; simulated and live resets live with routine printer maintenance, while
+Snapshots retains its separate file selector and recovery path. A printer operation owns the target
+until its result is published: target changes, scans, tests, reads, resets, restores,
 inspection and maintenance all share the same exclusion gate.
 
 ## Families, and why a match is not always an identification

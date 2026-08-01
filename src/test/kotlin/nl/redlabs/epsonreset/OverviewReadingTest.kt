@@ -9,7 +9,7 @@ import nl.redlabs.epsonreset.protocol.DeviceId
 import nl.redlabs.epsonreset.protocol.Status
 import nl.redlabs.epsonreset.ui.OverviewAlert
 import nl.redlabs.epsonreset.ui.OverviewCounterLevel
-import nl.redlabs.epsonreset.ui.OverviewSnapshot
+import nl.redlabs.epsonreset.ui.OverviewReading
 import nl.redlabs.epsonreset.ui.overviewCounterCoverageLabel
 import nl.redlabs.epsonreset.ui.overviewCounterLevel
 import nl.redlabs.epsonreset.ui.overviewCounterRows
@@ -19,10 +19,28 @@ import java.time.Instant
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
-class OverviewSnapshotTest {
+class OverviewReadingTest {
     private val now = Instant.parse("2026-08-01T12:00:00Z")
+
+    private fun reading(
+        status: Status.Report? = null,
+        counters: CounterReader.Report? = null,
+        specs: List<CounterSpec> = emptyList(),
+    ) = OverviewReading.create(
+        targetId = "usb:1:2",
+        printerName = "TEST-1",
+        linkKind = "USB",
+        model = "TEST-1",
+        refreshedAt = now,
+        connection = null,
+        status = status,
+        printerMib = null,
+        counters = counters,
+        specs = specs,
+    )
 
     @Test
     fun `only established printer signals become alerts`() {
@@ -44,7 +62,7 @@ class OverviewSnapshotTest {
             listOf(CounterReader.Reading(10, 100, 0, "Waste")),
         )
 
-        val snapshot = OverviewSnapshot.create(
+        val snapshot = OverviewReading.create(
             targetId = "usb:1:2",
             printerName = "TEST-1",
             linkKind = "USB",
@@ -61,12 +79,53 @@ class OverviewSnapshotTest {
         assertTrue(snapshot.alerts.any { it.title == "Printer is not idle" })
         assertTrue(snapshot.alerts.any { it.title == "Black ink is low" })
         assertTrue(snapshot.alerts.any { it.title.contains("Waste ink is filling up") })
-        assertTrue(snapshot.alerts.any { it.title.contains("measured maximum") })
+        assertTrue(snapshot.alerts.any { it.title == "Waste counter is at its maximum" })
+    }
+
+    /** The error is named, not spelled `0x04` — the same wording `Status.busyReason` uses. */
+    @Test
+    fun `a reported error code is put into words`() {
+        val alert = assertNotNull(
+            reading(
+                status = Status.Report(
+                    fields = listOf(Status.Field(Status.TYPE_ERROR, byteArrayOf(0x04))),
+                    raw = ByteArray(0),
+                ),
+            ).alerts.firstOrNull { it.severity == OverviewAlert.Severity.ERROR },
+        )
+
+        assertEquals("The printer reports paper jam.", alert.detail)
+    }
+
+    /**
+     * The band the counter table already paints amber. Before this, a pad at 94% coloured a row
+     * while the headline above it read "No reported warnings".
+     */
+    @Test
+    fun `a counter near its maximum is an alert, not silence`() {
+        val spec = CounterSpec(listOf(10, 11), "Waste counter", max = 100)
+
+        fun alertsAt(value: Int) = reading(
+            counters = CounterReader.Report("TEST-1", listOf(CounterReader.Reading(10, value, 0, "Waste"))),
+            specs = listOf(CounterSpec(listOf(10), spec.description, max = spec.max)),
+        ).alerts
+
+        assertEquals(emptyList(), alertsAt(89), "below the band nothing is claimed")
+
+        val nearly = assertNotNull(alertsAt(94).singleOrNull())
+        assertEquals(OverviewAlert.Severity.ATTENTION, nearly.severity)
+        assertEquals("Waste counter is nearly full", nearly.title)
+        assertEquals(OverviewAlert.Action.MAINTENANCE, nearly.action)
+
+        val full = assertNotNull(alertsAt(100).singleOrNull())
+        assertEquals(OverviewAlert.Severity.ERROR, full.severity)
+        assertEquals("Waste counter is at its maximum", full.title)
+        assertEquals(OverviewAlert.Action.MAINTENANCE, full.action)
     }
 
     @Test
     fun `missing sources are unavailable coverage and never warnings`() {
-        val snapshot = OverviewSnapshot.create(
+        val snapshot = OverviewReading.create(
             targetId = "usb:1:2",
             printerName = "TEST-1",
             linkKind = "USB",
@@ -94,7 +153,7 @@ class OverviewSnapshotTest {
             supplies = listOf(PrinterMib.Supply(1, "Black", 3, 5, 10, 100, "black")),
         )
 
-        val snapshot = OverviewSnapshot.create(
+        val snapshot = OverviewReading.create(
             "usb:1:2",
             "TEST-1",
             "USB",

@@ -52,11 +52,16 @@ fun SplitButton(
     onPrimary: () -> Unit,
     modifier: Modifier = Modifier,
     primaryEnabled: Boolean = true,
+    /** Fill for the primary half. Default is the ordinary accent; pass a danger colour to mark a
+     *  write that cannot be taken back by clicking again. */
+    container: Color? = null,
+    onContainer: Color? = null,
 ) {
     var menu by remember { mutableStateOf(false) }
     val menuEnabled = actions.any { !it.divider && it.enabled }
     val shape = RoundedCornerShape(50)
-    val content = MaterialTheme.colorScheme.onPrimary
+    val fill = container ?: MaterialTheme.colorScheme.primary
+    val content = onContainer ?: MaterialTheme.colorScheme.onPrimary
 
     Box(modifier) {
         Row(
@@ -64,7 +69,7 @@ fun SplitButton(
                 .fillMaxWidth()
                 .height(40.dp)
                 .clip(shape)
-                .background(MaterialTheme.colorScheme.primary),
+                .background(fill),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(

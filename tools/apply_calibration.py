@@ -23,8 +23,8 @@ import argparse
 import json
 import sys
 
-COUNTERS = 'src/main/resources/counters.json'
-CALIBRATIONS = 'src/main/resources/calibrations.json'
+COUNTERS = 'data/reinkpy/counters.json'
+CALIBRATIONS = 'data/curated/calibrations.json'
 
 
 def fail(message):

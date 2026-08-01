@@ -150,6 +150,69 @@ val generateVersionResource = tasks.register("generateVersionResource") {
 
 sourceSets["main"].resources.srcDir(generateVersionResource)
 
+// The printer data reaches the repo as one file per source, because each has its own update rhythm
+// — a monthly bot for reinkpy, and nothing but hand edits for the measurements taken here. Kept
+// apart, one pipeline can never overwrite another's work.
+//
+// The app wants none of that. It gets a single file, spliced together here on every build.
+//
+// A splice, deliberately, not a merge: the sections are copied through verbatim and this task never
+// looks inside one. Which maximum wins over which is a question about addresses, and it is answered
+// once, in CounterSpecs, where it is already tested — not a second time, in a build script.
+// section -> file -> written by
+val printerDataSources =
+    listOf(
+        Triple("groups", "data/reinkpy/counters.json", "sync-printer-data.yml"),
+        Triple("models", "data/reinkpy/database.json", "sync-printer-data.yml"),
+        Triple("calibrations", "data/curated/calibrations.json", "hand edits only"),
+    )
+
+val generatePrinterData = tasks.register("generatePrinterData") {
+    group = "build"
+    description = "Splice the per-source data files into the single printers.json the app loads"
+
+    val projectDir = layout.projectDirectory.asFile
+    val inputFiles = printerDataSources.map { (section, path, writtenBy) ->
+        Triple(section, layout.projectDirectory.file(path).asFile, writtenBy)
+    }
+    val outputDir = layout.buildDirectory.dir("generated/printer-data")
+
+    inputs.files(inputFiles.map { it.second })
+    outputs.dir(outputDir)
+
+    doLast {
+        val slurper = groovy.json.JsonSlurper()
+        val parsed = inputFiles.map { (section, file, writtenBy) ->
+            Triple(section, slurper.parse(file), file to writtenBy)
+        }
+
+        val merged = linkedMapOf<String, Any?>(
+            "sources" to parsed.map { (section, root, origin) ->
+                val (file, writtenBy) = origin
+                linkedMapOf(
+                    "section" to section,
+                    "file" to file.relativeTo(projectDir).invariantSeparatorsPath,
+                    "writtenBy" to writtenBy,
+                    // Every file but database.json, which is a bare model map, names its upstream.
+                    "upstream" to ((root as? Map<*, *>)?.get("source") ?: "see data/reinkpy/counters.json"),
+                )
+            },
+        )
+
+        for ((section, root, _) in parsed) {
+            // database.json is a bare model map; the rest wrap their payload under a key.
+            merged[section] = (root as? Map<*, *>)?.get(section) ?: root
+        }
+
+        outputDir.get().file("printers.json").asFile.apply {
+            parentFile.mkdirs()
+            writeText(groovy.json.JsonOutput.toJson(merged) + "\n")
+        }
+    }
+}
+
+sourceSets["main"].resources.srcDir(generatePrinterData)
+
 // Headless self-check — database, libusb, connected devices, and a dry run. Everything a bug
 // report needs, e.g. `./gradlew diagnose --args="XP-245"`.
 tasks.register<JavaExec>("diagnose") {

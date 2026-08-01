@@ -70,14 +70,25 @@ runs in full.
 
 The print-maintenance section exposes these operations as a guided USB-only sequence. It starts
 with a nozzle check, asks whether its printed pattern has gaps, and enables cleaning only when the
-answer is yes. Every operation names the target printer in a confirmation; every cleaning states
-its ink and pad cost before the button. After cleaning, the tab offers another nozzle check to
-confirm the result. The same tab contains the separate counter-reset workflow, keeping reset beside
-the other routine printer-maintenance actions.
+answer is yes. After cleaning, it offers another nozzle check to confirm the result. The same tab
+contains the separate counter-reset workflow, keeping reset beside the other routine
+printer-maintenance actions.
+
+Only the step you are on is drawn. `patternAssessment` already *is* that sequence, so the panel
+reads it rather than stacking every stage at full size and greying out the ones you cannot reach —
+a settled answer collapses to one line with a **Start over** beside it, and a pattern with no gaps
+collapses the whole section, because there is nothing to do. Each cleaning's ink and pad cost is
+stated on its confirmation dialog, at the moment of committing, rather than sitting permanently
+under a button that could not be pressed.
+
+The gate is the assertion, not the printout. **I have already seen the pattern — it has gaps**
+records the same observation without spending a sheet, for someone who came here knowing what they
+need. What it does not do is remove the assertion: no cleaning is ever sent that nobody claimed was
+needed, which is the whole point of the gate.
 
 The nozzle check is proven end to end on one ET-2820 — command, print, eject — and cross-checked
 against `escputil` driving the same printer. Head cleaning ran first time on the same printer. Power
-cleaning is untried; the tab says that once without giving it a special badge. Its `CH 00 10` is
+cleaning is untried; its confirmation says so where it will be read. Its `CH 00 10` is
 corroborated by `epson_escp2`, which builds the parameter as `group | 0x10`.
 
 ## The printer will not ask
@@ -241,7 +252,21 @@ The nozzle-check and cleaning commands do not write EEPROM. That is enforced rat
 `Maintenance.packetFor` asserts that what it built is not a write packet, and the test suite walks
 every operation to check it, the same way the [inspector's read-only guarantee](inspect.md) is
 checked. The Maintenance tab also houses the separate, explicitly gated counter-reset workflow;
-that path retains its Dry run default, confirmation, backup and write verification.
+that path keeps its confirmation, automatic backup and write verification, and asks for the write
+at the button — **Save current, then reset**, in red, with **Simulate reset** behind the chevron —
+rather than through a mode left switched on.
+
+Both the confirmation and the completion say the thing the counter cannot: clearing it is what
+unblocks the printer, and the waste ink pad — or the maintenance box, on the models that use one —
+is a physical part still holding exactly what it held before. Only replacing or cleaning it changes
+that.
+
+Both terms, deliberately. Which of the two a printer has is not something this app can derive:
+`isPlatenOnly` records that every counter *in EEPROM* is a platen one, which correlates with a
+maintenance box handling the main waste but does not state it, and no field anywhere says whether
+a box is user-replaceable. Naming one part would be wrong for the other half of the database, so
+both are named and the sentence is true either way. Where there is a real signal — the platen-only
+models — the reset card's own callout still says the sharper thing.
 
 ## Over the network
 

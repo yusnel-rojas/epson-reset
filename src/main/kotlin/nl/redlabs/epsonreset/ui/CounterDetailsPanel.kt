@@ -48,7 +48,7 @@ internal fun CounterDetailsContent(vm: ResetViewModel) {
         // A simulated reset report must never appear as current printer data. Prefer the latest
         // real read, then the session Overview sample, and finally the model's address layout.
         val report = vm.readReport?.takeIf { !vm.readWasSimulated }
-            ?: vm.overviewSnapshot?.counters
+            ?: vm.overviewReading?.counters
             ?: CounterReader.layout(model, vm.specsFor(model))
         val counters = CounterReader.decode(report.readings, vm.specsFor(model))
 

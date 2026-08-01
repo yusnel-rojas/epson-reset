@@ -60,7 +60,7 @@ internal fun MaintenanceResetSection(
             )
         }
         Text(
-            "${model.name} · Dry run simulates this workflow; Live can write EEPROM after confirmation.",
+            "${model.name} · Simulating writes nothing; resetting writes EEPROM after confirmation.",
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -89,8 +89,8 @@ internal fun MaintenanceResetSection(
         Spacer(Modifier.height(14.dp))
         RunControls(vm, model, confirming, onConfirmChange)
 
-        // A reset table is an operation detail, not another standing copy of Overview counters.
-        // Dry-run mode shows it only after the user actually asks to simulate a reset.
+        // A reset table is an operation detail, not another standing copy of Overview counters, so
+        // it appears only once a run — simulated or real — has actually been asked for.
         val showResetTable = vm.runState !is ResetViewModel.RunState.Idle
         if (showResetTable) {
             vm.counterDisplayReport?.let { report ->
@@ -125,125 +125,83 @@ private fun RunControls(
     val active = running || vm.reading || vm.overviewRefreshing
 
     Column {
-        // Nothing is inserted here when Live is switched on. A warning that displaces the controls
-        // it is about trains people to scroll past it, and by the time the button is clicked it has
-        // been on screen long enough to have stopped being read — so it lives on the act instead,
-        // in ResetConfirmation.
+        // No mode switch. Resetting and simulating are two things you can ask for, not one thing
+        // done in one of two moods — and a mode left switched on is a mode the next person does
+        // not know about. Saving first is not offered as a choice here the way it is for a restore:
+        // a reset always takes its backup and refuses to run without one.
+        //
+        // Red, because unlike everything else on this screen it changes a number the printer uses
+        // to decide it is worn out, and clicking again does not put it back.
         Row(verticalAlignment = Alignment.CenterVertically) {
-            DryRunToggle(vm.dryRun, enabled = !active) {
-                vm.changeDryRunMode(it)
-                onConfirmChange(false)
-            }
-            Spacer(Modifier.weight(1f))
-
             if (active) {
                 OutlinedButton(onClick = { vm.cancel() }) { Text("Cancel") }
             } else {
-                if (!vm.dryRun) {
-                    // Saving writes a file, not EEPROM, so it needs no confirmation either — and
-                    // belongs next to the live counter read whose values it preserves.
-                    OutlinedButton(
-                        onClick = { vm.snapshot.saveOrReadSnapshot() },
-                        enabled = vm.snapshot.canSaveOrReadSnapshot,
-                    ) {
-                        Text(if (vm.snapshot.canSaveSnapshot) "Save snapshot" else "Read & save snapshot")
-                    }
-                    Spacer(Modifier.width(8.dp))
-                }
-                Button(
-                    onClick = { if (vm.dryRun) vm.run() else onConfirmChange(true) },
-                    enabled = vm.canRun,
-                ) {
-                    Text(if (vm.dryRun) "Simulate reset" else "Reset counters")
-                }
+                SplitButton(
+                    label = "Save current, then reset",
+                    primaryEnabled = vm.canResetLive,
+                    onPrimary = { onConfirmChange(true) },
+                    container = StatusColors.bad,
+                    onContainer = StatusColors.onBad,
+                    actions = listOf(
+                        SplitAction(
+                            "Simulate reset — writes nothing",
+                            enabled = vm.canSimulateReset,
+                        ) { vm.run(simulate = true) },
+                    ),
+                    modifier = Modifier.width(300.dp),
+                )
             }
         }
 
-        if (!vm.dryRun && vm.selectedDevice == null) {
+        Spacer(Modifier.height(8.dp))
+        Text(
+            "Resetting clears the counter, which is what unblocks the printer. It does not empty " +
+                "or replace the waste ink pad — or the maintenance box, if this printer uses one. " +
+                "That is a physical part, and it still holds whatever it held a moment ago. Have " +
+                "it replaced or cleaned, or the ink it can no longer absorb has to go somewhere.",
+            style = MaterialTheme.typography.labelSmall,
+            color = StatusColors.warn,
+        )
+
+        if (vm.selectedDevice == null) {
             Spacer(Modifier.height(8.dp))
             Text(
-                "Select a connected printer to use live mode.",
+                "Select a connected printer to reset one. Simulating needs no printer.",
                 style = MaterialTheme.typography.labelSmall,
-                color = StatusColors.warn,
+                color = StatusColors.muted,
             )
         }
 
         // Not a caveat any more. The first attempt at writing over a network connection made a
         // printer render the commands and jam, so the path is closed until it is proven.
-        if (!vm.dryRun) {
-            vm.writeBlockedReason?.let {
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    it,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = StatusColors.bad,
-                )
-            }
-        } else {
-            // A dry run against a model the printer disagrees with is fine — it writes nothing —
-            // but the Live switch is already closed, and finding that out only after flipping it is
-            // worse than knowing now.
-            vm.modelMismatch?.let {
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    "Dry run only — $it",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = StatusColors.warn,
-                )
-            }
+        vm.writeBlockedReason?.let {
+            Spacer(Modifier.height(8.dp))
+            Text(it, style = MaterialTheme.typography.labelSmall, color = StatusColors.bad)
         }
 
-        if (confirming && !vm.dryRun) {
+        // Simulating against a model the printer disagrees with is fine — it writes nothing — but
+        // the live half is already closed, and finding that out only on the click is worse.
+        vm.modelMismatch?.let {
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "Simulation only — $it",
+                style = MaterialTheme.typography.labelSmall,
+                color = StatusColors.warn,
+            )
+        }
+
+        if (confirming) {
             ResetConfirmation(
                 vm = vm,
                 model = model,
                 onDismiss = { onConfirmChange(false) },
                 onConfirm = {
                     onConfirmChange(false)
-                    vm.run()
+                    vm.run(simulate = false)
                 },
             )
         }
     }
-}
-
-@Composable
-private fun DryRunToggle(dryRun: Boolean, enabled: Boolean, onChange: (Boolean) -> Unit) {
-    Row(
-        Modifier
-            .clip(RoundedCornerShape(20.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant)
-            .padding(3.dp),
-    ) {
-        SegmentButton("Dry run", dryRun, enabled) { onChange(true) }
-        SegmentButton("Live", !dryRun, enabled) { onChange(false) }
-    }
-}
-
-@Composable
-private fun SegmentButton(label: String, active: Boolean, enabled: Boolean, onClick: () -> Unit) {
-    val bg = when {
-        active && label == "Live" -> StatusColors.bad
-        active -> MaterialTheme.colorScheme.primary
-        else -> Color.Transparent
-    }
-    Text(
-        label,
-        style = MaterialTheme.typography.labelMedium,
-        fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
-        color = when {
-            // The Live segment fills with `bad` rather than `primary`, so it takes that fill's label.
-            active && label == "Live" -> StatusColors.onBad
-            active -> MaterialTheme.colorScheme.onPrimary
-            enabled -> MaterialTheme.colorScheme.onSurfaceVariant
-            else -> StatusColors.muted
-        },
-        modifier = Modifier
-            .clip(RoundedCornerShape(18.dp))
-            .background(bg)
-            .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 6.dp),
-    )
 }
 
 /**
@@ -322,8 +280,11 @@ private fun ResetConfirmation(vm: ResetViewModel, model: PrinterModel, onDismiss
                 "to be — a near neighbour's key is not the same key, so check the printer label."
         },
         paragraphs = listOf(
-            "This clears the printer's record of the ink its pad has absorbed. The ink is " +
-                "still in the pad, and a pad at the end of its life still needs servicing.",
+            "This clears the printer's record of the ink it has absorbed, which is what unblocks " +
+                "it. It does not empty anything. The waste ink pad — or the maintenance box, if " +
+                "this printer uses one — is a physical part holding real ink; it will hold exactly " +
+                "as much after this run as before, and only replacing or cleaning it changes that. " +
+                "A full one left in place overflows.",
             "The bytes about to be overwritten are saved to a snapshot first, and the run " +
                 "stops rather than proceeding if that cannot be done.",
             "Whether to do this is your decision, and what follows from it is yours to " +

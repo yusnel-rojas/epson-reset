@@ -28,7 +28,7 @@ Worth knowing what the harder ones cover:
 - **Printer overview.** Complete, partial, failed and cancelled refreshes keep honest coverage,
   simulated values never enter a snapshot, and the scripted transport asserts the refresh emits
   no EEPROM writes. Alert derivation and reset-aware sparkline geometry are tested separately.
-- **Counter and snapshot handoff.** Overview's Counter details table remains read-only, while its
+- **Counter and snapshot handoff.** Overview's per-address counter table remains read-only, while its
   model-specific snapshot count opens Snapshots with only that model visible and can return to the
   complete list without changing files on disk.
 - **The maintenance safety flow.** A scripted idle printer proves that cleaning stays unreachable

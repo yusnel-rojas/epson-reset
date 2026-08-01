@@ -16,6 +16,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -23,6 +24,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
@@ -111,84 +113,11 @@ fun MaintenancePanel(vm: ResetViewModel, modifier: Modifier = Modifier) {
         }
 
         Spacer(Modifier.height(16.dp))
-        StepCard(
-            number = 1,
-            title = "Print a nozzle check",
-            blurb = Maintenance.Operation.NOZZLE_CHECK.summary,
-            enabled = maintenance.canRun(Maintenance.Operation.NOZZLE_CHECK),
-        ) {
-            Button(
-                onClick = { confirming = Maintenance.Operation.NOZZLE_CHECK },
-                enabled = maintenance.canRun(Maintenance.Operation.NOZZLE_CHECK),
-            ) {
-                Text(if (maintenance.cleaningCompleted) "Run a confirmation check" else "Print nozzle check")
-            }
-
-            if (maintenance.cleaningCompleted) {
-                Spacer(Modifier.height(8.dp))
-                Note(
-                    "A cleaning was sent. Print the pattern again to confirm that it actually cleared the gaps.",
-                    StatusColors.good,
-                )
-            }
-        }
-
-        Spacer(Modifier.height(12.dp))
-        StepCard(
-            number = 2,
-            title = "Look at the pattern",
-            blurb = "The printer cannot ask when a host starts the job, so the app asks: do you see " +
-                "gaps or missing lines? That answer is the cleaning safety gate.",
-            enabled = assessment != MaintenanceState.PatternAssessment.NOT_CHECKED,
-        ) {
-            when (assessment) {
-                MaintenanceState.PatternAssessment.NOT_CHECKED ->
-                    Note("Print the nozzle check first.", StatusColors.muted)
-
-                MaintenanceState.PatternAssessment.AWAITING_ANSWER ->
-                    Note("Waiting for your answer in the pattern dialog.", StatusColors.warn)
-
-                MaintenanceState.PatternAssessment.NO_GAPS ->
-                    Note(
-                        "Nothing to do. A cleaning would only use ink and fill the waste pad, so it stays disabled.",
-                        StatusColors.good,
-                    )
-
-                MaintenanceState.PatternAssessment.GAPS ->
-                    Note(
-                        "The pattern has gaps. Cleaning is available below; its pad cost is stated before each button.",
-                        StatusColors.warn,
-                    )
-            }
-        }
-
-        Spacer(Modifier.height(12.dp))
-        StepCard(
-            number = 3,
-            title = "Clean only if the pattern has gaps",
-            blurb = "Both cleaning cycles raise the waste counter. Run the ordinary cycle first; " +
-                "power cleaning is a last resort, not a stronger default.",
-            enabled = maintenance.cleaningEnabled,
-        ) {
-            CleaningChoice(
-                operation = Maintenance.Operation.HEAD_CLEANING,
-                enabled = maintenance.canRun(Maintenance.Operation.HEAD_CLEANING),
-                onClick = { confirming = Maintenance.Operation.HEAD_CLEANING },
-            )
-
-            Spacer(Modifier.height(14.dp))
-            CleaningChoice(
-                operation = Maintenance.Operation.POWER_CLEANING,
-                enabled = maintenance.canRun(Maintenance.Operation.POWER_CLEANING),
-                onClick = { confirming = Maintenance.Operation.POWER_CLEANING },
-            )
-            Spacer(Modifier.height(5.dp))
-            Note(
-                "Power cleaning is the only operation on this screen that has not been run on a " +
-                    "printer in this project; its command bytes are independently corroborated.",
-                StatusColors.muted,
-            )
-        }
+        PrintMaintenanceStep(
+            maintenance = maintenance,
+            assessment = assessment,
+            onRun = { confirming = it },
+        )
 
         Spacer(Modifier.height(20.dp))
     }
@@ -213,21 +142,103 @@ fun MaintenancePanel(vm: ResetViewModel, modifier: Modifier = Modifier) {
     }
 }
 
+/**
+ * The one step this printer is actually on.
+ *
+ * The sequence is unchanged and so is its gate — what changed is that the screen no longer renders
+ * all three steps at full size regardless of which is live. `patternAssessment` already is the
+ * state machine; this reads it instead of restating it. What is settled becomes one line, what is
+ * next is a card, and what cannot be reached yet is not drawn at all.
+ */
+@Composable
+private fun PrintMaintenanceStep(
+    maintenance: MaintenanceState,
+    assessment: MaintenanceState.PatternAssessment,
+    onRun: (Maintenance.Operation) -> Unit,
+) {
+    when (assessment) {
+        MaintenanceState.PatternAssessment.NOT_CHECKED,
+        MaintenanceState.PatternAssessment.AWAITING_ANSWER,
+        -> StepCard(
+            number = 1,
+            title = if (maintenance.cleaningCompleted) "Check whether the cleaning worked" else "Print a nozzle check",
+            blurb = Maintenance.Operation.NOZZLE_CHECK.summary,
+            enabled = maintenance.canRun(Maintenance.Operation.NOZZLE_CHECK),
+        ) {
+            Button(
+                onClick = { onRun(Maintenance.Operation.NOZZLE_CHECK) },
+                enabled = maintenance.canRun(Maintenance.Operation.NOZZLE_CHECK),
+            ) {
+                Text(if (maintenance.cleaningCompleted) "Run a confirmation check" else "Print nozzle check")
+            }
+
+            if (assessment == MaintenanceState.PatternAssessment.AWAITING_ANSWER) {
+                Spacer(Modifier.height(8.dp))
+                Note("Waiting for your answer in the pattern dialog.", StatusColors.warn)
+            }
+
+            // The gate is that somebody said there are gaps, not that this app printed the sheet.
+            if (assessment == MaintenanceState.PatternAssessment.NOT_CHECKED) {
+                Spacer(Modifier.height(10.dp))
+                TextButton(onClick = maintenance::assumeGaps, enabled = maintenance.blockedReason == null) {
+                    Text("I have already seen the pattern — it has gaps")
+                }
+            }
+        }
+
+        // Nothing to do, and nothing worth a card to say it with.
+        MaintenanceState.PatternAssessment.NO_GAPS -> SettledStep(
+            text = "The pattern has no gaps — nothing needs cleaning.",
+            colour = StatusColors.good,
+            onStartOver = maintenance::clearAssessment,
+        )
+
+        MaintenanceState.PatternAssessment.GAPS -> {
+            SettledStep(
+                text = "The pattern has gaps.",
+                colour = StatusColors.warn,
+                onStartOver = maintenance::clearAssessment,
+            )
+            Spacer(Modifier.height(10.dp))
+            StepCard(
+                number = 2,
+                title = "Clean the head",
+                blurb = "Both cycles flush ink into the waste pad and raise its counter. Run the " +
+                    "ordinary one first; power cleaning is a last resort, not a stronger default. " +
+                    "What each costs is on its confirmation.",
+                enabled = maintenance.cleaningEnabled,
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    CleaningChoice(
+                        operation = Maintenance.Operation.HEAD_CLEANING,
+                        enabled = maintenance.canRun(Maintenance.Operation.HEAD_CLEANING),
+                        onClick = { onRun(Maintenance.Operation.HEAD_CLEANING) },
+                    )
+                    Spacer(Modifier.width(10.dp))
+                    CleaningChoice(
+                        operation = Maintenance.Operation.POWER_CLEANING,
+                        enabled = maintenance.canRun(Maintenance.Operation.POWER_CLEANING),
+                        onClick = { onRun(Maintenance.Operation.POWER_CLEANING) },
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** A step whose answer is in: one line, and the way back to it. */
+@Composable
+private fun SettledStep(text: String, colour: Color, onStartOver: () -> Unit) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text("✓", color = colour, fontWeight = FontWeight.Bold, modifier = Modifier.width(20.dp))
+        Text(text, style = MaterialTheme.typography.bodySmall, color = colour)
+        Spacer(Modifier.weight(1f))
+        TextButton(onClick = onStartOver) { Text("Start over") }
+    }
+}
+
 @Composable
 private fun CleaningChoice(operation: Maintenance.Operation, enabled: Boolean, onClick: () -> Unit) {
-    Text(
-        operation.summary,
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
-    Spacer(Modifier.height(4.dp))
-    Text(
-        "Ink cost: ${operation.inkCost.label}. The flushed ink goes into the waste pad and raises its counter.",
-        style = MaterialTheme.typography.labelSmall,
-        color = StatusColors.warn,
-        fontWeight = FontWeight.SemiBold,
-    )
-    Spacer(Modifier.height(8.dp))
     Button(
         onClick = onClick,
         enabled = enabled,
@@ -312,6 +323,18 @@ private fun MaintenanceConfirmation(
                         style = MaterialTheme.typography.bodyMedium,
                         color = StatusColors.warn,
                         fontWeight = FontWeight.SemiBold,
+                    )
+                }
+                // Read here, at the moment of committing, rather than sitting permanently on the
+                // screen behind a button that could not be pressed anyway.
+                if (operation == Maintenance.Operation.POWER_CLEANING) {
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        "This is the only operation in the app that has not been run on a printer " +
+                            "in this project. Its command bytes are independently corroborated, but " +
+                            "nobody here has watched one execute.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = StatusColors.warn,
                     )
                 }
                 Spacer(Modifier.height(12.dp))

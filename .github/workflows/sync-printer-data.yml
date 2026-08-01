@@ -12,7 +12,7 @@ on:
 
 jobs:
   sync:
-    name: Regenerate counters.json and database.json
+    name: Regenerate the reinkpy data files
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -46,7 +46,7 @@ jobs:
         run: |
           set -euo pipefail
           summary="$(python3 tools/convert_reinkpy.py "$RUNNER_TEMP/epson.toml" \
-            src/main/resources/counters.json src/main/resources/database.json)"
+            data/reinkpy/counters.json data/reinkpy/database.json)"
           echo "$summary"
           echo "summary=$summary" >> "$GITHUB_OUTPUT"
 
@@ -54,7 +54,7 @@ jobs:
         id: diff
         run: |
           set -euo pipefail
-          if git diff --quiet -- src/main/resources/counters.json src/main/resources/database.json; then
+          if git diff --quiet -- data/reinkpy/counters.json data/reinkpy/database.json; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
           else
             echo "changed=true" >> "$GITHUB_OUTPUT"
@@ -65,10 +65,10 @@ jobs:
         if: steps.diff.outputs.changed == 'true'
         run: |
           set -euo pipefail
-          git show HEAD:src/main/resources/counters.json > "$RUNNER_TEMP/counters-old.json"
-          git show HEAD:src/main/resources/database.json > "$RUNNER_TEMP/database-old.json"
-          python3 - "$RUNNER_TEMP/counters-old.json" src/main/resources/counters.json \
-                    "$RUNNER_TEMP/database-old.json" src/main/resources/database.json \
+          git show HEAD:data/reinkpy/counters.json > "$RUNNER_TEMP/counters-old.json"
+          git show HEAD:data/reinkpy/database.json > "$RUNNER_TEMP/database-old.json"
+          python3 - "$RUNNER_TEMP/counters-old.json" data/reinkpy/counters.json \
+                    "$RUNNER_TEMP/database-old.json" data/reinkpy/database.json \
                     > "$RUNNER_TEMP/body.md" <<'PY'
           import json, sys
 
@@ -160,7 +160,7 @@ jobs:
           git config user.name  'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git checkout -b "$branch"
-          git add src/main/resources/counters.json src/main/resources/database.json
+          git add data/reinkpy/counters.json data/reinkpy/database.json
           git commit -m "Sync printer data from reinkpy" -m "$CONVERT_SUMMARY" -m "Source: $SOURCE_URL"
           git push origin "$branch"
 

@@ -9,7 +9,7 @@ Both files come from the same source, so a model reaching reinkpy reaches the ap
 Usage:
     curl -sL https://codeberg.org/atufi/reinkpy/raw/branch/main/reinkpy/epson.toml -o epson.toml
     python3 tools/convert_reinkpy.py epson.toml \\
-        src/main/resources/counters.json src/main/resources/database.json
+        data/reinkpy/counters.json data/reinkpy/database.json
 
 Written against a Python without tomllib; the file's shape is uniform enough to parse directly.
 """

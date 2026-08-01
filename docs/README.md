@@ -20,7 +20,7 @@ to run it; everything below is the detail behind it.
 
 | Page | What's in it |
 |---|---|
-| [Counter database](counter-database.md) | `database.json` and `counters.json`, why there are two, model capabilities, overlays, resyncing |
+| [Counter database](counter-database.md) | one file per source under `data/`, spliced into the one the app loads; where the maxima come from, model capabilities, overlays, resyncing |
 | [Measuring a maximum](calibration.md) | Where a percentage comes from, the measurement form, submitting one, merging one |
 | [Printers not in the database](inspect.md) | The read-only Inspect tab: key discovery, EEPROM sweep, candidate ranking, export |
 

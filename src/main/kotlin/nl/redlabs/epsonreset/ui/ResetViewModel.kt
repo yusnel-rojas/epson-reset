@@ -183,7 +183,7 @@ class ResetViewModel(
         private set
 
     /** The most recent explicit, read-only overview refresh. It belongs only to this app session. */
-    var overviewSnapshot by mutableStateOf<OverviewSnapshot?>(null)
+    var overviewReading by mutableStateOf<OverviewReading?>(null)
         private set
 
     var overviewRefreshing by mutableStateOf(false)
@@ -237,7 +237,10 @@ class ResetViewModel(
     var tab by mutableStateOf(Tab.COUNTERS)
 
     /** Presentation of the counter table inside Overview; it is session-only. */
-    var counterView by mutableStateOf(CounterView.SUMMARY)
+    var counterView by mutableStateOf(CounterView.COUNTERS)
+
+    /** Whether the per-address detail under the counter summary is open. */
+    var counterDetailsExpanded by mutableStateOf(false)
 
     /** The settings window, which is a window rather than a tab — it is an errand, not a screen. */
     var settingsOpen by mutableStateOf(false)
@@ -590,7 +593,9 @@ class ResetViewModel(
     // COUNTERS remains the persisted/internal Overview route for compatibility.
     enum class Tab { COUNTERS, MAINTENANCE, SNAPSHOTS, INSPECT, MODELS }
 
-    enum class CounterView { SUMMARY, DETAILS, HISTORY }
+    // Two views, not three: the summary and the per-address detail are both "the counters", so
+    // the detail is a disclosure inside them rather than a sibling to switch to.
+    enum class CounterView { COUNTERS, HISTORY }
 
     enum class MatrixFilter(val label: String) {
         ALL("All"),
@@ -642,7 +647,8 @@ class ResetViewModel(
         }
         selectModel(capability.model)
         query = capability.name
-        counterView = CounterView.DETAILS
+        counterView = CounterView.COUNTERS
+        counterDetailsExpanded = true
         tab = Tab.COUNTERS
     }
 
@@ -711,10 +717,18 @@ class ResetViewModel(
                 "counter access. Connect it over USB to reset."
         }
 
+    /** A simulation needs a model and nothing else — it never opens the printer. */
+    val canSimulateReset: Boolean
+        get() = !busy && selectedModel?.hasResettableCounters == true
+
+    /** Writing needs a printer that answered and no standing reason not to write to it. */
+    val canResetLive: Boolean
+        get() = canSimulateReset &&
+            selectedDevice?.device?.reachable == true &&
+            writeBlockedReason == null
+
     val canRun: Boolean
-        get() = !busy &&
-            selectedModel?.hasResettableCounters == true &&
-            (dryRun || (selectedDevice?.device?.reachable == true && writeBlockedReason == null))
+        get() = if (dryRun) canSimulateReset else canResetLive
 
     /**
      * Reading carries only the read key and never writes, so the write-only blocks — above all a
@@ -914,7 +928,22 @@ class ResetViewModel(
             val usbCount = matched.count { !it.device.isNetwork }
             val netCount = matched.size - usbCount
             info("Found ${matched.size} Epson device(s) — $usbCount on USB, $netCount on the network.")
-            if (selectedDevice == null) defaultPrinter(matched)?.let { select(it) }
+            if (selectedDevice == null) {
+                defaultPrinter(matched)?.let { chosen ->
+                    select(chosen)
+
+                    // And fill it in, the way choosing one from the menu does. A target picked for
+                    // you is still a target: the screen that opens on it should hold the printer's
+                    // answers rather than an invitation to go and ask for them.
+                    //
+                    // Only for a link that answered the scan. A saved network printer that is
+                    // switched off would otherwise turn every launch into a read that was always
+                    // going to fail, and an error nobody asked for is worse than a blank panel.
+                    if (selectedDevice?.device?.id == chosen.device.id && chosen.device.reachable) {
+                        refreshOverview()
+                    }
+                }
+            }
         }
         return true
     }
@@ -1286,7 +1315,7 @@ class ResetViewModel(
         query = model.name
         if (changed) {
             if (!overviewRefreshing) {
-                overviewSnapshot = null
+                overviewReading = null
                 overviewRefreshVersion++
             }
             readReport = null
@@ -1492,7 +1521,7 @@ class ResetViewModel(
                 if (ownsOverviewRefresh(version, targetId)) {
                     val model = selectedModel
                     status = refreshedStatus
-                    overviewSnapshot = OverviewSnapshot.create(
+                    overviewReading = OverviewReading.create(
                         targetId = targetId,
                         printerName = selected.device.displayName,
                         linkKind = selected.device.link.kind,
@@ -1528,7 +1557,7 @@ class ResetViewModel(
     private fun invalidateOverview() {
         overviewRefreshVersion++
         overviewRefreshing = false
-        overviewSnapshot = null
+        overviewReading = null
     }
 
     /** Samples the model's counter addresses without writing anything. */
@@ -1667,14 +1696,24 @@ class ResetViewModel(
         if (isDry) info("DRY RUN — values came from a simulated EEPROM, not your printer.")
     }
 
-    fun run() {
+    /**
+     * Runs a reset, or simulates one.
+     *
+     * [simulate] is the choice made at the button rather than a mode left switched on somewhere.
+     * It still settles [dryRun], because the preview values, the counter table and the log export
+     * all describe the run that just happened and must agree with it — but nothing asks the user
+     * to set that separately. It defaults to the current mode for callers that have already
+     * established one.
+     */
+    fun run(simulate: Boolean = dryRun) {
         if (busy) {
             warn("Wait for the current printer operation to finish before starting a reset.")
             return
         }
         val model = selectedModel ?: return
+        changeDryRunMode(simulate)
         val device = selectedDevice
-        val isDry = dryRun
+        val isDry = simulate
 
         // Enforced here as well as in canRun: the button being disabled is a hint, not a gate.
         if (!isDry) {

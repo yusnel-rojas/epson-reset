@@ -1,12 +1,15 @@
 # Backup and recovery
 
 A reset is one-way — the printer offers no undo — so before the first write of any live run the app
-saves the bytes that run is about to overwrite. After a live read, **Save snapshot** writes the same
-file whenever you ask for one, off the counters currently on screen — so a recovery point can exist
-before you decide to reset anything, rather than only as a side effect of deciding to. In
-Maintenance the same button becomes **Read & save snapshot** when no complete live reading exists;
-it takes the missing real-printer read itself. **Read & save** on the Snapshots tab always performs
-a fresh read first. All three paths land in:
+saves the bytes that run is about to overwrite. That is not optional and not something to remember:
+a live reset that cannot save its backup **stops before writing anything**, and a restore takes one
+first for the same reason.
+
+Which is why Maintenance offers no snapshot button. It would produce the same file the reset is
+about to produce, in the same place, while implying the reset was unprotected until you pressed it.
+Taking a recovery point *without* resetting is a real thing to want — a dated sample proves later
+what the counters read today — and that is what **Read & save** on the Snapshots tab is for; it
+always performs a fresh read first. Both paths land in:
 
 ```
 ~/Library/Application Support/EpsonReset/backups/     macOS
@@ -27,15 +30,15 @@ is never blocked by this rule.
 
 A snapshot can only be taken from values that came off a printer. A dry read's values are invented
 by `FakeTransport`, and the resulting file would be indistinguishable from a real capture — one a
-restore would happily write into an EEPROM. So **Save snapshot** is refused for a dry reading;
-**Read & save** is explicitly a fresh hardware read and never uses the simulated EEPROM.
+restore would happily write into an EEPROM. So saving is refused for a dry reading; **Read & save**
+is explicitly a fresh hardware read and never uses the simulated EEPROM.
 
 ## The Snapshots tab
 
-It can create a snapshot directly from the printer-and-model target shown in the top bar, without a
-trip through Maintenance. The action reads only the reset/recovery addresses and writes nothing to the
-printer. The model is automatic when the printer identifies itself exactly; an ambiguous family is
-settled from its constrained shortlist in the same target menu.
+It creates a snapshot directly from the printer-and-model target shown in the top bar. The action
+reads only the reset/recovery addresses and writes nothing to the printer. The model is automatic
+when the printer identifies itself exactly; an ambiguous family is settled from its constrained
+shortlist in the same target menu.
 
 The tab lists everything saved, newest first. Selecting one reads it back: the bytes are in the
 file, so the counters, the percentages and the address table are rendered with no printer involved
@@ -72,7 +75,15 @@ change.
 ## Restoring
 
 Restoring is offered there for any snapshot, and in-window right after a live run stops with writes
-landed. The same list is on the CLI — `./gradlew restore` prints what's saved, a filename previews
+landed. **Save current, then restore** is the primary action, because it is the one that leaves a
+way back; **Restore without saving first** and **Simulate restore** sit behind it, each named for
+what it does.
+
+That choice belongs to this tab. It used to be inherited from a Dry run switch on Maintenance —
+not visible from here, and silently deciding not only whether the write happened but whether the
+safety net was taken at all. A mode that changes whether a write can be undone must not live on a
+screen you are not looking at. Reset now works the same way: **Save current, then reset** in red,
+with **Simulate reset** behind the chevron, and no switch left set for the next person to find. The same list is on the CLI — `./gradlew restore` prints what's saved, a filename previews
 it, `--live` writes it:
 
 ```bash

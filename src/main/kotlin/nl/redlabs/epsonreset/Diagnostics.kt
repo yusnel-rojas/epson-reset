@@ -44,7 +44,7 @@ object Diagnostics {
         section("Counter layouts")
         val specs = runCatching { CounterSpecs.load() }.getOrNull()
         if (specs == null) {
-            println("FAILED to load counters.json")
+            println("FAILED to load ${CounterSpecs.PRINTER_DATA}")
         } else {
             println("models     ${specs.modelCount}")
             println(
