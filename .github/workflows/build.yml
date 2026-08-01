@@ -17,7 +17,8 @@ on:
         default: all
         options:
           - all
-          - windows-x64
+          - windows-x64             # installer (.exe) + portable
+          - windows-x64-portable    # portable app-image only, no installer (fastest to test)
           - macos-arm64
           - linux-x64
           - linux-arm64
