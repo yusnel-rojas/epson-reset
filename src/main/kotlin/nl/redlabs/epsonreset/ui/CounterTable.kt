@@ -49,7 +49,8 @@ fun CounterOverview(
     counters: List<CounterReader.DecodedCounter>,
     report: CounterReader.Report,
     before: CounterReader.Report? = null,
-    byteStates: Map<Int, ResetViewModel.CounterByteState> = emptyMap(),
+    /** The write this table is drawing, if any: where each byte is headed and how far it has got. */
+    plan: WritePlan = WritePlan.None,
     simulated: Boolean = false,
     modifier: Modifier = Modifier,
     /** Whether to echo [report].error inline. Off where the status bar already reports it, so a live
@@ -61,6 +62,7 @@ fun CounterOverview(
      */
     onCalibrate: (() -> Unit)? = null,
 ) {
+    val byteStates = plan.states
     val readings = report.readings.associateBy { it.address }
     val previous = before?.readings?.associate { it.address to it.value }.orEmpty()
     val showBefore = previous.isNotEmpty()
@@ -175,7 +177,7 @@ fun CounterOverview(
         }
 
         Spacer(Modifier.height(10.dp))
-        ByteLegend(showBefore)
+        ByteLegend(showBefore, plan.targetLabel)
         Spacer(Modifier.height(6.dp))
         Text(
             "Multi-byte counters are little-endian. A percentage appears only where the layout " +
@@ -295,7 +297,15 @@ private fun ByteChip(cell: ByteCell, showBefore: Boolean) {
     val current = shownCurrent?.let { byteHex(it) } ?: "?"
     val reset = byteHex(cell.reset)
     val transition = if (showBefore) ByteTransition(byteHex(cell.previous), current) else ByteTransition(current, reset)
-    val changed = showBefore && cell.previous != null && shownCurrent != null && cell.previous != shownCurrent
+
+    // The two bytes on the chip differ. In a before/after pair that means something moved; in a
+    // plan it means this is an address the write would actually change. Either way it is the one
+    // thing worth picking out, and an address already holding the target is worth not picking out.
+    val changed = if (showBefore) {
+        cell.previous != null && shownCurrent != null && cell.previous != shownCurrent
+    } else {
+        cell.reset != null && shownCurrent != null && shownCurrent != cell.reset
+    }
     val stateTone = when (cell.state) {
         ResetViewModel.CounterByteState.READING,
         ResetViewModel.CounterByteState.WRITING,
@@ -318,7 +328,13 @@ private fun ByteChip(cell: ByteCell, showBefore: Boolean) {
         Modifier
             .width(56.dp)
             .clip(RoundedCornerShape(6.dp))
-            .background(if (changed) StatusColors.changed.copy(alpha = 0.14f) else Color.Transparent)
+            .background(
+                if (showBefore && changed) {
+                    StatusColors.changed.copy(alpha = 0.14f)
+                } else {
+                    Color.Transparent
+                },
+            )
             .border(1.dp, boxTone.copy(alpha = 0.75f), RoundedCornerShape(6.dp)),
     ) {
         Row(
@@ -377,7 +393,7 @@ private fun ByteChip(cell: ByteCell, showBefore: Boolean) {
                     fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.SemiBold,
                     color = when {
-                        changed -> StatusColors.changed
+                        showBefore && changed -> StatusColors.changed
                         showBefore -> StatusColors.muted
                         else -> currentTone
                     },
@@ -396,9 +412,12 @@ private fun ByteChip(cell: ByteCell, showBefore: Boolean) {
                     fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.SemiBold,
                     color = when {
-                        changed -> StatusColors.changed
+                        showBefore && changed -> StatusColors.changed
                         showBefore -> currentTone
-                        else -> StatusColors.bad
+                        // Red says "this byte is not what is there now", which is the whole point
+                        // of showing it. An address already at its target says nothing loudly.
+                        changed -> StatusColors.bad
+                        else -> StatusColors.muted
                     },
                     maxLines = 1,
                 )
@@ -410,7 +429,7 @@ private fun ByteChip(cell: ByteCell, showBefore: Boolean) {
 private fun byteHex(value: Int?): String = value?.let { "%02X".format(it) } ?: "--"
 
 @Composable
-private fun ByteLegend(showBefore: Boolean) {
+private fun ByteLegend(showBefore: Boolean, targetLabel: String) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         LegendItem("M", "Main", MaterialTheme.colorScheme.primary)
         Spacer(Modifier.width(12.dp))
@@ -450,7 +469,7 @@ private fun ByteLegend(showBefore: Boolean) {
                     color = StatusColors.bad,
                 )
                 Text(
-                    "  reset target",
+                    "  $targetLabel, red where it differs from the byte on the left",
                     style = MaterialTheme.typography.labelSmall,
                     fontFamily = FontFamily.Monospace,
                     color = StatusColors.muted,

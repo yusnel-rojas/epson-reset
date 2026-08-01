@@ -91,7 +91,7 @@ data class EepromBackup(
     /** Writes to `<appdata>/backups/<model>-<timestamp>.json`. */
     fun save(dir: File = AppPaths.backups): File {
         dir.mkdirs()
-        val target = File(dir, fileName())
+        val target = freeName(dir)
         val tmp = File(dir, "${target.name}.tmp")
 
         tmp.writeText(toJson())
@@ -107,6 +107,25 @@ data class EepromBackup(
         }.getOrThrow()
 
         return target
+    }
+
+    /**
+     * The stamp names a second, and two snapshots can land inside one — a restore saves the bytes
+     * it is about to overwrite moments after whatever prompted it. Overwriting there would delete a
+     * recovery point to make room for another, so a taken name gets a suffix instead.
+     */
+    private fun freeName(dir: File): File {
+        val name = fileName()
+        val first = File(dir, name)
+        if (!first.exists()) return first
+
+        val stem = name.removeSuffix(".json")
+        var n = 2
+        while (true) {
+            val candidate = File(dir, "$stem-$n.json")
+            if (!candidate.exists()) return candidate
+            n++
+        }
     }
 
     private fun fileName(): String {

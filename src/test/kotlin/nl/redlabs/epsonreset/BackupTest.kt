@@ -232,6 +232,24 @@ class BackupFileTest {
         assertEquals(backup, assertNotNull(EepromBackup.load(file)))
     }
 
+    /**
+     * The stamp names a second, and a restore saves the bytes it is about to overwrite moments
+     * after whatever prompted it. Neither file may be lost to the other.
+     */
+    @Test
+    fun `a second snapshot in the same second gets its own file`() {
+        val dir = createTempDirectory("backup-test").toFile()
+        val other = backup.copy(entries = listOf(EepromBackup.Entry(58, 0x40, 0)))
+
+        val first = backup.save(dir)
+        val second = other.save(dir)
+
+        assertEquals("ET-2820-20260727T004500Z.json", first.name)
+        assertEquals("ET-2820-20260727T004500Z-2.json", second.name)
+        assertEquals(backup, assertNotNull(EepromBackup.load(first)))
+        assertEquals(other, assertNotNull(EepromBackup.load(second)))
+    }
+
     /** The temp file must not survive as something `list` would offer. */
     @Test
     fun `leaves no partial file behind`() {

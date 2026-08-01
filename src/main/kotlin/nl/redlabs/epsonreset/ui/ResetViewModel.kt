@@ -358,17 +358,15 @@ class ResetViewModel(
             val base = readReport?.takeIf { readWasSimulated == dryRun }
                 ?: CounterReader.layout(model, specsFor(model), defaultValue = if (dryRun) 0x7F else null)
             if (counterByteStates.isEmpty()) return base
-            return base.copy(
-                readings = base.readings.map { reading ->
-                    when (counterByteStates[reading.address]) {
-                        CounterByteState.ACKNOWLEDGED,
-                        CounterByteState.VERIFIED,
-                        -> reading.copy(value = reading.expectedAfterReset)
-                        else -> reading
-                    }
-                },
-            )
+            return writePlan.applyTo(base)
         }
+
+    /**
+     * The reset as the counter table draws it. It needs no targets of its own: a reset writes each
+     * address its own reset value, which every reading already carries.
+     */
+    val writePlan: WritePlan
+        get() = WritePlan(WritePlan.RESET_TARGET, states = counterByteStates)
 
     val displayDecodedCounters: List<CounterReader.DecodedCounter>
         get() {

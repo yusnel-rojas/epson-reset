@@ -28,8 +28,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -47,7 +45,7 @@ private val COLLAPSED_HEIGHT = 34.dp
 fun LogPanel(vm: ResetViewModel, modifier: Modifier = Modifier) {
     var showTrace by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
-    val clipboard = LocalClipboardManager.current
+    val copy = rememberClipboardCopy()
     val collapsed = vm.logCollapsed
     val operationLabel = vm.globalProgressLabel
     val operationProgress = vm.globalProgressValue
@@ -126,7 +124,7 @@ fun LogPanel(vm: ResetViewModel, modifier: Modifier = Modifier) {
                     TextButton(onClick = { showTrace = !showTrace }) {
                         Text(if (showTrace) "Hide packet trace" else "Show packet trace")
                     }
-                    TextButton(onClick = { clipboard.setText(AnnotatedString(vm.exportLog())) }) {
+                    TextButton(onClick = { copy(vm.exportLog()) }) {
                         Text("Copy")
                     }
                     TextButton(onClick = { vm.clearLog() }) { Text("Clear") }

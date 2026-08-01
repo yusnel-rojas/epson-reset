@@ -24,8 +24,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -34,7 +32,7 @@ import nl.redlabs.epsonreset.probe.SweepAnalysis
 /** Read-only exploration of a printer the database doesn't cover. */
 @Composable
 fun InspectPanel(vm: ResetViewModel, modifier: Modifier = Modifier) {
-    val clipboard = LocalClipboardManager.current
+    val copy = rememberClipboardCopy()
     val inspect = vm.inspect
 
     Column(modifier.verticalScroll(rememberScrollState()).padding(20.dp)) {
@@ -192,13 +190,13 @@ fun InspectPanel(vm: ResetViewModel, modifier: Modifier = Modifier) {
             Spacer(Modifier.height(10.dp))
             Row {
                 Button(
-                    onClick = { clipboard.setText(AnnotatedString(inspect.overlay())) },
+                    onClick = { copy(inspect.overlay()) },
                     enabled = inspect.canExport && inspect.candidates.isNotEmpty(),
                 ) { Text("Copy overlay JSON") }
 
                 Spacer(Modifier.width(10.dp))
                 OutlinedButton(
-                    onClick = { clipboard.setText(AnnotatedString(inspect.report())) },
+                    onClick = { copy(inspect.report()) },
                     enabled = inspect.canExport,
                 ) { Text("Copy report") }
             }

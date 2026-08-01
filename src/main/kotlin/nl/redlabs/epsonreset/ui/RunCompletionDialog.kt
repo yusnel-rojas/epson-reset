@@ -9,14 +9,21 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -26,6 +33,7 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogWindow
 import androidx.compose.ui.window.rememberDialogState
+import java.io.File
 
 /**
  * What a reset or a restore did, said once and dismissed. Both operations end the same way — bytes
@@ -51,6 +59,16 @@ internal fun RunCompletionDialog(vm: ResetViewModel) {
     // Only a live run that actually landed writes needs the printer restarted; a dry run touched
     // nothing, and a failure that wrote nothing left the printer as it was.
     val needsPowerCycle = !completion.wasDryRun && result.writesAcknowledged > 0
+
+    // A run that stopped with writes already in the printer is the one case with something to
+    // decide. Everything else is read and closed.
+    val stranded = !result.success && !completion.wasDryRun && result.writesAcknowledged > 0
+
+    // The backup a reset takes before its first write is the exact recovery point for that reset.
+    // A failed restore has no such thing — it was already the recovery — so it offers the file list
+    // instead of pointing at a backup that belongs to some earlier run.
+    val recovery = vm.lastBackup?.takeIf { stranded && !restore }
+    var confirming by remember(recovery) { mutableStateOf(false) }
 
     DialogWindow(
         onCloseRequest = vm::dismissCompletion,
@@ -111,15 +129,24 @@ internal fun RunCompletionDialog(vm: ResetViewModel) {
                         }
                     }
 
-                    if (!result.success && !completion.wasDryRun && result.writesAcknowledged > 0) {
+                    if (stranded) {
                         Spacer(Modifier.height(14.dp))
                         Text(
                             "Some writes landed before this stopped, so the printer is in a partly " +
-                                "changed state. The pre-write bytes were saved beforehand — the " +
-                                "Snapshots tab can put them back.",
+                                "changed state — neither where it was nor where this run was taking " +
+                                "it. Putting a snapshot back is how that is settled.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
+                        recovery?.let {
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                "The bytes this run was about to overwrite were saved to " +
+                                    "${it.name} beforehand.",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = StatusColors.muted,
+                            )
+                        }
                     }
 
                     if (completion.wasDryRun) {
@@ -136,9 +163,71 @@ internal fun RunCompletionDialog(vm: ResetViewModel) {
                 Spacer(Modifier.height(12.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Spacer(Modifier.weight(1f))
-                    Button(onClick = vm::dismissCompletion) { Text("Done") }
+
+                    if (stranded) {
+                        // Picking a different one is a job for the panel built to show what each
+                        // file holds, so this hands over rather than growing a file list.
+                        OutlinedButton(
+                            onClick = {
+                                vm.tab = ResetViewModel.Tab.SNAPSHOTS
+                                vm.dismissCompletion()
+                            },
+                        ) { Text("Choose a snapshot…") }
+                        Spacer(Modifier.width(8.dp))
+                    }
+
+                    recovery?.let {
+                        OutlinedButton(onClick = { confirming = true }) { Text("Restore this backup…") }
+                        Spacer(Modifier.width(8.dp))
+                    }
+
+                    Button(onClick = vm::dismissCompletion) { Text("OK") }
                 }
             }
         }
     }
+
+    // The house gate for every EEPROM write, this one included: the outcome dialog says what
+    // happened, and writing something back is a new decision that goes through the same door.
+    if (confirming && recovery != null) {
+        RecoveryConfirmation(vm, recovery, onDismiss = { confirming = false })
+    }
+}
+
+/** Writing the pre-run backup back, from the dialog that just reported the run that needed it. */
+@Composable
+private fun RecoveryConfirmation(vm: ResetViewModel, file: File, onDismiss: () -> Unit) {
+    val backup = remember(file) { vm.snapshot.loadBackup(file) }
+    if (backup == null) {
+        // Nothing to confirm against, so say why here rather than failing at the write.
+        LaunchedEffect(file) {
+            vm.bad("Could not read ${file.name} — it is missing or not a valid backup.")
+            onDismiss()
+        }
+        return
+    }
+
+    val printer = vm.selectedDevice?.device?.displayName ?: "the printer"
+    EepromWriteConfirmation(
+        title = "Restore EEPROM — ${backup.model}",
+        headline = "Write ${backup.entries.size} saved EEPROM bytes into $printer.",
+        metadata = "${file.name} · taken ${backup.takenAt}",
+        warning = "These are the bytes the run that just failed was about to overwrite.",
+        paragraphs = listOf(
+            "This puts the counters back where they were before that run started, waste levels " +
+                "included. It is the recovery point for exactly this situation.",
+            "What the printer holds now is read and saved as its own snapshot first, over the same " +
+                "connection. If those bytes cannot all be read, nothing is written.",
+            "Whether to do this is your decision, and what follows from it is yours to carry: this " +
+                "software comes with no warranty, and its authors are not accountable for what " +
+                "happens to your printer.",
+        ),
+        onDismiss = onDismiss,
+        onConfirm = {
+            onDismiss()
+            vm.dismissCompletion()
+            vm.snapshot.restore(backup, file)
+        },
+        confirmLabel = "Yes, restore EEPROM",
+    )
 }

@@ -75,7 +75,7 @@ fun ModelPanel(vm: ResetViewModel, modifier: Modifier = Modifier) {
                 counters = vm.displayDecodedCounters,
                 report = report,
                 before = vm.beforeReport,
-                byteStates = vm.counterByteStates,
+                plan = vm.writePlan,
                 simulated = vm.dryRun,
                 // The status bar already reports a read failure; no need to say it twice.
                 showError = false,
@@ -373,7 +373,8 @@ private fun RestoreOffer(vm: ResetViewModel) {
         Text(
             if (confirming) {
                 "This writes the original bytes back, returning the counters to where they were " +
-                    "before the run — including the waste levels. Continue?"
+                    "before the run — including the waste levels. What the printer holds now is " +
+                    "saved as its own snapshot first. Continue?"
             } else {
                 "The bytes overwritten by this run were saved to ${file.name} beforehand."
             },
@@ -386,7 +387,7 @@ private fun RestoreOffer(vm: ResetViewModel) {
             if (confirming) {
                 Button(
                     onClick = {
-                        vm.snapshot.loadBackup(file)?.let { vm.snapshot.restore(it) }
+                        vm.snapshot.loadBackup(file)?.let { vm.snapshot.restore(it, file) }
                             ?: vm.bad("Could not read ${file.name} — it is missing or not a valid backup.")
                         confirming = false
                     },

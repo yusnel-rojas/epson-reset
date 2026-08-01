@@ -58,7 +58,8 @@ private val testModel = PrinterModel(
 
 /** A printer that can be told to misbehave in the specific ways the gates exist for. */
 private class ScriptedPrinter(
-    private val silent: Set<Int> = emptySet(),
+    /** Addresses that answer nothing. A test can close one mid-session, as a printer can. */
+    var silent: Set<Int> = emptySet(),
     /** Answers every factory read with the refusal a locked-down firmware sends. */
     private val refuseReads: Boolean = false,
     private val ackWrites: Boolean = true,
@@ -74,6 +75,12 @@ private class ScriptedPrinter(
 
     private val memory = memory.toMutableMap()
     val writes = mutableListOf<Pair<Int, Int>>()
+
+    /** Moves the printer on between operations, the way printing between two reads would. */
+    fun setMemory(values: Map<Int, Int>) {
+        memory.clear()
+        memory.putAll(values)
+    }
 
     private var last: ByteArray = ByteArray(0)
 
@@ -1301,6 +1308,191 @@ class ViewModelSnapshotTest {
         assertEquals("UNIT-A", saved.printerSerial)
         assertTrue(hardware.writes.isEmpty(), "a snapshot writes a file, not EEPROM")
         assertEquals(file, assertNotNull(vm.snapshot.selectedSnapshot).file)
+    }
+
+    /** The safety net a reset has always had, now on the other EEPROM write in the application. */
+    @Test
+    fun `a restore saves what it is about to overwrite first`() = runTest {
+        val hardware = ScriptedPrinter(serial = "UNIT-A", memory = mapOf(58 to 0x19, 59 to 0x0F))
+        val dir = createTempDirectory("vm-test").toFile()
+        val vm = viewModel(transport = hardware, backupDir = dir)
+
+        vm.select(printer(serial = "UNIT-A"))
+        vm.dryRun = false
+        vm.snapshot.readAndSaveSnapshot()
+        advanceUntilIdle()
+        val original = assertNotNull(vm.snapshot.selectedSnapshot).file
+
+        // The printer has moved on since that snapshot was taken.
+        hardware.setMemory(mapOf(58 to 0x40, 59 to 0x41))
+
+        vm.snapshot.restoreSelectedSnapshot()
+        advanceUntilIdle()
+
+        assertEquals(listOf(58 to 0x19, 59 to 0x0F), hardware.writes)
+
+        val net = assertNotNull(
+            dir.listFiles()?.filter { it != original }?.singleOrNull(),
+            "the bytes about to be overwritten are saved as their own snapshot",
+        )
+        assertEquals(
+            listOf(0x40, 0x41),
+            assertNotNull(EepromBackup.load(net)).entries.map { it.value },
+            "it holds what the printer had at that moment, not what the restore put there",
+        )
+        assertTrue(vm.snapshot.snapshots.any { it.file == net }, "and the list shows it")
+    }
+
+    /** A net with holes in it is worse than none — it reads as cover for a write it cannot undo. */
+    @Test
+    fun `a restore that cannot save first writes nothing`() = runTest {
+        val dir = createTempDirectory("vm-test").toFile()
+        val hardware = ScriptedPrinter(serial = "UNIT-A", memory = mapOf(58 to 0x19, 59 to 0x0F))
+        val vm = viewModel(transport = hardware, backupDir = dir)
+
+        vm.select(printer(serial = "UNIT-A"))
+        vm.dryRun = false
+        vm.snapshot.readAndSaveSnapshot()
+        advanceUntilIdle()
+
+        // One address stops answering between the snapshot and the restore.
+        hardware.silent = setOf(59)
+
+        vm.snapshot.restoreSelectedSnapshot()
+        advanceUntilIdle()
+
+        assertTrue(hardware.writes.isEmpty(), "nothing may be written once the net has a hole in it")
+        assertTrue(vm.said("could not be saved first"), vm.lastLine)
+    }
+
+    /** Skipping the net is available, but it has to be asked for. */
+    @Test
+    fun `a restore can be told not to save first`() = runTest {
+        val dir = createTempDirectory("vm-test").toFile()
+        val hardware = ScriptedPrinter(serial = "UNIT-A", memory = mapOf(58 to 0x19, 59 to 0x0F))
+        val vm = viewModel(transport = hardware, backupDir = dir)
+
+        vm.select(printer(serial = "UNIT-A"))
+        vm.dryRun = false
+        vm.snapshot.readAndSaveSnapshot()
+        advanceUntilIdle()
+
+        vm.snapshot.restoreSelectedSnapshot(saveFirst = false)
+        advanceUntilIdle()
+
+        assertEquals(listOf(58 to 0x19, 59 to 0x0F), hardware.writes)
+        assertEquals(1, dir.listFiles().orEmpty().size, "no second file — only the snapshot restored")
+    }
+
+    /**
+     * A restore drives the same per-address feedback a reset does, against the snapshot's bytes
+     * rather than the model's reset values. This is what lets the counter table draw both.
+     */
+    @Test
+    fun `a restore reports every address it writes, targeted at the saved bytes`() = runTest {
+        val hardware = ScriptedPrinter(serial = "UNIT-A", memory = mapOf(58 to 0x19, 59 to 0x0F))
+        val dir = createTempDirectory("vm-test").toFile()
+        val vm = viewModel(transport = hardware, backupDir = dir)
+
+        vm.select(printer(serial = "UNIT-A"))
+        vm.dryRun = false
+
+        // A snapshot to put back, and a live reading for the write to be measured against.
+        vm.snapshot.readAndSaveSnapshot()
+        advanceUntilIdle()
+        val saved = assertNotNull(vm.snapshot.selectedSnapshot)
+
+        vm.snapshot.restoreSelectedSnapshot()
+        advanceUntilIdle()
+
+        assertEquals(
+            mapOf(
+                58 to ResetViewModel.CounterByteState.ACKNOWLEDGED,
+                59 to ResetViewModel.CounterByteState.ACKNOWLEDGED,
+            ),
+            vm.snapshot.restoreStates,
+            "an acknowledged restore is not verified — nothing is read back",
+        )
+        assertEquals(saved.file, vm.snapshot.restoreTarget)
+
+        val live = assertNotNull(vm.snapshot.liveRestore)
+        assertTrue(live.running)
+        assertTrue(live.haveCurrent)
+        assertEquals(
+            mapOf(58 to 0x19, 59 to 0x0F),
+            live.plan.targets,
+            "the targets are the snapshot's bytes, not the model's reset values",
+        )
+        assertEquals(
+            listOf(0x19, 0x0F),
+            live.report.readings.map { it.expectedAfterReset },
+        )
+    }
+
+    /** The direction a comparison cannot show: the printer now on the left, the saved byte as target. */
+    @Test
+    fun `what a restore would change needs the printer's side first`() = runTest {
+        val hardware = ScriptedPrinter(serial = "UNIT-A", memory = mapOf(58 to 0x19, 59 to 0x0F))
+        val dir = createTempDirectory("vm-test").toFile()
+        val vm = viewModel(transport = hardware, backupDir = dir)
+
+        vm.select(printer(serial = "UNIT-A"))
+        vm.dryRun = false
+        vm.snapshot.readAndSaveSnapshot()
+        advanceUntilIdle()
+
+        // Selecting re-reads the file and drops any earlier view, live reading included.
+        assertTrue(vm.snapshot.canPreviewRestore)
+        vm.snapshot.previewRestore()
+        assertTrue(vm.snapshot.showRestorePlan)
+
+        val preview = assertNotNull(vm.snapshot.liveRestore)
+        assertFalse(preview.running, "nothing has been written — this is only what would happen")
+        assertEquals(listOf(0x19, 0x0F), preview.report.readings.map { it.value })
+        assertEquals(listOf(0x19, 0x0F), preview.report.readings.map { it.expectedAfterReset })
+        assertEquals(0, preview.differing, "the printer still holds exactly what was saved")
+        assertEquals(2, preview.comparable)
+
+        // Once the printer has moved on, the same snapshot has something to put back.
+        hardware.setMemory(mapOf(58 to 0x40, 59 to 0x0F))
+        vm.readCounters()
+        advanceUntilIdle()
+
+        val moved = assertNotNull(vm.snapshot.liveRestore)
+        assertEquals(1, moved.differing)
+        assertEquals(2, moved.comparable)
+
+        vm.snapshot.clearRestorePlan()
+        assertNull(vm.snapshot.liveRestore)
+    }
+
+    /** Newest first, and on the stamp inside the file — a synced or copied file has the wrong mtime. */
+    @Test
+    fun `the list is ordered by when each snapshot was taken`() = runTest {
+        val dir = createTempDirectory("vm-test").toFile()
+        val stamps = listOf("20260710T090000Z", "20260801T161242Z", "20260725T120000Z")
+        stamps.forEachIndexed { index, stamp ->
+            val file = File(dir, "TEST-1-$stamp.json")
+            file.writeText(
+                EepromBackup(
+                    model = "TEST-1",
+                    createdAt = stamp,
+                    printerSerial = null,
+                    entries = listOf(EepromBackup.Entry(58, 0x19, 0)),
+                ).toJson(),
+            )
+            // Deliberately contradicts the stamps: the oldest snapshot is the newest file.
+            file.setLastModified(1_000_000L + index * 1_000L)
+        }
+
+        val vm = viewModel(backupDir = dir)
+        vm.snapshot.refreshSnapshots()
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf("20260801T161242Z", "20260725T120000Z", "20260710T090000Z"),
+            vm.snapshot.snapshots.map { assertNotNull(it.backup).createdAt },
+        )
     }
 
     /** The load-bearing one for this feature. */

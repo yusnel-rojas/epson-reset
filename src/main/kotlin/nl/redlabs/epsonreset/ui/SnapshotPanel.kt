@@ -21,7 +21,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -42,7 +41,6 @@ import androidx.compose.ui.unit.dp
 import nl.redlabs.epsonreset.backup.EepromBackup
 import nl.redlabs.epsonreset.backup.SnapshotComparison
 import nl.redlabs.epsonreset.protocol.CounterReader
-import java.io.File
 
 /** Every snapshot on disk, and what each one holds. */
 @Composable
@@ -261,31 +259,36 @@ private fun SnapshotDetail(vm: ResetViewModel, modifier: Modifier = Modifier) {
     Column(modifier.verticalScroll(rememberScrollState()).padding(20.dp)) {
         SnapshotHeader(vm, snapshot.file.name, backup)
 
-        // Only while it runs. What it did is the completion dialog's to say, once.
-        RestoreProgress(vm, snapshot.file)
+        // Nothing about the running restore is rendered here: the status bar carries progress for
+        // every operation, and the completion dialog says what it did, once.
 
-        // The comparison replaces the single-sample view rather than sitting under it: it shows
-        // both sides already, and two tables of the same bytes differing only in which sample they
-        // came from is the layout most likely to be misread.
+        // Three views of the same snapshot, one at a time. Each shows both sides of what it is
+        // about, so stacking them would put the same bytes on screen twice in layouts that differ
+        // only in which sample they came from — the arrangement most likely to be misread.
+        val restore = vm.snapshot.liveRestore
         val comparison = vm.snapshot.comparison
         val counters = vm.snapshot.snapshotCounters
 
         Spacer(Modifier.height(16.dp))
-        if (comparison != null) {
-            ComparisonResult(comparison)
-        } else {
-            vm.snapshot.snapshotReport?.let { report ->
-                CounterOverview(counters = counters, report = report)
-            }
-            if (counters.isEmpty()) {
-                Spacer(Modifier.height(10.dp))
-                Text(
-                    "No counter layout is known for ${backup.model}, so the saved bytes are shown " +
-                        "as bytes. The table above is complete either way — the layout only decides " +
-                        "which of them are one number.",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = StatusColors.muted,
-                )
+        when {
+            restore != null -> RestoreWrite(restore, vm.dryRun)
+
+            comparison != null -> ComparisonResult(comparison)
+
+            else -> {
+                vm.snapshot.snapshotReport?.let { report ->
+                    CounterOverview(counters = counters, report = report)
+                }
+                if (counters.isEmpty()) {
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        "No counter layout is known for ${backup.model}, so the saved bytes are " +
+                            "shown as bytes. The table above is complete either way — the layout " +
+                            "only decides which of them are one number.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = StatusColors.muted,
+                    )
+                }
             }
         }
 
@@ -295,51 +298,81 @@ private fun SnapshotDetail(vm: ResetViewModel, modifier: Modifier = Modifier) {
         Text(
             "Restoring puts these bytes back at the addresses they came from — waste levels " +
                 "included. It is recovery from a half-finished run, not an undo for a successful " +
-                "one.\n\nComparing two snapshots taken either side of a known amount of printing " +
-                "shows which addresses actually move, and by how much. Comparing against the " +
-                "printer as it is now says whether a reset held.",
+                "one. What the printer holds now is read and saved as its own snapshot first, so " +
+                "the restore is itself undoable.\n\nComparing two snapshots taken either side of a " +
+                "known amount of printing shows which addresses actually move, and by how much. " +
+                "Comparing against the printer as it is now says whether a reset held.",
             style = MaterialTheme.typography.labelSmall,
             color = StatusColors.muted,
         )
     }
 }
 
-/** A restore of [file] while it is running, so the panel it was started from shows it working. */
+/**
+ * The snapshot as a write: the printer's bytes on the left, the saved bytes as the target, and the
+ * per-address progress of a running restore. The same table a reset draws, handed the snapshot's
+ * targets instead of the model's reset values.
+ */
 @Composable
-private fun RestoreProgress(vm: ResetViewModel, file: File) {
-    if (vm.runKind != ResetViewModel.RunKind.RESTORE || vm.snapshot.lastRestored != file) return
-    if (vm.runState !is ResetViewModel.RunState.Running) return
-
-    Spacer(Modifier.height(16.dp))
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-            .padding(12.dp),
-    ) {
-        Text("Restoring…", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
-        Spacer(Modifier.height(6.dp))
+private fun RestoreWrite(restore: SnapshotState.LiveRestore, dryRun: Boolean) {
+    Column {
         Text(
-            vm.progressLabel.ifBlank { "Working…" },
-            style = MaterialTheme.typography.labelSmall,
-            color = StatusColors.muted,
+            when {
+                restore.running && dryRun -> "Simulating the write — nothing reaches the printer"
+                restore.running -> "Writing the saved bytes back"
+                else -> "What restoring would change"
+            },
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold,
+            color = if (restore.running) StatusColors.warn else MaterialTheme.colorScheme.onSurface,
         )
-        Spacer(Modifier.height(8.dp))
-        LinearProgressIndicator(progress = { vm.progress }, modifier = Modifier.fillMaxWidth())
+        Spacer(Modifier.height(4.dp))
+        Text(
+            when {
+                !restore.haveCurrent ->
+                    "The printer has not been read, so what it holds now is unknown — only the " +
+                        "saved byte each address would be given is shown. Read the printer to " +
+                        "fill the left side."
+
+                restore.differing == 0 ->
+                    "Nothing would change: all ${restore.comparable} addresses already hold the " +
+                        "byte this snapshot saved."
+
+                else ->
+                    "${restore.differing} of ${restore.comparable} addresses hold something other " +
+                        "than the saved byte, and are the ones this would change — shown in red."
+            },
+            style = MaterialTheme.typography.labelSmall,
+            color = when {
+                !restore.haveCurrent -> StatusColors.warn
+                restore.differing == 0 -> StatusColors.good
+                else -> StatusColors.muted
+            },
+        )
+
+        Spacer(Modifier.height(10.dp))
+        CounterOverview(
+            counters = restore.counters,
+            report = restore.report,
+            plan = restore.plan,
+            showError = false,
+        )
     }
 }
 
 /** The two things that can be done to the selected snapshot, on one row. */
 @Composable
 private fun SnapshotActions(vm: ResetViewModel, backup: EepromBackup) {
-    var confirming by remember(backup) { mutableStateOf(false) }
+    // Null while nothing is being confirmed; otherwise whether that restore saves the printer's
+    // current bytes first.
+    var confirming by remember(backup) { mutableStateOf<Boolean?>(null) }
     var menuOpen by remember { mutableStateOf(false) }
 
     val running = vm.runState is ResetViewModel.RunState.Running
     val restoreBlocked = vm.snapshot.snapshotRestoreBlockedReason
     val candidates = vm.snapshot.compareCandidates
     val comparing = vm.snapshot.compareTarget != SnapshotState.CompareTarget.None
+    val previewing = vm.snapshot.showRestorePlan
     val compareBlocked = vm.snapshot.compareReadBlockedReason
 
     Column {
@@ -352,10 +385,20 @@ private fun SnapshotActions(vm: ResetViewModel, backup: EepromBackup) {
                     enabled = restoreBlocked == null,
                 ) { Text("Simulate restore") }
 
-                else -> Button(
-                    onClick = { confirming = true },
-                    enabled = restoreBlocked == null,
-                ) { Text("Restore to printer") }
+                // Saving first is the primary action because it is the one that leaves a way back.
+                // Skipping it is available, named for what it skips, and one click further away.
+                else -> SplitButton(
+                    label = "Save current, then restore",
+                    primaryEnabled = restoreBlocked == null,
+                    onPrimary = { confirming = true },
+                    actions = listOf(
+                        SplitAction(
+                            "Restore without saving first",
+                            enabled = restoreBlocked == null,
+                        ) { confirming = false },
+                    ),
+                    modifier = Modifier.width(280.dp),
+                )
             }
 
             Spacer(Modifier.width(8.dp))
@@ -363,8 +406,17 @@ private fun SnapshotActions(vm: ResetViewModel, backup: EepromBackup) {
             Box {
                 OutlinedButton(
                     onClick = { menuOpen = true },
-                    enabled = candidates.isNotEmpty() || vm.snapshot.canReadForComparison || comparing,
-                ) { Text(if (comparing) "Comparing ▾" else "Compare ▾") }
+                    enabled = candidates.isNotEmpty() || vm.snapshot.canReadForComparison ||
+                        comparing || previewing || vm.snapshot.canPreviewRestore,
+                ) {
+                    Text(
+                        when {
+                            previewing -> "Showing the write ▾"
+                            comparing -> "Comparing ▾"
+                            else -> "Compare ▾"
+                        },
+                    )
+                }
 
                 DropdownMenu(menuOpen, onDismissRequest = { menuOpen = false }) {
                     DropdownMenuItem(
@@ -404,12 +456,34 @@ private fun SnapshotActions(vm: ResetViewModel, backup: EepromBackup) {
                         )
                     }
 
-                    if (comparing) {
+                    // Not a comparison: a comparison is two samples in time order, and the current
+                    // reading is always the later one, so it can never sit on the left. This is the
+                    // other direction — the write a restore would make, current byte to saved byte.
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                "What restoring would change",
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        },
+                        enabled = vm.snapshot.canPreviewRestore && !previewing,
+                        onClick = {
+                            menuOpen = false
+                            vm.snapshot.previewRestore()
+                        },
+                    )
+
+                    if (comparing || previewing) {
                         DropdownMenuItem(
-                            text = { Text("Stop comparing", style = MaterialTheme.typography.bodySmall) },
+                            text = {
+                                Text(
+                                    if (previewing) "Back to the saved bytes" else "Stop comparing",
+                                    style = MaterialTheme.typography.bodySmall,
+                                )
+                            },
                             onClick = {
                                 menuOpen = false
-                                vm.snapshot.clearComparison()
+                                if (previewing) vm.snapshot.clearRestorePlan() else vm.snapshot.clearComparison()
                             },
                         )
                     }
@@ -424,14 +498,15 @@ private fun SnapshotActions(vm: ResetViewModel, backup: EepromBackup) {
             )
         }
 
-        if (confirming && !vm.dryRun) {
+        confirming?.takeIf { !vm.dryRun }?.let { saveFirst ->
             RestoreConfirmation(
                 vm = vm,
                 backup = backup,
-                onDismiss = { confirming = false },
+                saveFirst = saveFirst,
+                onDismiss = { confirming = null },
                 onConfirm = {
-                    confirming = false
-                    vm.snapshot.restoreSelectedSnapshot()
+                    confirming = null
+                    vm.snapshot.restoreSelectedSnapshot(saveFirst)
                 },
             )
         }
@@ -623,6 +698,7 @@ private fun SnapshotHeader(vm: ResetViewModel, fileName: String, backup: EepromB
 private fun RestoreConfirmation(
     vm: ResetViewModel,
     backup: EepromBackup,
+    saveFirst: Boolean,
     onDismiss: () -> Unit,
     onConfirm: () -> Unit,
 ) {
@@ -635,8 +711,13 @@ private fun RestoreConfirmation(
         paragraphs = listOf(
             "Use this only to recover from an interrupted reset or restore. It is not an undo for " +
                 "a successful reset.",
-            "The restore does not first save the values currently in the printer. Continue only " +
-                "if this snapshot is the recovery point you intend to apply.",
+            if (saveFirst) {
+                "The bytes now in the printer are read and saved as a new snapshot first, over the " +
+                    "same connection. If they cannot all be read, nothing is written."
+            } else {
+                "The values currently in the printer are not saved first, so this write cannot be " +
+                    "undone. Continue only if this snapshot is the recovery point you intend to apply."
+            },
             "Whether to do this is your decision, and what follows from it is yours to carry: this " +
                 "software comes with no warranty, and its authors are not accountable for what " +
                 "happens to your printer.",

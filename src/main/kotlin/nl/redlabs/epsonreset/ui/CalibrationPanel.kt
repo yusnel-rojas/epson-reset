@@ -34,8 +34,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.DpSize
@@ -50,7 +48,7 @@ fun CalibrationDialog(vm: ResetViewModel) {
     val calibration = vm.calibration
     if (!calibration.dialogOpen) return
 
-    val clipboard = LocalClipboardManager.current
+    val copy = rememberClipboardCopy()
     val state = rememberDialogState(size = DpSize(740.dp, 780.dp))
 
     DialogWindow(
@@ -97,7 +95,7 @@ fun CalibrationDialog(vm: ResetViewModel) {
                 Included(vm)
 
                 Spacer(Modifier.height(14.dp))
-                Actions(vm, clipboard::setText)
+                Actions(vm, copy)
             }
         }
     }
@@ -425,14 +423,14 @@ private fun Included(vm: ResetViewModel) {
 }
 
 @Composable
-private fun Actions(vm: ResetViewModel, copy: (AnnotatedString) -> Unit) {
+private fun Actions(vm: ResetViewModel, copy: (String) -> Unit) {
     val calibration = vm.calibration
     val enabled = calibration.canSubmit
 
     Column {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Button(
-                onClick = { calibration.openIssue { copy(AnnotatedString(it)) } },
+                onClick = { calibration.openIssue(copy) },
                 enabled = enabled,
             ) { Text("Open an issue") }
             Spacer(Modifier.width(8.dp))
@@ -451,15 +449,15 @@ private fun Actions(vm: ResetViewModel, copy: (AnnotatedString) -> Unit) {
 
         Row(verticalAlignment = Alignment.CenterVertically) {
             TextButton(
-                onClick = { copy(AnnotatedString(calibration.entry())) },
+                onClick = { copy(calibration.entry()) },
                 enabled = enabled,
             ) { Text("Copy entry") }
             TextButton(
-                onClick = { copy(AnnotatedString(calibration.overlay())) },
+                onClick = { copy(calibration.overlay()) },
                 enabled = enabled,
             ) { Text("Copy overlay") }
             TextButton(
-                onClick = { copy(AnnotatedString(calibration.report())) },
+                onClick = { copy(calibration.report()) },
                 enabled = enabled,
             ) { Text("Copy report") }
         }

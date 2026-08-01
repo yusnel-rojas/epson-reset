@@ -69,8 +69,16 @@ class SnapshotState(
 
     data class SavedSnapshot(val file: File, val backup: EepromBackup?)
 
-    /** The snapshot the last restore wrote back, so its outcome is only claimed for that file. */
-    var lastRestored by mutableStateOf<File?>(null)
+    /** The file the running (or last) restore is putting back, so its progress is only drawn there. */
+    var restoreTarget by mutableStateOf<File?>(null)
+        private set
+
+    /** How far each address of that restore has got. */
+    var restoreStates by mutableStateOf<Map<Int, ResetViewModel.CounterByteState>>(emptyMap())
+        private set
+
+    /** Whether the selected snapshot is being shown as a write rather than as saved bytes. */
+    var showRestorePlan by mutableStateOf(false)
         private set
 
     /** What the selected snapshot is being compared against, if anything. */
@@ -90,8 +98,16 @@ class SnapshotState(
     /** The serial to stamp a backup with, or check one against. */
     private fun identifyingSerial(device: MatchedPrinter?): String? = status()?.serial ?: device?.device?.serial
 
-    /** Writes the bytes from [backup] back to the addresses they came from. True when a run started. */
-    fun restore(backup: EepromBackup): Boolean {
+    /**
+     * Writes the bytes from [backup] back to the addresses they came from. True when a run started.
+     * [file] is where those bytes came from, when it is known — the panel draws the write against
+     * that snapshot and nothing else.
+     *
+     * [saveFirst] takes the same safety net a reset takes: the bytes about to be overwritten are
+     * read and saved before the first write lands, over the connection already open. Without it a
+     * restore is the one EEPROM write in this application with nothing behind it.
+     */
+    fun restore(backup: EepromBackup, file: File? = null, saveFirst: Boolean = true): Boolean {
         if (busy()) {
             bad("Another printer operation is already in progress.")
             return false
@@ -108,6 +124,13 @@ class SnapshotState(
         // printer is being changed underneath it presents stale arithmetic as the current state.
         compareTarget = CompareTarget.None
 
+        // The write itself is what the panel shows from here, one address at a time.
+        restoreTarget = file
+        restoreStates = backup.entries.associate {
+            it.address to ResetViewModel.CounterByteState.PENDING
+        }
+        showRestorePlan = false
+
         scope.launch {
             resetCancellation()
             startRun("Generating restore sequence…")
@@ -122,13 +145,41 @@ class SnapshotState(
                     updateProgress(index.toFloat() / total, "Packet $index / $total — $message")
                 }
 
+                // The same per-address feedback a reset draws. Nothing is read back afterwards, so
+                // an acknowledged byte stays acknowledged rather than becoming verified.
+                override fun onWrite(address: Int, value: Int, state: Executor.WriteState) = onMain {
+                    val next = when (state) {
+                        Executor.WriteState.WRITING -> ResetViewModel.CounterByteState.WRITING
+                        Executor.WriteState.ACKNOWLEDGED -> ResetViewModel.CounterByteState.ACKNOWLEDGED
+                        Executor.WriteState.FAILED -> ResetViewModel.CounterByteState.FAILED
+                    }
+                    restoreStates = restoreStates + (address to next)
+                }
+
                 override fun onTrace(line: String) = onMain { trace(line) }
             }
 
             val isDry = dryRun()
+            // A dry run reads invented bytes off the fake device. Saving those would put a file in
+            // the backups folder that looks like a real recovery point and is not one.
+            val net = saveFirst && !isDry
+            if (saveFirst && isDry) {
+                info("DRY RUN — a live restore would read and save the current bytes before writing.")
+            }
+
+            var savedFirst: File? = null
             val result = withContext(io) {
                 openTransport(device, isDry).use { transport ->
                     transport?.let {
+                        if (net) {
+                            onMain { updateProgress(0f, "Saving the bytes about to be overwritten…") }
+                            val before = CounterReader.readAll(it, model, specsFor(model), null, isCancelled)
+                            when (val outcome = captureSafetyNet(model, sequence, before, device)) {
+                                is SafetyNet.Blocked -> return@let Executor.Result(error = outcome.reason)
+                                is SafetyNet.Saved -> savedFirst = outcome.file
+                            }
+                        }
+
                         Executor.execute(
                             transport = it,
                             sequence = sequence,
@@ -140,6 +191,7 @@ class SnapshotState(
             }
 
             updateProgress(1f, "")
+            savedFirst?.let { refreshNow() }
             finishRun(result, isDry)
 
             if (result.success) {
@@ -150,6 +202,73 @@ class SnapshotState(
             }
         }
         return true
+    }
+
+    private sealed interface SafetyNet {
+        /** Null where there was nothing to save rather than a failure to save it. */
+        data class Saved(val file: File?) : SafetyNet
+
+        data class Blocked(val reason: String) : SafetyNet
+    }
+
+    /**
+     * Saves what the printer holds at the addresses [sequence] is about to write. Runs on the IO
+     * thread, inside the same connection as the write it protects.
+     *
+     * Anything short of a complete capture blocks the restore. A safety net with holes in it is
+     * worse than none: it reads as cover for a write it could not actually undo.
+     */
+    private fun captureSafetyNet(
+        model: PrinterModel,
+        sequence: List<ByteArray>,
+        before: CounterReader.Report,
+        device: MatchedPrinter?,
+    ): SafetyNet {
+        before.error?.let {
+            return SafetyNet.Blocked(
+                "Nothing was written — the bytes this restore would overwrite could not be read " +
+                    "first ($it). Reads are unprivileged and safe to retry.",
+            )
+        }
+
+        val capture = EepromBackup.capture(
+            model = model.name,
+            sequence = sequence,
+            readings = before.readings,
+            printerSerial = identifyingSerial(device),
+        )
+
+        return when (capture) {
+            is Capture.NothingToWrite -> SafetyNet.Blocked("This snapshot writes nothing, so nothing was sent.")
+
+            is Capture.Incomplete -> {
+                val shown = capture.missing.take(8).joinToString(", ")
+                val more = if (capture.missing.size > 8) " +${capture.missing.size - 8} more" else ""
+                SafetyNet.Blocked(
+                    "Stopped before writing anything: ${capture.missing.size} of the addresses this " +
+                        "restore would write did not answer the read, so they could not be saved " +
+                        "first ($shown$more). Reads are unprivileged and safe to retry.",
+                )
+            }
+
+            is Capture.Ready -> runCatching { capture.backup.save(backupDir()) }.fold(
+                onSuccess = { saved ->
+                    onMain {
+                        good(
+                            "Saved the current bytes to ${saved.name} — ${capture.backup.entries.size} " +
+                                "addresses, taken just before this restore.",
+                        )
+                    }
+                    SafetyNet.Saved(saved)
+                },
+                onFailure = { e ->
+                    SafetyNet.Blocked(
+                        "Nothing was written — the current bytes could not be saved first " +
+                            "(${e.message ?: e::class.simpleName}).",
+                    )
+                },
+            )
+        }
     }
 
     /** Whether this backup may be written to this printer, per [UnitSelector]. */
@@ -342,7 +461,12 @@ class SnapshotState(
     internal suspend fun refreshNow() {
         loadingSnapshots = true
         val found = withContext(io) {
-            EepromBackup.list(backupDir()).map { SavedSnapshot(it, EepromBackup.load(it)) }
+            EepromBackup.list(backupDir())
+                .map { SavedSnapshot(it, EepromBackup.load(it)) }
+                .sortedWith(
+                    compareByDescending<SavedSnapshot> { it.backup != null }
+                        .thenByDescending { it.backup?.createdAt.orEmpty() },
+                )
         }
         snapshots.clear()
         snapshots.addAll(found)
@@ -356,6 +480,7 @@ class SnapshotState(
     fun selectSnapshot(snapshot: SavedSnapshot?) {
         selectedSnapshot = snapshot
         compareTarget = CompareTarget.None
+        showRestorePlan = false
         val backup = snapshot?.backup ?: return
         info(
             "Read ${snapshot.file.name} from disk — ${backup.model}, taken ${backup.takenAt}, " +
@@ -381,6 +506,89 @@ class SnapshotState(
             val model = selectedSnapshotModel ?: return emptyList()
             return CounterReader.decode(backup.readings(model), specsFor(model))
         }
+
+    /**
+     * The selected snapshot drawn as a write instead of as saved bytes: what the printer holds now
+     * on the left, the saved byte as the target on the right, and — once a restore is running — how
+     * far each address has got. The same table a reset uses, given a different set of targets.
+     *
+     * This is also the answer to "what would restoring change", which a comparison cannot give:
+     * a comparison is two samples in time order, and the current reading is always the later one.
+     */
+    val liveRestore: LiveRestore?
+        get() {
+            val selected = selectedSnapshot ?: return null
+            val backup = selected.backup ?: return null
+            val running = restoreTarget == selected.file && restoreStates.isNotEmpty()
+            if (!running && !showRestorePlan) return null
+
+            val model = selectedSnapshotModel
+            val plan = WritePlan(
+                targetLabel = WritePlan.SNAPSHOT_TARGET,
+                targets = backup.entries.associate { it.address to it.value },
+                states = if (running) restoreStates else emptyMap(),
+            )
+            // The left-hand byte is the printer's, not the file's — a restore's "from" is whatever is
+            // in the printer now. Where no live reading covers an address it stays unknown rather
+            // than borrowing the saved byte and claiming nothing would change.
+            val live = currentReadingOf(backup.model)
+            val report = CounterReader.Report(
+                backup.model,
+                backup.readings(model).map { it.copy(value = live[it.address]) },
+            )
+            val applied = plan.applyTo(report)
+            return LiveRestore(
+                report = applied,
+                counters = model?.let { CounterReader.decode(applied.readings, specsFor(it)) }.orEmpty(),
+                plan = plan,
+                running = running,
+                haveCurrent = live.isNotEmpty(),
+                // Counted off the untouched report against the plan's targets: once a write lands,
+                // applied.value *is* the target, and the question was how many differed to begin
+                // with. The report's own expectedAfterReset is the model's reset value, not this.
+                differing = report.readings.count { it.value != null && it.value != plan.targets[it.address] },
+                comparable = report.readings.count { it.value != null },
+            )
+        }
+
+    /** The selected snapshot as a write, ready for the counter table. */
+    data class LiveRestore(
+        val report: CounterReader.Report,
+        val counters: List<CounterReader.DecodedCounter>,
+        val plan: WritePlan,
+        /** True once bytes are going out; false while this is only what a restore would do. */
+        val running: Boolean,
+        /** Whether the left-hand column is a real reading rather than unknowns. */
+        val haveCurrent: Boolean,
+        /** Addresses whose saved byte is not what the printer holds — what this write would change. */
+        val differing: Int,
+        /** Addresses where both sides are known, so the count above means something. */
+        val comparable: Int,
+    )
+
+    /** The live reading of [model], by address, or empty when there is none worth trusting. */
+    private fun currentReadingOf(model: String): Map<Int, Int?> = readReport()
+        ?.takeIf { !readWasSimulated() && it.model.equals(model, ignoreCase = true) }
+        ?.readings
+        ?.associate { it.address to it.value }
+        .orEmpty()
+
+    /** Whether the panel can be asked what a restore would change: it needs the printer's side. */
+    val canPreviewRestore: Boolean
+        get() = selectedSnapshot?.backup?.let { currentReadingOf(it.model).isNotEmpty() } == true
+
+    fun previewRestore() {
+        if (!canPreviewRestore) {
+            bad("Read the printer first — what a restore would change is measured against it.")
+            return
+        }
+        compareTarget = CompareTarget.None
+        showRestorePlan = true
+    }
+
+    fun clearRestorePlan() {
+        showRestorePlan = false
+    }
 
     /** Snapshots that could be compared against the selected one: same model, and readable. */
     val compareCandidates: List<SavedSnapshot>
@@ -559,11 +767,9 @@ class SnapshotState(
     }
 
     /** Writes the selected snapshot back. Gated exactly as any other restore is. */
-    fun restoreSelectedSnapshot() {
+    fun restoreSelectedSnapshot(saveFirst: Boolean = true) {
         val selected = selectedSnapshot ?: return
-        val backup = selected.backup ?: return
-        lastRestored = null
-        if (restore(backup)) lastRestored = selected.file
+        restore(selected.backup ?: return, selected.file, saveFirst)
     }
 
     private fun onMain(block: () -> Unit) {
