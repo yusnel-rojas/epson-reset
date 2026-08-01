@@ -28,10 +28,20 @@ object WindowsPrinterScanner {
             queues.forEach { q ->
                 Diag.log { "[DBG]   queue=\"${q.name}\" port=${q.port} driver=${q.driver} epsonUsb=${isEpsonUsb(q)}" }
             }
-            ScanResult.Ok(queues.filter(::isEpsonUsb).map(::toPrinter))
+            // A queue outlives its printer: EnumPrinters lists it with the printer off, unplugged,
+            // or claimed by a USB-sharing tool. Whether the endpoints are live right now is what
+            // usbprint.sys's interface list knows, so ask it once and label the entries honestly.
+            val endpointsLive = epsonEndpointsPresent()
+            ScanResult.Ok(queues.filter(::isEpsonUsb).map { toPrinter(it, endpointsLive) })
         } catch (e: Exception) {
             ScanResult.Failed(e.message ?: e.toString())
         }
+    }
+
+    /** Whether any Epson usbprint interface is registered right now. Unknowable counts as yes. */
+    private fun epsonEndpointsPresent(): Boolean = when (val listed = UsbPrint.printerInterfacePaths()) {
+        is UsbPrint.PathsResult.Ok -> UsbPrintTransport.pickEpsonInterface(listed.paths) != null
+        is UsbPrint.PathsResult.Failed -> true
     }
 
     /** One installed queue, reduced to the strings the filter and matcher need. */
@@ -73,11 +83,18 @@ object WindowsPrinterScanner {
         return looksEpson && looksUsb
     }
 
-    private fun toPrinter(q: Queue) = DetectedPrinter(
+    private fun toPrinter(q: Queue, endpointsLive: Boolean) = DetectedPrinter(
         link = Link.WindowsPrinter(queueName = q.name, port = q.port, driver = q.driver),
         // The queue name is the model as Windows knows it — usually the family ("EPSON ET-2820
         // Series"), which DeviceMatcher and the model picker resolve to a unit, the same as USB.
         product = q.name,
         manufacturer = "EPSON".takeIf { q.driver?.contains("EPSON", ignoreCase = true) == true },
+        reachable = endpointsLive,
+        accessNote = if (endpointsLive) {
+            null
+        } else {
+            "The printer is not answering on USB. Check it is on and the cable is seated; if it " +
+                "is shared or forwarded to another machine, release it there."
+        },
     )
 }

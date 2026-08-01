@@ -50,13 +50,7 @@ class UsbPrintTransport internal constructor(private val channel: RawPrinterChan
 
     sealed interface OpenResult {
         data class Ok(val transport: UsbPrintTransport) : OpenResult
-
-        /**
-         * [interfaceAbsent] marks "no usbprint interface registered at all" — the one failure
-         * where falling back to the spooler makes sense, because there is no endpoint handle to
-         * be had. Every other failure means the device is there and should be retried here.
-         */
-        data class Failed(val message: String, val remedy: String?, val interfaceAbsent: Boolean = false) : OpenResult
+        data class Failed(val message: String, val remedy: String?) : OpenResult
     }
 
     companion object {
@@ -76,11 +70,13 @@ class UsbPrintTransport internal constructor(private val channel: RawPrinterChan
             }
             Diag.log { "[DBG] usbprint interfaces: ${if (paths.isEmpty()) "(none)" else paths.joinToString()}" }
 
+            // The interface list only holds *live* devices, so absence usually means the printer
+            // is off or unplugged — or something has claimed it away from Windows.
             val path = pickEpsonInterface(paths)
                 ?: return OpenResult.Failed(
-                    "No Epson USB printer interface was found.",
-                    "Check the cable and that the printer is on, then rescan.",
-                    interfaceAbsent = true,
+                    "The printer is not answering on USB.",
+                    "Check it is on and the cable is seated. If it is shared or forwarded to " +
+                        "another machine, release it there, then rescan.",
                 )
             Diag.log { "[DBG] usbprint open $path (pid=${pidOf(path) ?: "?"}) for \"${link.queueName}\"" }
 
@@ -101,9 +97,12 @@ class UsbPrintTransport internal constructor(private val channel: RawPrinterChan
                     when (err) {
                         UsbPrint.ERROR_SHARING_VIOLATION ->
                             "Another program is holding the printer. Close EPSON Status Monitor " +
-                                "(system tray, bottom right) and wait for any print job to finish, then retry."
+                                "(system tray, bottom right), wait for any print job to finish, and " +
+                                "release the printer wherever else it is shared, then retry."
                         UsbPrint.ERROR_ACCESS_DENIED ->
                             "Close other printer software, or run the app as administrator, then retry."
+                        UsbPrint.ERROR_FILE_NOT_FOUND ->
+                            "The printer dropped off the bus. Reconnect it and rescan."
                         else -> null
                     },
                 )

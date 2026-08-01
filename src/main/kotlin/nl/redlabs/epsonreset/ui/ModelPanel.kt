@@ -51,7 +51,10 @@ fun ModelPanel(vm: ResetViewModel, modifier: Modifier = Modifier) {
         Spacer(Modifier.height(16.dp))
         RunControls(vm, model, confirming, onConfirmChange = { confirming = it })
 
-        val hasFinishedRun = vm.runState is ResetViewModel.RunState.Finished
+        // A snapshot restore drives the same run state, and its outcome is reported where it was
+        // started. Saying "counters reset" here about a restore would name the wrong operation.
+        val hasFinishedRun = vm.runState is ResetViewModel.RunState.Finished &&
+            vm.runKind == ResetViewModel.RunKind.RESET
         if (hasFinishedRun) {
             Spacer(Modifier.height(20.dp))
             ResultBanner(vm)
@@ -456,7 +459,7 @@ private fun ResetConfirmation(vm: ResetViewModel, model: PrinterModel, onDismiss
 }
 
 @Composable
-private fun Callout(title: String, body: String, tone: Color) {
+internal fun Callout(title: String, body: String, tone: Color) {
     Column(
         Modifier
             .fillMaxWidth()

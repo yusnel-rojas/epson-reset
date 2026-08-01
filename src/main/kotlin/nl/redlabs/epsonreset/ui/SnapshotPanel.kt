@@ -21,6 +21,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -41,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import nl.redlabs.epsonreset.backup.EepromBackup
 import nl.redlabs.epsonreset.backup.SnapshotComparison
 import nl.redlabs.epsonreset.protocol.CounterReader
+import java.io.File
 
 /** Every snapshot on disk, and what each one holds. */
 @Composable
@@ -241,77 +243,158 @@ private fun SnapshotDetail(vm: ResetViewModel, modifier: Modifier = Modifier) {
     Column(modifier.verticalScroll(rememberScrollState()).padding(20.dp)) {
         SnapshotHeader(vm, snapshot.file.name, backup)
 
-        Spacer(Modifier.height(16.dp))
-        RestoreControls(vm, backup)
-
-        Spacer(Modifier.height(16.dp))
-        CompareControls(vm)
+        // Whatever the last restore did, said where it was asked for rather than on the Counters
+        // screen — and only about the snapshot it actually wrote.
+        RestoreOutcome(vm, snapshot.file)
 
         // The comparison replaces the single-sample view rather than sitting under it: it shows
         // both sides already, and two tables of the same bytes differing only in which sample they
         // came from is the layout most likely to be misread.
         val comparison = vm.snapshot.comparison
-        if (comparison != null) {
-            Spacer(Modifier.height(16.dp))
-            ComparisonResult(comparison)
-            return@Column
-        }
-
         val counters = vm.snapshot.snapshotCounters
-        vm.snapshot.snapshotReport?.let { report ->
-            Spacer(Modifier.height(16.dp))
-            CounterOverview(counters = counters, report = report)
+
+        Spacer(Modifier.height(16.dp))
+        if (comparison != null) {
+            ComparisonResult(comparison)
+        } else {
+            vm.snapshot.snapshotReport?.let { report ->
+                CounterOverview(counters = counters, report = report)
+            }
+            if (counters.isEmpty()) {
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    "No counter layout is known for ${backup.model}, so the saved bytes are shown " +
+                        "as bytes. The table above is complete either way — the layout only decides " +
+                        "which of them are one number.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = StatusColors.muted,
+                )
+            }
         }
 
-        if (counters.isEmpty()) {
-            Spacer(Modifier.height(10.dp))
-            Text(
-                "No counter layout is known for ${backup.model}, so the saved bytes are shown " +
-                    "as bytes. The table above is complete either way — the layout only decides " +
-                    "which of them are one number.",
-                style = MaterialTheme.typography.labelSmall,
-                color = StatusColors.muted,
-            )
-        }
+        // The prose the two actions need, kept below the thing the tab is for rather than in front
+        // of it. Neither action is reached by reading down to it — both are in the header.
+        Spacer(Modifier.height(16.dp))
+        Text(
+            "Restoring puts these bytes back at the addresses they came from — waste levels " +
+                "included. It is recovery from a half-finished run, not an undo for a successful " +
+                "one.\n\nComparing two snapshots taken either side of a known amount of printing " +
+                "shows which addresses actually move, and by how much. Comparing against the " +
+                "printer as it is now says whether a reset held.",
+            style = MaterialTheme.typography.labelSmall,
+            color = StatusColors.muted,
+        )
     }
 }
 
-/** Choosing what to compare this snapshot against. */
+/** How the last restore of [file] went, while it runs and once it has finished. */
 @Composable
-private fun CompareControls(vm: ResetViewModel) {
+private fun RestoreOutcome(vm: ResetViewModel, file: File) {
+    if (vm.runKind != ResetViewModel.RunKind.RESTORE || vm.snapshot.lastRestored != file) return
+
+    when (val state = vm.runState) {
+        is ResetViewModel.RunState.Running -> {
+            Spacer(Modifier.height(16.dp))
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                    .padding(12.dp),
+            ) {
+                Text(
+                    "Restoring…",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    vm.progressLabel.ifBlank { "Working…" },
+                    style = MaterialTheme.typography.labelSmall,
+                    color = StatusColors.muted,
+                )
+                Spacer(Modifier.height(8.dp))
+                LinearProgressIndicator(
+                    progress = { vm.progress },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
+
+        is ResetViewModel.RunState.Finished -> {
+            val r = state.result
+            val (title, tone) = when {
+                r.success && state.wasDryRun -> "Restore simulated" to StatusColors.good
+                r.success -> "Snapshot restored" to StatusColors.good
+                else -> "Restore failed" to StatusColors.bad
+            }
+            val body = buildString {
+                append("${r.writesAcknowledged} of ${r.writesTotal} saved bytes written back · ")
+                append("${r.packetsSent} packets sent.")
+                if (r.error.isNotBlank()) append("\n\n${r.error}")
+                if (r.success && !state.wasDryRun) {
+                    append("\n\nPower-cycle the printer now to finalise the change.")
+                }
+            }
+            Spacer(Modifier.height(16.dp))
+            Callout(title, body, tone)
+        }
+
+        ResetViewModel.RunState.Idle -> Unit
+    }
+}
+
+/** The two things that can be done to the selected snapshot, on one row. */
+@Composable
+private fun SnapshotActions(vm: ResetViewModel, backup: EepromBackup) {
+    var confirming by remember(backup) { mutableStateOf(false) }
     var menuOpen by remember { mutableStateOf(false) }
+
+    val running = vm.runState is ResetViewModel.RunState.Running
+    val restoreBlocked = vm.snapshot.snapshotRestoreBlockedReason
     val candidates = vm.snapshot.compareCandidates
-    val active = vm.snapshot.compareTarget != SnapshotState.CompareTarget.None
-    val blocked = vm.snapshot.compareReadBlockedReason
+    val comparing = vm.snapshot.compareTarget != SnapshotState.CompareTarget.None
+    val compareBlocked = vm.snapshot.compareReadBlockedReason
 
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
-            .background(MaterialTheme.colorScheme.surface)
-            .border(1.dp, MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(10.dp))
-            .padding(14.dp),
-    ) {
-        Text("Compare", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-
-        Spacer(Modifier.height(10.dp))
-
+    Column {
         Row(verticalAlignment = Alignment.CenterVertically) {
+            when {
+                running -> OutlinedButton(onClick = { vm.cancel() }) { Text("Cancel") }
+
+                vm.dryRun -> Button(
+                    onClick = { vm.snapshot.restoreSelectedSnapshot() },
+                    enabled = restoreBlocked == null,
+                ) { Text("Simulate restore") }
+
+                else -> Button(
+                    onClick = { confirming = true },
+                    enabled = restoreBlocked == null,
+                ) { Text("Restore to printer") }
+            }
+
+            Spacer(Modifier.width(8.dp))
+
             Box {
                 OutlinedButton(
                     onClick = { menuOpen = true },
-                    enabled = candidates.isNotEmpty(),
-                ) {
-                    Text(
-                        if (candidates.isEmpty()) {
-                            "No other snapshot of this model"
-                        } else {
-                            "Another snapshot (${candidates.size})"
-                        },
-                    )
-                }
+                    enabled = candidates.isNotEmpty() || vm.snapshot.canReadForComparison || comparing,
+                ) { Text(if (comparing) "Comparing ▾" else "Compare ▾") }
 
                 DropdownMenu(menuOpen, onDismissRequest = { menuOpen = false }) {
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                if (vm.reading) "Reading…" else "The printer as it is now",
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        },
+                        enabled = vm.snapshot.canReadForComparison,
+                        onClick = {
+                            menuOpen = false
+                            vm.snapshot.readForComparison()
+                        },
+                    )
+
                     for (candidate in candidates) {
                         DropdownMenuItem(
                             text = {
@@ -334,37 +417,50 @@ private fun CompareControls(vm: ResetViewModel) {
                             },
                         )
                     }
+
+                    if (comparing) {
+                        DropdownMenuItem(
+                            text = { Text("Stop comparing", style = MaterialTheme.typography.bodySmall) },
+                            onClick = {
+                                menuOpen = false
+                                vm.snapshot.clearComparison()
+                            },
+                        )
+                    }
                 }
             }
 
-            Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.weight(1f))
+            Text(
+                if (vm.dryRun) "Dry run — nothing reaches the printer" else "Live",
+                style = MaterialTheme.typography.labelSmall,
+                color = if (vm.dryRun) StatusColors.muted else StatusColors.bad,
+            )
+        }
 
-            OutlinedButton(
-                onClick = { vm.snapshot.readForComparison() },
-                enabled = vm.snapshot.canReadForComparison,
-            ) { Text(if (vm.reading) "Reading…" else "Read the printer now") }
+        if (confirming && !vm.dryRun) {
+            RestoreConfirmation(
+                vm = vm,
+                backup = backup,
+                onDismiss = { confirming = false },
+                onConfirm = {
+                    confirming = false
+                    vm.snapshot.restoreSelectedSnapshot()
+                },
+            )
+        }
 
-            if (active) {
-                Spacer(Modifier.width(8.dp))
-                TextButton(onClick = { vm.snapshot.clearComparison() }) { Text("Clear") }
-            }
+        restoreBlocked?.let {
+            Spacer(Modifier.height(8.dp))
+            Text(it, style = MaterialTheme.typography.labelSmall, color = StatusColors.warn)
         }
 
         // Only when the user has no offline option either. With another snapshot to hand, the read
-        // is one of two ways in and its unavailability is not worth a paragraph.
-        if (blocked != null && candidates.isEmpty()) {
+        // is one of two ways in and its unavailability is not worth a line.
+        if (compareBlocked != null && candidates.isEmpty() && compareBlocked != restoreBlocked) {
             Spacer(Modifier.height(8.dp))
-            Text(blocked, style = MaterialTheme.typography.labelSmall, color = StatusColors.warn)
+            Text(compareBlocked, style = MaterialTheme.typography.labelSmall, color = StatusColors.warn)
         }
-
-        Spacer(Modifier.height(8.dp))
-        Text(
-            "Two snapshots taken either side of a known amount of printing show which addresses " +
-                "actually move, and by how much. Comparing against the printer as it is now says " +
-                "whether a reset held.",
-            style = MaterialTheme.typography.labelSmall,
-            color = StatusColors.muted,
-        )
     }
 }
 
@@ -499,18 +595,26 @@ private fun SnapshotHeader(vm: ResetViewModel, fileName: String, backup: EepromB
             )
         }
 
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(6.dp))
 
-        Field("Taken", backup.takenAt)
-        Field("Serial", backup.printerSerial ?: "not recorded")
-        Field("Addresses", "${backup.entries.size}")
-        Field("Differ", "${backup.changedByReset} are not at their reset value")
+        // One line rather than four labelled rows: this is the provenance of what is shown below,
+        // not the subject of the screen.
+        Text(
+            listOf(
+                backup.takenAt,
+                "serial ${backup.printerSerial ?: "not recorded"}",
+                "${backup.entries.size} addresses",
+                "${backup.changedByReset} not at their reset value",
+            ).joinToString(" · "),
+            style = MaterialTheme.typography.bodySmall,
+            color = StatusColors.muted,
+        )
 
         // The application-wide target decides which write key a restore would use, so it belongs
         // here even though the snapshot keeps its own recorded model.
         val selected = vm.selectedModel
         if (selected == null || !selected.name.equals(backup.model, ignoreCase = true)) {
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(10.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     "Selected model: ${selected?.name ?: "none"}",
@@ -523,81 +627,9 @@ private fun SnapshotHeader(vm: ResetViewModel, fileName: String, backup: EepromB
                 }
             }
         }
-    }
-}
 
-@Composable
-private fun Field(label: String, value: String) {
-    Row(Modifier.padding(vertical = 2.dp)) {
-        Text(
-            label,
-            style = MaterialTheme.typography.bodySmall,
-            color = StatusColors.muted,
-            modifier = Modifier.width(110.dp),
-        )
-        Text(
-            value,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
-}
-
-/** Writing a snapshot back, confirmed in two steps. */
-@Composable
-private fun RestoreControls(vm: ResetViewModel, backup: EepromBackup) {
-    var confirming by remember(backup) { mutableStateOf(false) }
-    val running = vm.runState is ResetViewModel.RunState.Running
-    val blocked = vm.snapshot.snapshotRestoreBlockedReason
-
-    Column {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            when {
-                running -> OutlinedButton(onClick = { vm.cancel() }) { Text("Cancel") }
-
-                vm.dryRun -> Button(
-                    onClick = { vm.snapshot.restoreSelectedSnapshot() },
-                    enabled = blocked == null,
-                ) { Text("Simulate restore") }
-
-                else -> Button(
-                    onClick = { confirming = true },
-                    enabled = blocked == null,
-                ) { Text("Restore to printer") }
-            }
-
-            Spacer(Modifier.width(12.dp))
-            Text(
-                if (vm.dryRun) "Dry run — nothing reaches the printer" else "Live",
-                style = MaterialTheme.typography.labelSmall,
-                color = if (vm.dryRun) StatusColors.muted else StatusColors.bad,
-            )
-        }
-
-        if (confirming && !vm.dryRun) {
-            RestoreConfirmation(
-                vm = vm,
-                backup = backup,
-                onDismiss = { confirming = false },
-                onConfirm = {
-                    confirming = false
-                    vm.snapshot.restoreSelectedSnapshot()
-                },
-            )
-        }
-
-        blocked?.let {
-            Spacer(Modifier.height(8.dp))
-            Text(it, style = MaterialTheme.typography.labelSmall, color = StatusColors.warn)
-        }
-
-        Spacer(Modifier.height(8.dp))
-        Text(
-            "A restore puts these bytes back at the addresses they came from — waste levels " +
-                "included. It is recovery from a half-finished run, not an undo for a successful one.",
-            style = MaterialTheme.typography.labelSmall,
-            color = StatusColors.muted,
-        )
+        Spacer(Modifier.height(12.dp))
+        SnapshotActions(vm, backup)
     }
 }
 

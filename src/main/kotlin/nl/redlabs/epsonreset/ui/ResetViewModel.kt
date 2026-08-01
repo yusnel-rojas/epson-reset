@@ -303,6 +303,11 @@ class ResetViewModel(
 
     var runState by mutableStateOf<RunState>(RunState.Idle)
         private set
+
+    /** What [runState] is about. A restore and a reset drive the same executor, so the state alone
+     *  cannot say which one a panel is looking at. */
+    var runKind by mutableStateOf(RunKind.RESET)
+        private set
     var progress by mutableStateOf(0f)
         private set
     var progressLabel by mutableStateOf("")
@@ -470,6 +475,7 @@ class ResetViewModel(
         resetCancellation = { cancelFlag.set(false) },
         isCancelled = { cancelFlag.get() },
         startRun = { label ->
+            runKind = RunKind.RESTORE
             runState = RunState.Running
             progress = 0f
             progressLabel = label
@@ -525,6 +531,9 @@ class ResetViewModel(
         data object Running : RunState
         data class Finished(val result: Executor.Result, val wasDryRun: Boolean) : RunState
     }
+
+    /** Which operation the current [runState] belongs to. */
+    enum class RunKind { RESET, RESTORE }
 
     /** Progress and log state is written from executor callbacks running on the IO thread. */
     private fun onMain(block: () -> Unit) {
@@ -1436,6 +1445,7 @@ class ResetViewModel(
 
         scope.launch {
             cancelFlag.set(false)
+            runKind = RunKind.RESET
             runState = RunState.Running
             progress = 0f
             progressLabel = "Generating sequence…"

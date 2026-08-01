@@ -272,7 +272,13 @@ private fun DeviceCard(
                 modifier = Modifier.weight(1f),
             )
             Text(
-                if (entry.device.reachable) entry.device.link.kind else "Saved · not reached",
+                when {
+                    entry.device.reachable -> entry.device.link.kind
+                    // Only network entries are remembered; an unreachable USB one is live-scanned
+                    // from its queue, so "saved" would be the wrong word for it.
+                    entry.device.link is Link.Network -> "Saved · not reached"
+                    else -> "USB · not answering"
+                },
                 style = MaterialTheme.typography.labelSmall,
                 color = presenceTone,
             )

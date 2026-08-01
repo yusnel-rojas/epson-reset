@@ -4,7 +4,6 @@ import nl.redlabs.epsonreset.net.SnmpTransport
 import nl.redlabs.epsonreset.protocol.Transport
 import nl.redlabs.epsonreset.usb.LibUsbTransport
 import nl.redlabs.epsonreset.usb.UsbPrintTransport
-import nl.redlabs.epsonreset.usb.WinspoolTransport
 
 /** Opens whichever transport a printer's [Link] calls for. */
 object PrinterTransports {
@@ -25,21 +24,13 @@ object PrinterTransports {
         }
 
         // The usbprint.sys device interface as the byte pipe — the printer's real endpoints, full
-        // 1284.4, with no libusb and no Zadig. The spooler RAW channel only reaches the print-data
-        // service (some firmwares *print* the factory commands), so it is the fallback solely for
-        // the odd setup where no usbprint interface is registered at all.
+        // 1284.4, with no libusb and no Zadig. Deliberately no spooler fallback: a queue outlives
+        // its printer, so when the endpoints are gone (printer off, or claimed by a USB-sharing
+        // tool) a RAW job would sit spooled and come out as *printed text* the moment the printer
+        // returns — the failure that demoted WinspoolTransport in the first place.
         is Link.WindowsPrinter -> when (val direct = UsbPrintTransport.open(link)) {
             is UsbPrintTransport.OpenResult.Ok -> OpenResult.Ok(direct.transport)
-            is UsbPrintTransport.OpenResult.Failed ->
-                if (direct.interfaceAbsent) {
-                    when (val spooled = WinspoolTransport.open(link)) {
-                        is WinspoolTransport.OpenResult.Ok -> OpenResult.Ok(spooled.transport)
-                        is WinspoolTransport.OpenResult.Failed ->
-                            OpenResult.Failed(spooled.message, spooled.remedy)
-                    }
-                } else {
-                    OpenResult.Failed(direct.message, direct.remedy)
-                }
+            is UsbPrintTransport.OpenResult.Failed -> OpenResult.Failed(direct.message, direct.remedy)
         }
 
         // Over SNMP, not port 9100: the raw print port accepts commands and answers none of

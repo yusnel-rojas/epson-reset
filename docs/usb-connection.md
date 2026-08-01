@@ -25,14 +25,27 @@ This replaces **Zadig**, whose driver rebind used to be required and which took 
 the Windows print subsystem entirely. libusb remains as an advanced fallback (below), but a normal
 Windows user needs none of it.
 
-### The spooler fallback
+### USB-over-network tools (VirtualHere, usbip)
 
-`WinspoolTransport` — a RAW job over `OpenPrinter`/`WritePrinter`/`ReadPrinter` — is kept only for
-the odd setup where no `usbprint` interface is registered at all. A RAW job reaches the printer's
-**print-data** service, not the 1284.4 control socket, so it strips the D4 framing and sends bare
-ESC/P factory commands, the SNMP-passthrough pattern. Real hardware (an ET-2820-family unit)
-answered that service by **printing the commands as text**, which is why it was demoted from
-default to last resort.
+A USB device has exactly one host: whichever machine's client currently *binds* the printer owns
+its endpoints. If a sharing tool has claimed the printer, the `usbprint` interface disappears from
+Windows and the app reports the printer as not answering — release it in the sharing tool and
+rescan. The flip side is that these tools are a legitimate way to run this app "over the network":
+on the machine that binds the printer, it appears as local USB and the normal USB path works. The
+printer's **own** network interface is not a substitute — port 9100 is one-way print data, and
+whether counters answer over the SNMP passthrough is per-firmware (see
+[Network printers](network-printers.md)).
+
+### The retired spooler transport
+
+`WinspoolTransport` — a RAW job over `OpenPrinter`/`WritePrinter`/`ReadPrinter` — was the first
+driverless attempt and is no longer wired up. A RAW job reaches the printer's **print-data**
+service, not the 1284.4 control socket, so it stripped the D4 framing and sent bare ESC/P factory
+commands, the SNMP-passthrough pattern. Real hardware (an ET-2820-family unit) answered that
+service by **printing the commands as text** — and a job spooled while the printer is off prints
+the same way when it comes back, which also rules it out as an automatic fallback. The code and its
+tests remain as the record of what was tried; the spooler still handles discovery (queue names are
+what the model matcher works from).
 
 ## macOS and Linux — libusb
 

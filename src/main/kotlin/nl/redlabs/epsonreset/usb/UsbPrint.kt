@@ -160,6 +160,7 @@ object UsbPrint {
     const val OPEN_EXISTING = 3
     const val FILE_FLAG_OVERLAPPED = 0x40000000
 
+    const val ERROR_FILE_NOT_FOUND = 2
     const val ERROR_ACCESS_DENIED = 5
     const val ERROR_SHARING_VIOLATION = 32
     const val ERROR_IO_PENDING = 997

@@ -69,6 +69,10 @@ class SnapshotState(
 
     data class SavedSnapshot(val file: File, val backup: EepromBackup?)
 
+    /** The snapshot the last restore wrote back, so its outcome is only claimed for that file. */
+    var lastRestored by mutableStateOf<File?>(null)
+        private set
+
     /** What the selected snapshot is being compared against, if anything. */
     var compareTarget by mutableStateOf<CompareTarget>(CompareTarget.None)
         private set
@@ -86,19 +90,23 @@ class SnapshotState(
     /** The serial to stamp a backup with, or check one against. */
     private fun identifyingSerial(device: MatchedPrinter?): String? = status()?.serial ?: device?.device?.serial
 
-    /** Writes the bytes from [backup] back to the addresses they came from. */
-    fun restore(backup: EepromBackup) {
+    /** Writes the bytes from [backup] back to the addresses they came from. True when a run started. */
+    fun restore(backup: EepromBackup): Boolean {
         if (busy()) {
             bad("Another printer operation is already in progress.")
-            return
+            return false
         }
         val model = selectedModel() ?: run {
             bad("Pick the model first — a restore needs its write key.")
-            return
+            return false
         }
         val device = selectedDevice()
 
-        if (!allowedToLand(backup, model, device)) return
+        if (!allowedToLand(backup, model, device)) return false
+
+        // A comparison describes two samples taken before this write. Leaving it on screen while the
+        // printer is being changed underneath it presents stale arithmetic as the current state.
+        compareTarget = CompareTarget.None
 
         scope.launch {
             resetCancellation()
@@ -141,6 +149,7 @@ class SnapshotState(
                 bad(result.error.ifBlank { "The restore did not complete." })
             }
         }
+        return true
     }
 
     /** Whether this backup may be written to this printer, per [UnitSelector]. */
@@ -548,8 +557,10 @@ class SnapshotState(
 
     /** Writes the selected snapshot back. Gated exactly as any other restore is. */
     fun restoreSelectedSnapshot() {
-        val backup = selectedSnapshot?.backup ?: return
-        restore(backup)
+        val selected = selectedSnapshot ?: return
+        val backup = selected.backup ?: return
+        lastRestored = null
+        if (restore(backup)) lastRestored = selected.file
     }
 
     private fun onMain(block: () -> Unit) {
