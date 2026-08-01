@@ -183,10 +183,30 @@ jobs:
             Pop-Location
           }
 
+      # A no-install alternative: zip the same jpackage app image (libusb DLL and all). Extract it
+      # anywhere and run EpsonReset.exe — handy for quick testing on a Windows PC.
+      - name: Package portable zip (Windows)
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          $appDir = Join-Path (Get-Location).Path "build\compose\binaries\main\app\EpsonReset"
+          $outDir = Join-Path (Get-Location).Path "build\portable\windows"
+          New-Item -ItemType Directory -Force -Path $outDir | Out-Null
+          # -Path <dir> keeps the top EpsonReset\ folder inside the zip, so it extracts self-contained.
+          Compress-Archive -Path $appDir -DestinationPath (Join-Path $outDir "EpsonReset-windows-x64-portable.zip") -Force
+          Write-Host "Wrote portable zip to $outDir"
+
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
           path: ${{ matrix.glob }}
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v4
+        if: runner.os == 'Windows'
+        with:
+          name: EpsonReset-windows-x64-portable
+          path: build/portable/windows/*.zip
           if-no-files-found: error
 
       - uses: actions/upload-artifact@v4
@@ -235,4 +255,5 @@ jobs:
             artifacts/*.exe
             artifacts/*.deb
             artifacts/*.AppImage
+            artifacts/*.zip
           generate_release_notes: true

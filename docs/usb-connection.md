@@ -11,18 +11,21 @@ place, and nothing to unbind: the printer stays a normal Windows printer and kee
 `WindowsPrinterScanner` enumerates installed queues with `EnumPrinters` and keeps the ones that look
 like an Epson on a USB port (`USB…`/`ESDPRT…`, not a network `WSD…`/IP port — those the SNMP path
 owns). `WinspoolTransport` opens a RAW job on that queue (`OpenPrinter` → `StartDocPrinter` →
-`WritePrinter`/`ReadPrinter`) and passes the D4 packet stream through **unchanged**. That works
-because `usbprint.sys` forwards a RAW job to the same USB bulk endpoints libusb would drive and
-returns the back-channel through `ReadPrinter` — so this is the libusb path's byte pipe by another
-route, not the SNMP passthrough (which has to unwrap each packet to a bare ESC/P command).
+`WritePrinter`/`ReadPrinter`). A RAW job reaches the printer's **print-data** service, not the
+1284.4 control socket libusb claims, so the transport follows the **SNMP passthrough** pattern, not
+libusb's: it drops the 1284.4 channel-open/credit packets and sends each data packet as just its
+ESC/P factory command, unwrapped from its D4 frame. Replies come back on the `ReadPrinter`
+back-channel and end in `;`.
 
 This replaces **Zadig**, whose driver rebind used to be required and which took the printer away from
 the Windows print subsystem entirely. libusb remains as an advanced fallback (below), but a normal
 Windows user needs none of it.
 
-> The spooler back-channel needs a real Windows printer to fully confirm — the hardware testing in
-> [field notes](field-notes.md) was done on macOS. The framing is deliberately identical to the
-> proven libusb path to keep that risk small.
+> **Open question, needs real hardware.** Whether a given Epson answers factory commands on the
+> print-data service is a firmware decision. Some do; some expose the waste-counter service only on
+> the 1284.4 control socket, which a RAW spooler job cannot reach. Where the spooler comes back
+> empty, the advanced libusb fallback (or, planned, a UsbDk backend) is the route that reaches the
+> control socket. The hardware testing in [field notes](field-notes.md) was done on macOS.
 
 ## macOS and Linux — libusb
 
