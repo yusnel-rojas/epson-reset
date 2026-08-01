@@ -40,17 +40,22 @@ jobs:
           # Empty on a tag push (inputs is unset there), which falls through to "all".
           PLATFORM: ${{ github.event_name == 'workflow_dispatch' && inputs.platform || 'all' }}
         run: |
+          # windows_build controls which Windows outputs a run produces: "both" = installer + portable,
+          # "portable" = the app image only (skips Inno Setup). Absent on non-Windows entries.
           all='[
             {"os":"macos-latest","task":"packageDmg","glob":"build/compose/binaries/main/dmg/*.dmg","artifact":"EpsonReset-macos-arm64"},
-            {"os":"windows-latest","task":"createDistributable","glob":"build/installer/windows/*.exe","artifact":"EpsonReset-windows-x64"},
+            {"os":"windows-latest","task":"createDistributable","glob":"build/installer/windows/*.exe","artifact":"EpsonReset-windows-x64","windows_build":"both"},
             {"os":"ubuntu-22.04","task":"createDistributable packageDeb","glob":"build/compose/binaries/main/deb/*.deb","artifact":"EpsonReset-linux-x64","appimage_arch":"x86_64"},
             {"os":"ubuntu-22.04-arm","task":"createDistributable packageDeb","glob":"build/compose/binaries/main/deb/*.deb","artifact":"EpsonReset-linux-arm64","appimage_arch":"aarch64"}
           ]'
-          if [ "$PLATFORM" = "all" ]; then
-            include=$(echo "$all" | jq -c '.')
-          else
-            include=$(echo "$all" | jq -c --arg p "EpsonReset-$PLATFORM" '[.[] | select(.artifact == $p)]')
-          fi
+          # Portable-only: one Windows entry that skips the installer. Not part of "all" — a tag build's
+          # windows-x64 already emits the portable alongside the installer.
+          portable='[{"os":"windows-latest","task":"createDistributable","artifact":"EpsonReset-windows-x64-portable","windows_build":"portable"}]'
+          case "$PLATFORM" in
+            all)                  include=$(echo "$all" | jq -c '.') ;;
+            windows-x64-portable) include="$portable" ;;
+            *)                    include=$(echo "$all" | jq -c --arg p "EpsonReset-$PLATFORM" '[.[] | select(.artifact == $p)]') ;;
+          esac
           echo "Selected platform: $PLATFORM"
           echo "$include"
           echo "matrix={\"include\":$include}" >> "$GITHUB_OUTPUT"
