@@ -6,39 +6,60 @@ name: Build & package
 on:
   push:
     tags: [ 'v*' ]       # tagging vX.Y.Z sets the installer version and publishes a Release
-  workflow_dispatch:     # run packaging manually from the Actions tab
+  # Run packaging manually from the Actions tab. Pick the branch to run from in the "Run workflow"
+  # dropdown, and one platform to build — e.g. windows-x64 to get an .exe to test on a Windows PC —
+  # without cutting a release. "all" (the default) builds every platform, as a tag push does.
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: "Platform to package"
+        type: choice
+        default: all
+        options:
+          - all
+          - windows-x64
+          - macos-arm64
+          - linux-x64
+          - linux-arm64
   # pull_request:        # uncomment to package every PR
 
 jobs:
+  # Builds the matrix, narrowed to the platform a manual run asked for. A tag push (or the default
+  # "all") leaves every platform in. Keeping the full list here as JSON means one source of truth for
+  # both the picker and the build.
+  setup:
+    name: Select platforms
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.select.outputs.matrix }}
+    steps:
+      - id: select
+        shell: bash
+        env:
+          # Empty on a tag push (inputs is unset there), which falls through to "all".
+          PLATFORM: ${{ github.event_name == 'workflow_dispatch' && inputs.platform || 'all' }}
+        run: |
+          all='[
+            {"os":"macos-latest","task":"packageDmg","glob":"build/compose/binaries/main/dmg/*.dmg","artifact":"EpsonReset-macos-arm64"},
+            {"os":"windows-latest","task":"createDistributable","glob":"build/installer/windows/*.exe","artifact":"EpsonReset-windows-x64"},
+            {"os":"ubuntu-22.04","task":"createDistributable packageDeb","glob":"build/compose/binaries/main/deb/*.deb","artifact":"EpsonReset-linux-x64","appimage_arch":"x86_64"},
+            {"os":"ubuntu-22.04-arm","task":"createDistributable packageDeb","glob":"build/compose/binaries/main/deb/*.deb","artifact":"EpsonReset-linux-arm64","appimage_arch":"aarch64"}
+          ]'
+          if [ "$PLATFORM" = "all" ]; then
+            include=$(echo "$all" | jq -c '.')
+          else
+            include=$(echo "$all" | jq -c --arg p "EpsonReset-$PLATFORM" '[.[] | select(.artifact == $p)]')
+          fi
+          echo "Selected platform: $PLATFORM"
+          echo "$include"
+          echo "matrix={\"include\":$include}" >> "$GITHUB_OUTPUT"
+
   package:
     name: Package (${{ matrix.artifact }})
+    needs: setup
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - os: macos-latest        # macOS Apple Silicon (arm64)
-            task: packageDmg
-            glob: build/compose/binaries/main/dmg/*.dmg
-            artifact: EpsonReset-macos-arm64
-          # - os: macos-13          # macOS Intel (x64) — enable if anyone asks for it
-          #   task: packageDmg
-          #   glob: build/compose/binaries/main/dmg/*.dmg
-          #   artifact: EpsonReset-macos-x64
-          - os: windows-latest      # Windows x64 Inno Setup .exe
-            task: createDistributable
-            glob: build/installer/windows/*.exe
-            artifact: EpsonReset-windows-x64
-          - os: ubuntu-22.04        # Linux x64 .deb
-            # createDistributable makes the app-image dir the AppImage step needs; packageDeb the .deb.
-            task: createDistributable packageDeb
-            glob: build/compose/binaries/main/deb/*.deb
-            artifact: EpsonReset-linux-x64
-            appimage_arch: x86_64
-          - os: ubuntu-22.04-arm    # Linux arm64 .deb / Raspberry Pi OS 64-bit
-            task: createDistributable packageDeb
-            glob: build/compose/binaries/main/deb/*.deb
-            artifact: EpsonReset-linux-arm64
-            appimage_arch: aarch64
+      matrix: ${{ fromJSON(needs.setup.outputs.matrix) }}
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -93,6 +114,25 @@ jobs:
         env:
           APP_VERSION: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || '1.0.0' }}
         run: ./scripts/package-appimage.sh ${{ matrix.appimage_arch }} "$APP_VERSION"
+
+      # The driverless spooler path needs nothing bundled. This DLL is only for the advanced libusb
+      # fallback; dropping it into the app image (which the .iss ships wholesale) means that path
+      # needs no manual file placement either. Best-effort: a fetch failure must not fail packaging.
+      - name: Bundle libusb for the fallback
+        if: runner.os == 'Windows'
+        continue-on-error: true
+        shell: powershell
+        run: |
+          $ver = "1.0.27"
+          $sourceDir = Join-Path (Get-Location).Path "build\compose\binaries\main\app\EpsonReset"
+          $archive = Join-Path $env:RUNNER_TEMP "libusb.7z"
+          $extract = Join-Path $env:RUNNER_TEMP "libusb"
+          Invoke-WebRequest -Uri "https://github.com/libusb/libusb/releases/download/v$ver/libusb-$ver.7z" -OutFile $archive
+          # -r matches the DLL wherever the MSVC x64 build lands (VS2019/VS2022 dir varies by release).
+          & 7z e $archive -o"$extract" -r "MS64\dll\libusb-1.0.dll" -y
+          # JNA loads the name "usb-1.0", so ship it spelled that way next to the launcher.
+          Copy-Item (Join-Path $extract "libusb-1.0.dll") (Join-Path $sourceDir "usb-1.0.dll") -Force
+          Write-Host "Bundled libusb-1.0.dll as usb-1.0.dll in the app image."
 
       - name: Install Inno Setup
         if: runner.os == 'Windows'

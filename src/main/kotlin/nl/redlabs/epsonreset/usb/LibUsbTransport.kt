@@ -180,7 +180,10 @@ class LibUsbTransport private constructor(
                     "macOS's printer driver owns this device. Remove the printer in " +
                         "System Settings → Printers & Scanners, then rescan."
                 isLinux() -> "Stop CUPS (sudo systemctl stop cups) or run with sudo, then retry."
-                else -> "Bind the device to a libusb driver with Zadig, then retry."
+                // Reached only on the advanced libusb fallback; the spooler path needs none of this.
+                else ->
+                    "This is the advanced libusb path — bind the device to WinUSB with Zadig to " +
+                        "use it. Normally the printer's own Windows driver is used instead."
             }
             else -> null
         }

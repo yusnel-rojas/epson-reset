@@ -57,6 +57,9 @@ Name: "startmenuicon"; Description: "Create a Start Menu shortcut"; GroupDescrip
 Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Shortcuts:"; Flags: unchecked
 
 [Files]
+; Ships the whole jpackage app image. USB works driverless through the printer's own Windows driver,
+; so nothing extra is required; when the build dropped usb-1.0.dll into the image (see build.yml), it
+; is carried along by this wildcard and enables the advanced libusb fallback with no manual step.
 Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]

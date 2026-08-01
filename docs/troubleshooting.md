@@ -15,11 +15,16 @@ right-click → Open on first launch. See [Builds and releases](releases.md).
 
 ## No printer shows up
 
-**Over USB, nothing is listed at all.** libusb isn't loading. The app says so rather than failing
-silently, and everything else — network printers, the database browser, dry runs — still works.
-Install it: `brew install libusb` (macOS), `sudo apt install libusb-1.0-0` (Debian/Ubuntu), or put
-`libusb-1.0.dll` next to the app or on `PATH` (Windows). Details in
-[USB connections](usb-connection.md).
+**Over USB, nothing is listed at all.**
+
+- **Windows** — the app reads the printer through its own Windows driver, so the fix is to make sure
+  Windows has that driver: plug the printer in, let Windows finish installing it (it appears under
+  Settings → Bluetooth & devices → Printers), then rescan. No libusb and no Zadig are involved on
+  this path. See [USB connections](usb-connection.md#windows--the-printers-own-driver-driverless-from-the-users-side).
+- **macOS / Linux** — libusb isn't loading. The app says so rather than failing silently, and
+  everything else — network printers, the database browser, dry runs — still works. Install it:
+  `brew install libusb` (macOS) or `sudo apt install libusb-1.0-0` (Debian/Ubuntu). Details in
+  [USB connections](usb-connection.md).
 
 **Over the network, nothing is found.** Discovery is mDNS, which many networks drop across subnets
 or with multicast filtered. Open the printer menu in the top bar and choose **Add printer by IP
@@ -50,10 +55,14 @@ sudo systemctl stop cups
 `Permission denied` instead means udev, not CUPS — run with `sudo`, or add a udev rule for vendor
 `04B8`.
 
-**Windows — bind the device to WinUSB.** The vendor driver won't share the interface. Use
-[Zadig](https://zadig.akeo.ie/), pick the printer, and replace its driver with WinUSB. This takes
-the printer away from the Windows print subsystem until you reinstall the vendor driver, so expect
-not to be able to print while it's bound. Windows USB is untested here — reports welcome.
+**Windows — usually nothing to do.** The app shares the printer's own driver through the print
+spooler, so there is no interface to claim and printing keeps working. If a listed printer won't
+open, it is normally offline or paused (Settings → Bluetooth & devices → Printers), or the reset job
+is stuck behind others in the queue — clear the queue and rescan. Only the *advanced libusb
+fallback* needs [Zadig](https://zadig.akeo.ie/) to bind the printer to WinUSB, which takes it away
+from the Windows print subsystem until you reinstall the vendor driver; the default spooler path
+needs none of that. The spooler back-channel is untested against real Windows hardware — reports
+welcome.
 
 **"Another process is holding the printer"** on any platform means something else got there first —
 a scanning utility, a vendor status monitor, a second copy of this app. Close it and rescan.

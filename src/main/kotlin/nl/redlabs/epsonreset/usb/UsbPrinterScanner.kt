@@ -174,7 +174,11 @@ object UsbPrinterScanner {
         val os = System.getProperty("os.name").lowercase()
         return when {
             os.contains("mac") -> "brew install libusb"
-            os.contains("win") -> "Install a libusb-1.0 driver for the printer with Zadig."
+            // The spooler path is the default on Windows; libusb is only reached when no Epson queue
+            // was found, so the fix is normally to install the printer, not to reach for Zadig.
+            os.contains("win") ->
+                "Plug in the printer and let Windows install its driver, then rescan. " +
+                    "(Advanced: bind it to a libusb driver with Zadig.)"
             else -> "sudo apt install libusb-1.0-0    # or your distro's equivalent"
         }
     }

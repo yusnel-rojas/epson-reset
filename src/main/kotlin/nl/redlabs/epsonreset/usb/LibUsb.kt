@@ -246,12 +246,26 @@ interface LibUsb : Library {
                 .filter { java.io.File(it).isDirectory }
                 .forEach { NativeLibrary.addSearchPath("usb-1.0", it) }
 
+            // Windows has no libusb package; the installer bundles usb-1.0.dll in the app image, which
+            // isn't on the default search path when jpackage launches from its own runtime.
+            if (System.getProperty("os.name").lowercase().contains("win")) {
+                windowsBundleDirs().forEach { NativeLibrary.addSearchPath("usb-1.0", it) }
+            }
+
             return try {
                 Native.load("usb-1.0", LibUsb::class.java)
             } catch (e: UnsatisfiedLinkError) {
                 loadError = e.message ?: "libusb-1.0 not found"
                 null
             }
+        }
+
+        /** The jpackage app image dirs — `.../EpsonReset` and its `app/` — where the DLL is shipped. */
+        private fun windowsBundleDirs(): List<String> {
+            val root = System.getProperty("java.home")?.let { java.io.File(it).parentFile } ?: return emptyList()
+            return listOf(root, java.io.File(root, "app"))
+                .filter { it.isDirectory }
+                .map { it.absolutePath }
         }
 
         fun errorName(code: Int): String =

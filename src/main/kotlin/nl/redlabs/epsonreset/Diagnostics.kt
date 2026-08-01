@@ -53,12 +53,18 @@ object Diagnostics {
             specs.overlayError?.let { println("overlayErr $it") }
         }
 
-        section("libusb")
-        if (LibUsb.instance == null) {
-            println("NOT AVAILABLE — ${LibUsb.loadError}")
+        section("USB backend")
+        if (System.getProperty("os.name").lowercase().contains("win")) {
+            println("windows    print spooler (driverless — no libusb, no Zadig)")
+            println(
+                "libusb     " +
+                    if (LibUsb.instance == null) "fallback unavailable — ${LibUsb.loadError}" else "fallback ok",
+            )
+        } else if (LibUsb.instance == null) {
+            println("libusb     NOT AVAILABLE — ${LibUsb.loadError}")
             println("install    ${UsbPrinterScanner.installHint()}")
         } else {
-            println("loaded     ok")
+            println("libusb     loaded ok")
         }
 
         section("Printer scan")

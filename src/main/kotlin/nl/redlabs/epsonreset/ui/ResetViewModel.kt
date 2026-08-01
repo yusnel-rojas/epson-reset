@@ -1738,6 +1738,9 @@ class ResetViewModel(
         // Reading `instance` first is what forces the lazy load, so this can't report a library
         // that was simply never asked for as one that failed.
         appendLine("# libusb: " + if (LibUsb.instance != null) "loaded" else "not loaded — ${LibUsb.loadError}")
+        if (System.getProperty("os.name").lowercase().contains("win")) {
+            appendLine("# usb backend: Windows spooler (driverless), libusb as fallback")
+        }
         appendLine(
             "# database: " + (
                 database?.let { "${it.size} models, ${it.source.name.lowercase()}" }

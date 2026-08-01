@@ -298,6 +298,13 @@ private fun DeviceCard(
                 // the printer, never dialled by this app, and so purely misleading.
                 if (link.port != Link.SNMP_PORT) Meta("SNMP port", link.port.toString())
             }
+
+            is Link.WindowsPrinter -> {
+                // Reached through the printer's own Windows driver — the queue and its port are all
+                // there is to show, and both come straight from the spooler.
+                link.port?.let { Meta("Port", it) }
+                Meta("Queue", link.queueName)
+            }
         }
         // The decoded form, because it is the one the same printer shows on its other link. The
         // descriptor's own hex spelling is not shown — it is what the device said, but saying it

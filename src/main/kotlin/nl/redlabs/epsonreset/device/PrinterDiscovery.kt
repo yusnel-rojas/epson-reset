@@ -4,6 +4,7 @@ import nl.redlabs.epsonreset.net.MdnsDiscovery
 import nl.redlabs.epsonreset.net.SavedPrinters
 import nl.redlabs.epsonreset.net.SnmpTransport
 import nl.redlabs.epsonreset.usb.UsbPrinterScanner
+import nl.redlabs.epsonreset.usb.WindowsPrinterScanner
 
 /** Reachable printers plus remembered network addresses, from every source, in one list. */
 object PrinterDiscovery {
@@ -13,7 +14,8 @@ object PrinterDiscovery {
         val usb: UsbPrinterScanner.ScanResult,
         val network: NetworkOutcome,
     ) {
-        val usbPrinters: List<DetectedPrinter> get() = printers.filter { it.link is Link.Usb }
+        // Both the libusb link and the Windows-spooler link are "the USB printer" to a caller.
+        val usbPrinters: List<DetectedPrinter> get() = printers.filterNot { it.link is Link.Network }
         val networkPrinters: List<DetectedPrinter> get() = printers.filter { it.link is Link.Network }
     }
 
@@ -28,7 +30,7 @@ object PrinterDiscovery {
 
     /** Scans the USB bus, browses for advertised printers, and adds the saved addresses. */
     fun scan(includeNetwork: Boolean = true, browseTimeoutMs: Long = 2500, crossCheck: Boolean = true): Result {
-        val usb = UsbPrinterScanner.scan()
+        val usb = scanUsb()
         val usbPrinters = (usb as? UsbPrinterScanner.ScanResult.Ok)?.printers.orEmpty()
 
         if (!includeNetwork) return Result(usbPrinters, usb, NetworkOutcome.Skipped)
@@ -57,6 +59,22 @@ object PrinterDiscovery {
         val onUsb = if (crossCheck) crossChecked(usbPrinters, network) else usbPrinters
 
         return Result(onUsb + network, usb, outcome)
+    }
+
+    /**
+     * The USB source, platform-chosen. On Windows the printer's own driver is the default pipe
+     * (no libusb, no Zadig); libusb is the fallback only when the spooler turns up no Epson — a
+     * printer that was rebound to WinUSB with Zadig has left the spooler anyway, so the two never
+     * list the same unit twice. Everywhere else this is just the libusb scan.
+     */
+    private fun scanUsb(): UsbPrinterScanner.ScanResult {
+        if (System.getProperty("os.name").lowercase().contains("win")) {
+            val spooled = WindowsPrinterScanner.scan()
+            if (spooled is WindowsPrinterScanner.ScanResult.Ok && spooled.printers.isNotEmpty()) {
+                return UsbPrinterScanner.ScanResult.Ok(spooled.printers)
+            }
+        }
+        return UsbPrinterScanner.scan()
     }
 
     /** [usbPrinters], each given the better name its own network entry has, where there is one. */

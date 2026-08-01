@@ -64,17 +64,20 @@ network probes, the restore tool — are in [Command line](docs/command-line.md)
 Nothing, for a network printer — no driver, no library, no wrestling with the OS for the interface.
 What a network printer will *let* you do varies; see [Network printers](docs/network-printers.md).
 
-USB needs libusb-1.0, and needs the OS print subsystem to let go of the printer first:
+USB support differs by platform. On **Windows there is nothing to install and nothing to unbind** —
+the app talks to the printer through the driver Windows already installed when you plugged it in, so
+the printer stays a normal printer. On macOS and Linux USB needs libusb-1.0, and the OS print
+subsystem has to let go of the printer first:
 
 | | Library | Releasing the printer |
 |---|---|---|
+| Windows | none — uses the printer's own Windows driver | none — nothing to unbind, printing still works |
 | macOS | `brew install libusb` | Remove it under System Settings → Printers & Scanners |
 | Debian/Ubuntu | `sudo apt install libusb-1.0-0` | Automatic, or stop CUPS |
-| Windows | `libusb-1.0.dll` next to the app or on `PATH` | Bind the device to WinUSB with [Zadig](https://zadig.akeo.ie/) |
 
-Without the library the app still runs — network printers, the database browser and dry runs all
-work — but USB detection is off. Details and remedies: [USB connections](docs/usb-connection.md)
-and [Troubleshooting](docs/troubleshooting.md).
+On macOS/Linux, without the library the app still runs — network printers, the database browser and
+dry runs all work — but USB detection is off. Details and remedies:
+[USB connections](docs/usb-connection.md) and [Troubleshooting](docs/troubleshooting.md).
 
 ## Safety
 

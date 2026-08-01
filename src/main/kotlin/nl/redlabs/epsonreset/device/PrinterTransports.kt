@@ -3,6 +3,7 @@ package nl.redlabs.epsonreset.device
 import nl.redlabs.epsonreset.net.SnmpTransport
 import nl.redlabs.epsonreset.protocol.Transport
 import nl.redlabs.epsonreset.usb.LibUsbTransport
+import nl.redlabs.epsonreset.usb.WinspoolTransport
 
 /** Opens whichever transport a printer's [Link] calls for. */
 object PrinterTransports {
@@ -20,6 +21,12 @@ object PrinterTransports {
         is Link.Usb -> when (val opened = LibUsbTransport.open(printer)) {
             is LibUsbTransport.OpenResult.Ok -> OpenResult.Ok(opened.transport)
             is LibUsbTransport.OpenResult.Failed -> OpenResult.Failed(opened.message, opened.remedy)
+        }
+
+        // Windows' own printer driver as the byte pipe — no libusb, no Zadig.
+        is Link.WindowsPrinter -> when (val opened = WinspoolTransport.open(link)) {
+            is WinspoolTransport.OpenResult.Ok -> OpenResult.Ok(opened.transport)
+            is WinspoolTransport.OpenResult.Failed -> OpenResult.Failed(opened.message, opened.remedy)
         }
 
         // Over SNMP, not port 9100: the raw print port accepts commands and answers none of
