@@ -144,12 +144,12 @@ jobs:
           Write-Host "Bundled MinGW64 libusb-1.0.dll as usb-1.0.dll in the app image."
 
       - name: Install Inno Setup
-        if: runner.os == 'Windows'
+        if: runner.os == 'Windows' && matrix.windows_build != 'portable'
         shell: powershell
         run: choco install innosetup --no-progress -y
 
       - name: Build Windows installer
-        if: runner.os == 'Windows'
+        if: runner.os == 'Windows' && matrix.windows_build != 'portable'
         shell: powershell
         env:
           APP_VERSION: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || '' }}
@@ -189,8 +189,10 @@ jobs:
             Pop-Location
           }
 
-      # The installer (.exe), on its own artifact.
+      # The installer (.exe), on its own artifact. Skipped on a portable-only Windows run (no .exe is
+      # built); always runs on macOS/Linux, where windows_build is unset.
       - uses: actions/upload-artifact@v4
+        if: matrix.windows_build != 'portable'
         with:
           name: ${{ matrix.artifact }}
           path: ${{ matrix.glob }}
