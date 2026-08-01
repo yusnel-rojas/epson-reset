@@ -17,6 +17,7 @@ class PreferencesTest {
             windowY = 64,
             maximized = true,
             lastModel = "ET-2820",
+            lastPrinterId = "network:192.0.2.20",
             logCollapsed = true,
             checkForUpdates = false,
             lastUpdateCheck = 1_700_000_000_000,
@@ -35,6 +36,7 @@ class PreferencesTest {
         assertEquals(780, prefs.windowHeight)
         assertNull(prefs.windowX)
         assertNull(prefs.windowY)
+        assertNull(prefs.lastPrinterId)
         assertTrue(prefs.checkForUpdates)
         // On by default: it costs nothing and answers the question a USB descriptor leaves open.
         assertTrue(prefs.crossCheckOverSnmp)
@@ -115,6 +117,8 @@ class PreferencesTest {
     fun `a blank model name is the same as none`() {
         assertNull(Preferences.parse("""{ "lastModel": "   " }""").lastModel)
         assertNull(Preferences(lastModel = "  ").sanitised().lastModel)
+        assertNull(Preferences.parse("""{ "lastPrinterId": "   " }""").lastPrinterId)
+        assertNull(Preferences(lastPrinterId = "  ").sanitised().lastPrinterId)
     }
 
     @Test
@@ -128,5 +132,6 @@ class PreferencesTest {
 
         assertTrue("windowX" !in text, text)
         assertTrue("lastModel" !in text, text)
+        assertTrue("lastPrinterId" !in text, text)
     }
 }

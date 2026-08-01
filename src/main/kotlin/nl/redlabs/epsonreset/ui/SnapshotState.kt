@@ -67,6 +67,15 @@ class SnapshotState(
     var loadingSnapshots by mutableStateOf(false)
         private set
 
+    /** Optional model filter requested from the Counters footer; null keeps the normal full list. */
+    var modelFilter by mutableStateOf<String?>(null)
+        private set
+
+    val visibleSnapshots: List<SavedSnapshot>
+        get() = modelFilter?.let { model ->
+            snapshots.filter { it.backup?.model.equals(model, ignoreCase = true) }
+        } ?: snapshots
+
     data class SavedSnapshot(val file: File, val backup: EepromBackup?)
 
     /** The file the running (or last) restore is putting back, so its progress is only drawn there. */
@@ -391,10 +400,22 @@ class SnapshotState(
             "these values came from the simulated EEPROM of a dry run, not from a printer. " +
                 "Switch to Live and read again"
         report.answered == 0 -> "nothing answered the last read, so there is nothing to save"
-        else -> null
+        else -> when (val capture = capture(model, report)) {
+            Capture.NothingToWrite -> "${model.name} has no resettable addresses to save"
+            is Capture.Incomplete ->
+                "${capture.missing.size} reset address(es) did not answer the read, so the snapshot would be incomplete"
+            is Capture.Ready -> null
+        }
     }
 
     val canSaveSnapshot: Boolean get() = !busy() && snapshotBlockedReason == null
+
+    /** Maintenance can reuse a complete live reading or take the missing reading itself. */
+    val canSaveOrReadSnapshot: Boolean get() = canSaveSnapshot || canCreateSnapshot
+
+    fun saveOrReadSnapshot() {
+        if (canSaveSnapshot) saveSnapshot() else readAndSaveSnapshot()
+    }
 
     /** Saves the counters on screen as a snapshot, at whatever moment the user asks for one. */
     fun saveSnapshot() {
@@ -414,12 +435,7 @@ class SnapshotState(
     }
 
     private suspend fun saveSnapshotNow(model: PrinterModel, report: CounterReader.Report) {
-        val capture = EepromBackup.capture(
-            model = model.name,
-            sequence = SequenceGenerator.generate(model),
-            readings = report.readings,
-            printerSerial = identifyingSerial(selectedDevice()),
-        )
+        val capture = capture(model, report)
 
         when (capture) {
             is Capture.NothingToWrite ->
@@ -450,6 +466,13 @@ class SnapshotState(
             }
         }
     }
+
+    private fun capture(model: PrinterModel, report: CounterReader.Report): Capture = EepromBackup.capture(
+        model = model.name,
+        sequence = SequenceGenerator.generate(model),
+        readings = report.readings,
+        printerSerial = identifyingSerial(selectedDevice()),
+    )
 
     /** Where snapshots are kept. Shown in the panel, so it comes from the same place it is read. */
     val snapshotDir: File get() = backupDir()
@@ -725,6 +748,23 @@ class SnapshotState(
             val model = selectedModel() ?: return emptyList()
             return snapshots.filter { it.backup?.model.equals(model.name, ignoreCase = true) }
         }
+
+    /** Opens Snapshots as a model-specific handoff from Overview's read-only counter details. */
+    fun openSelectedModelSnapshots() {
+        val model = selectedModel() ?: return
+        modelFilter = model.name
+        val matching = snapshotsForSelectedModel
+        if (selectedSnapshot !in matching) {
+            selectedSnapshot = matching.firstOrNull()
+            compareTarget = CompareTarget.None
+            showRestorePlan = false
+        }
+        openSnapshotsTab()
+    }
+
+    fun showAllSnapshots() {
+        modelFilter = null
+    }
 
     /** True when the current live reading could be compared against something on disk. */
     val canOfferComparison: Boolean

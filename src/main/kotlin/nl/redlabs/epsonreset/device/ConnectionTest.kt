@@ -49,8 +49,10 @@ object ConnectionTest {
         val headline: String
             get() = when {
                 !opened -> failure ?: "Could not connect."
-                !overNetwork && answered -> "Connected, and the printer granted the packet channel."
-                !overNetwork -> "Connected and identified, but the printer did not grant the packet channel."
+                !overNetwork && answered -> "Connected over USB — counter access is available."
+                !overNetwork && identity != null ->
+                    "Printer identified over USB, but counter access is unavailable on this connection."
+                !overNetwork -> "USB connection opened, but the printer did not answer the counter request."
                 reach == Reach.COUNTERS -> "Connected — this printer allows counter access over the network."
                 reach == Reach.STATUS_ONLY && refusal != null ->
                     "Connected. Identity and ink levels work; the printer refuses counter access here."
@@ -67,8 +69,8 @@ object ConnectionTest {
                     refusal
                         ?: "Identity works but counters were not readable over this connection."
                 identity != null ->
-                    "The printer is reachable but is not entering 1284.4 packet mode. A reset " +
-                        "cannot work over this connection — try USB."
+                    "The printer is reachable, but counter reads and resets are unavailable. " +
+                        "Reconnect it directly over USB and try again."
                 else ->
                     "Nothing came back. Check this address is the printer and not another device " +
                         "on the network."

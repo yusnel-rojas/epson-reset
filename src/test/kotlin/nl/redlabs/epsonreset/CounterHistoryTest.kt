@@ -139,6 +139,7 @@ class CounterProjectionTest {
         ).single()
 
         assertTrue(trend.resetObserved)
+        assertEquals(listOf(true, false, true, false), trend.points.map { it.startsSegment })
         assertEquals(2, trend.samplesUsed)
         assertEquals(10L, trend.first)
         assertEquals(110L, trend.latest)

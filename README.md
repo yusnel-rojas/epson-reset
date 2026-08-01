@@ -5,13 +5,14 @@
 
 A desktop app (macOS, Windows, Linux) for reading and resetting the waste ink pad counters on Epson printers.
 
-<img src="docs/images/screenshot-01.png" alt="The full-width Counters tab with an ET-2820 and its ET-2825 model in the app-wide target chip" width="900" />
+<img src="docs/images/screenshot-01.png" alt="The main printer screen with an ET-2820 and its ET-2825 model in the app-wide target chip" width="900" />
 
 - **Finds your printer** — on USB, or on the network over SNMP, which reports the exact model
 - **Identifies it** — against a database of 1588 models, browsable in the app before you plug anything in
-- **Reads the waste ink counters** — grouped addresses decoded into real values (`[48,49]` → `3865`)
-- **Remembers their trend** — successful live reads build a local per-printer history and project a measured maximum
-- **Resets them** — each write checked for the printer's `:42:OK;` acknowledgement
+- **Reads the waste ink counters** — decoded values and raw EEPROM bytes under Overview → Counter details
+- **Shows a printer overview** — status, ink, supplies, lifetime pages and counter coverage in one read-only refresh
+- **Remembers their trend** — Overview → History charts live reads and projects a measured maximum
+- **Resets them under Maintenance** — each write checked for the printer's `:42:OK;` acknowledgement
 - **Backs up first** — the bytes a live run is about to overwrite are saved, and can be compared and restored
 - **Dry run** — the whole sequence against a simulated EEPROM, touching no hardware. It's the default
 - **Inspect** — read-only probing of a printer that isn't in the database, to work out its counter layout

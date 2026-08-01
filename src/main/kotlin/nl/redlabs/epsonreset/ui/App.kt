@@ -39,7 +39,7 @@ fun App() {
 
     RememberedState(vm)
 
-    LaunchedEffect(Unit) { vm.start() }
+    LaunchedEffect(Unit) { vm.start(PreferencesStore.current().lastPrinterId) }
     LaunchedEffect(Unit) { updates.check(vm, automatic = true) }
 
     EpsonResetTheme {
@@ -53,7 +53,7 @@ fun App() {
                 when (vm.tab) {
                     ResetViewModel.Tab.COUNTERS ->
                         // Printer and model now form one application-scoped target in the top bar.
-                        ModelPanel(vm, Modifier.fillMaxWidth().weight(1f))
+                        OverviewPanel(vm, Modifier.fillMaxWidth().weight(1f))
 
                     // The matrix is about the database rather than one printer, so it takes the
                     // whole width — there is no selection for a sidebar to show.
@@ -136,6 +136,14 @@ private fun RememberedState(vm: ResetViewModel) {
             PreferencesStore.update { it.copy(lastModel = name) }
         }
     }
+
+    // Keep the actual printer as well as its model. A USB/network pair can name the same unit, but
+    // the exact link is still the least surprising default on the next launch.
+    LaunchedEffect(Unit) {
+        snapshotFlow { vm.selectedDevice?.device?.id }.filterNotNull().collect { id ->
+            PreferencesStore.update { it.copy(lastPrinterId = id) }
+        }
+    }
 }
 
 @Composable
@@ -195,9 +203,13 @@ private fun Tabs(vm: ResetViewModel) {
             .background(MaterialTheme.colorScheme.surfaceVariant)
             .padding(3.dp),
     ) {
-        Tab("Counters", vm.tab == ResetViewModel.Tab.COUNTERS) { vm.tab = ResetViewModel.Tab.COUNTERS }
+        // Keep the internal COUNTERS route stable; only the experience and visible name change.
+        Tab("Overview", vm.tab == ResetViewModel.Tab.COUNTERS) { vm.tab = ResetViewModel.Tab.COUNTERS }
         Tab("Maintenance", vm.tab == ResetViewModel.Tab.MAINTENANCE) { vm.tab = ResetViewModel.Tab.MAINTENANCE }
-        Tab("Snapshots", vm.tab == ResetViewModel.Tab.SNAPSHOTS) { vm.tab = ResetViewModel.Tab.SNAPSHOTS }
+        Tab("Snapshots", vm.tab == ResetViewModel.Tab.SNAPSHOTS) {
+            vm.snapshot.showAllSnapshots()
+            vm.tab = ResetViewModel.Tab.SNAPSHOTS
+        }
         Tab("Inspect", vm.tab == ResetViewModel.Tab.INSPECT) { vm.tab = ResetViewModel.Tab.INSPECT }
         Tab("Models", vm.tab == ResetViewModel.Tab.MODELS) { vm.tab = ResetViewModel.Tab.MODELS }
     }

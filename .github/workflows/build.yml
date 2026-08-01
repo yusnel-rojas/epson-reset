@@ -25,6 +25,27 @@ on:
   # pull_request:        # uncomment to package every PR
 
 jobs:
+  # A tag must prove the same source that is about to be packaged. The branch CI workflow does not
+  # run for tag-only pushes, so keeping this gate here prevents a release from bypassing it.
+  verify:
+    name: Verify release source
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: gradle/actions/wrapper-validation@v4
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Format, tests, and headless self-check
+        run: |
+          ./gradlew check --stacktrace
+          ./gradlew diagnose --args="ET-2825" --stacktrace
+
   # Builds the matrix, narrowed to the platform a manual run asked for. A tag push (or the default
   # "all") leaves every platform in. Keeping the full list here as JSON means one source of truth for
   # both the picker and the build.
@@ -62,7 +83,7 @@ jobs:
 
   package:
     name: Package (${{ matrix.artifact }})
-    needs: setup
+    needs: [ setup, verify ]
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.setup.outputs.matrix) }}

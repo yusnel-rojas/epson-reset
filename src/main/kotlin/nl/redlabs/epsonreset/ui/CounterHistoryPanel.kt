@@ -1,5 +1,6 @@
 package nl.redlabs.epsonreset.ui
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Column
@@ -15,6 +16,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -143,6 +145,74 @@ private fun TrendRow(trend: CounterProjection.Trend) {
             projectionLabel(trend),
             style = MaterialTheme.typography.labelSmall,
             color = if (trend.projectedAt != null) StatusColors.warn else StatusColors.muted,
+        )
+
+        if (trend.points.size >= 2) {
+            Spacer(Modifier.height(8.dp))
+            TrendSparkline(trend)
+        }
+    }
+}
+
+/** Small, dependency-free chart. Text above remains the accessible and exact representation. */
+@Composable
+private fun TrendSparkline(trend: CounterProjection.Trend) {
+    val line = MaterialTheme.colorScheme.primary
+    val reset = StatusColors.warn
+    val guide = MaterialTheme.colorScheme.surfaceVariant
+
+    Canvas(Modifier.fillMaxWidth().height(48.dp)) {
+        drawLine(guide, Offset(0f, size.height - 1f), Offset(size.width, size.height - 1f), strokeWidth = 1f)
+        val points = sparklineGeometry(trend.points, trend.spec.max?.toLong(), size.width, size.height)
+        for (index in 1 until points.size) {
+            val current = points[index]
+            val previous = points[index - 1]
+            if (!current.startsSegment) {
+                drawLine(line, Offset(previous.x, previous.y), Offset(current.x, current.y), strokeWidth = 2.5f)
+            } else {
+                drawCircle(reset, radius = 3.5f, center = Offset(current.x, current.y))
+            }
+        }
+        points.lastOrNull()?.let { drawCircle(line, radius = 3.5f, center = Offset(it.x, it.y)) }
+    }
+}
+
+internal data class SparklinePoint(val x: Float, val y: Float, val startsSegment: Boolean)
+
+/** Pure geometry kept outside Canvas so equal timestamps/ranges and reset breaks can be pinned. */
+internal fun sparklineGeometry(
+    points: List<CounterProjection.TrendPoint>,
+    maximum: Long?,
+    width: Float,
+    height: Float,
+): List<SparklinePoint> {
+    if (points.isEmpty()) return emptyList()
+    val firstAt = points.first().at.toEpochMilli()
+    val elapsed = (points.last().at.toEpochMilli() - firstAt).coerceAtLeast(0L)
+    val observedMin = points.minOf { it.value }
+    val observedMax = points.maxOf { it.value }
+    val low = if (maximum != null && maximum > 0L) 0L else observedMin
+    val high = if (maximum != null && maximum > 0L) maximum.coerceAtLeast(observedMax) else observedMax
+    val range = high - low
+    val drawableHeight = (height - 6f).coerceAtLeast(0f)
+
+    return points.mapIndexed { index, point ->
+        val xFraction = if (elapsed > 0L) {
+            (point.at.toEpochMilli() - firstAt).toFloat() / elapsed.toFloat()
+        } else if (points.size > 1) {
+            index.toFloat() / (points.size - 1).toFloat()
+        } else {
+            0.5f
+        }
+        val yFraction = if (range > 0L) {
+            ((point.value - low).toDouble() / range.toDouble()).toFloat().coerceIn(0f, 1f)
+        } else {
+            0.5f
+        }
+        SparklinePoint(
+            x = xFraction.coerceIn(0f, 1f) * width,
+            y = 3f + (1f - yFraction) * drawableHeight,
+            startsSegment = point.startsSegment,
         )
     }
 }

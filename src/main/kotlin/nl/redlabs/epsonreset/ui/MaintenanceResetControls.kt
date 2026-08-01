@@ -3,18 +3,14 @@ package nl.redlabs.epsonreset.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -33,138 +29,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import nl.redlabs.epsonreset.db.PrinterModel
 
-/** The full-width Counters screen for the model in the application-wide target. */
+/** Reset workflow shared by Maintenance; kept separate from every read-only printer view. */
 @Composable
-fun ModelPanel(vm: ResetViewModel, modifier: Modifier = Modifier) {
-    var confirming by remember { mutableStateOf(false) }
-    val model = vm.selectedModel
-
-    if (model == null) {
-        EmptyState(vm, modifier)
-        return
-    }
-
-    Column(modifier.verticalScroll(rememberScrollState()).padding(20.dp)) {
-        ModelDetail(model)
-
-        Spacer(Modifier.height(16.dp))
-        RunControls(vm, model, confirming, onConfirmChange = { confirming = it })
-
-        // The outcome itself is the completion dialog's to report, once. What stays behind is only
-        // the offer that is still actionable: a live reset that stopped with writes already landed.
-        val finished = vm.runState as? ResetViewModel.RunState.Finished
-        val stranded = finished != null &&
-            vm.runKind == ResetViewModel.RunKind.RESET &&
-            !finished.result.success &&
-            !finished.wasDryRun &&
-            finished.result.writesAcknowledged > 0
-        if (stranded && vm.lastBackup != null) {
-            Spacer(Modifier.height(20.dp))
-            RestoreOffer(vm)
-        }
-
-        vm.counterDisplayReport?.let { report ->
-            Spacer(Modifier.height(if (stranded) 12.dp else 20.dp))
-            if (vm.status != null || vm.printerMib != null) {
-                SuppliesCard(vm.status, vm.printerMib)
-                Spacer(Modifier.height(12.dp))
-            }
-            // The model supplies addresses, types, and reset targets before a printer has answered.
-            // Current values are filled into this same table as reads and writes progress.
-            CounterOverview(
-                counters = vm.displayDecodedCounters,
-                report = report,
-                before = vm.beforeReport,
-                plan = vm.writePlan,
-                simulated = vm.dryRun,
-                // The status bar already reports a read failure; no need to say it twice.
-                showError = false,
-                onCalibrate = if (vm.readReport != null && !vm.readWasSimulated && !vm.reading) {
-                    vm.calibration::open
-                } else {
-                    null
-                },
-            )
-            CalibrationDialog(vm)
-
-            if (vm.snapshot.canOfferComparison) {
-                Spacer(Modifier.height(12.dp))
-                CompareOffer(vm)
-            }
-        }
-
-        // Rendered once, whether or not this session has a fresh reading. The panel hides itself when
-        // the selected printer has neither a serial-keyed history nor a reason it can't have one, and
-        // its modifier — top spacing included — applies only on that render path, so nothing shows a
-        // gap when it stays hidden.
-        CounterHistoryPanel(vm, Modifier.padding(top = 20.dp))
-    }
-}
-
-/** A way through to the comparison, not a second copy of it. */
-@Composable
-private fun CompareOffer(vm: ResetViewModel) {
-    val saved = vm.snapshot.snapshotsForSelectedModel
-
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
-            .background(MaterialTheme.colorScheme.surface)
-            .border(1.dp, MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(10.dp))
-            .padding(horizontal = 14.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(Modifier.weight(1f)) {
-            Text(
-                "${saved.size} saved snapshot(s) for this model",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Text(
-                "Comparing this reading against one of them shows what has moved since — and " +
-                    "whether a reset run earlier still holds.",
-                style = MaterialTheme.typography.labelSmall,
-                color = StatusColors.muted,
-            )
-        }
-
-        Spacer(Modifier.width(12.dp))
-        OutlinedButton(onClick = { vm.snapshot.compareCurrentReadingWithNewestSnapshot() }) {
-            Text("Compare")
-        }
-    }
-}
-
-@Composable
-private fun EmptyState(vm: ResetViewModel, modifier: Modifier = Modifier) {
-    Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.width(420.dp),
-        ) {
-            Text(
-                "No model selected",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Spacer(Modifier.height(8.dp))
-            Text(
-                if (vm.devices.isEmpty()) {
-                    "Open the target above to scan for a printer or choose a model for a dry run."
-                } else {
-                    "Open the target above to choose a printer and resolve its model."
-                },
-                style = MaterialTheme.typography.bodySmall,
-                color = StatusColors.muted,
-            )
-        }
-    }
-}
-
-/** Shows exactly which EEPROM addresses a reset would touch — no hidden writes. */
-@Composable
-private fun ModelDetail(model: PrinterModel) {
+internal fun MaintenanceResetSection(
+    vm: ResetViewModel,
+    model: PrinterModel,
+    confirming: Boolean,
+    onConfirmChange: (Boolean) -> Unit,
+) {
     Column(
         Modifier
             .fillMaxWidth()
@@ -175,8 +47,8 @@ private fun ModelDetail(model: PrinterModel) {
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                model.name,
-                style = MaterialTheme.typography.titleLarge,
+                "Reset controls",
+                style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
             )
             Spacer(Modifier.weight(1f))
@@ -187,6 +59,11 @@ private fun ModelDetail(model: PrinterModel) {
                 color = StatusColors.muted,
             )
         }
+        Text(
+            "${model.name} · Dry run simulates this workflow; Live can write EEPROM after confirmation.",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
 
         if (!model.hasResettableCounters) {
             Spacer(Modifier.height(12.dp))
@@ -208,6 +85,32 @@ private fun ModelDetail(model: PrinterModel) {
                 StatusColors.warn,
             )
         }
+
+        Spacer(Modifier.height(14.dp))
+        RunControls(vm, model, confirming, onConfirmChange)
+
+        // A reset table is an operation detail, not another standing copy of Overview counters.
+        // Dry-run mode shows it only after the user actually asks to simulate a reset.
+        val showResetTable = vm.runState !is ResetViewModel.RunState.Idle
+        if (showResetTable) {
+            vm.counterDisplayReport?.let { report ->
+                Spacer(Modifier.height(16.dp))
+                Text(
+                    if (vm.dryRun) "Simulated reset preview" else "Reset read/write progress",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Spacer(Modifier.height(8.dp))
+                CounterOverview(
+                    counters = vm.displayDecodedCounters,
+                    report = report,
+                    before = vm.beforeReport,
+                    plan = vm.writePlan,
+                    simulated = vm.dryRun,
+                    showError = false,
+                )
+            }
+        }
     }
 }
 
@@ -219,7 +122,7 @@ private fun RunControls(
     onConfirmChange: (Boolean) -> Unit,
 ) {
     val running = vm.runState is ResetViewModel.RunState.Running
-    val active = running || vm.reading
+    val active = running || vm.reading || vm.overviewRefreshing
 
     Column {
         // Nothing is inserted here when Live is switched on. A warning that displaces the controls
@@ -227,7 +130,7 @@ private fun RunControls(
         // been on screen long enough to have stopped being read — so it lives on the act instead,
         // in ResetConfirmation.
         Row(verticalAlignment = Alignment.CenterVertically) {
-            DryRunToggle(vm.dryRun, enabled = !running && !vm.reading) {
+            DryRunToggle(vm.dryRun, enabled = !active) {
                 vm.changeDryRunMode(it)
                 onConfirmChange(false)
             }
@@ -237,15 +140,13 @@ private fun RunControls(
                 OutlinedButton(onClick = { vm.cancel() }) { Text("Cancel") }
             } else {
                 if (!vm.dryRun) {
-                    // Reading never writes, so it sits outside the confirmation gate.
-                    OutlinedButton(onClick = { vm.readCounters() }, enabled = vm.canRead) {
-                        Text("Read counters")
-                    }
-                    Spacer(Modifier.width(8.dp))
                     // Saving writes a file, not EEPROM, so it needs no confirmation either — and
-                    // belongs next to the live read whose values it preserves.
-                    OutlinedButton(onClick = { vm.snapshot.saveSnapshot() }, enabled = vm.snapshot.canSaveSnapshot) {
-                        Text("Save snapshot")
+                    // belongs next to the live counter read whose values it preserves.
+                    OutlinedButton(
+                        onClick = { vm.snapshot.saveOrReadSnapshot() },
+                        enabled = vm.snapshot.canSaveOrReadSnapshot,
+                    ) {
+                        Text(if (vm.snapshot.canSaveSnapshot) "Save snapshot" else "Read & save snapshot")
                     }
                     Spacer(Modifier.width(8.dp))
                 }
@@ -346,12 +247,12 @@ private fun SegmentButton(label: String, active: Boolean, enabled: Boolean, onCl
 }
 
 /**
- * The recovery path, surfaced at the only moment it is the obvious next action: a live run that
+ * The recovery path, surfaced in Maintenance when it is the obvious next action: a live run that
  * stopped after some writes had already landed. A clean success needs no undo, and a run that wrote
  * nothing has nothing to put back.
  */
 @Composable
-private fun RestoreOffer(vm: ResetViewModel) {
+internal fun MaintenanceResetRecovery(vm: ResetViewModel) {
     val file = vm.lastBackup ?: return
     var confirming by remember(file) { mutableStateOf(false) }
 

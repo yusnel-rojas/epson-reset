@@ -20,7 +20,7 @@ that a change to them arrives with a pull instead of having to be re-installed b
 | Hook | Runs | When |
 |---|---|---|
 | `pre-commit` | `ktlintCheck` | Only when the commit touches `.kt`/`.kts`; a docs-only commit skips it |
-| `pre-push` | `test` | Every push — the same 448 offline tests CI runs |
+| `pre-push` | `test` | Every push — the same offline test suite CI runs |
 
 Install them once:
 

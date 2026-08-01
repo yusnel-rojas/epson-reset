@@ -57,6 +57,9 @@ fun SnapshotPanel(vm: ResetViewModel, modifier: Modifier = Modifier) {
 
 @Composable
 private fun SnapshotList(vm: ResetViewModel, modifier: Modifier = Modifier) {
+    val visible = vm.snapshot.visibleSnapshots
+    val filter = vm.snapshot.modelFilter
+
     Column(modifier.padding(16.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
@@ -76,18 +79,38 @@ private fun SnapshotList(vm: ResetViewModel, modifier: Modifier = Modifier) {
 
         Spacer(Modifier.height(10.dp))
 
+        if (filter != null) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "Showing $filter only",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Spacer(Modifier.weight(1f))
+                TextButton(onClick = { vm.snapshot.showAllSnapshots() }) { Text("Show all") }
+            }
+            Spacer(Modifier.height(4.dp))
+        }
+
         Text(
-            "${vm.snapshot.snapshots.size} saved · ${vm.snapshot.snapshotDir}",
+            if (filter == null) {
+                "${vm.snapshot.snapshots.size} saved · ${vm.snapshot.snapshotDir}"
+            } else {
+                "${visible.size} for $filter · ${vm.snapshot.snapshots.size} total · ${vm.snapshot.snapshotDir}"
+            },
             style = MaterialTheme.typography.labelSmall,
             color = StatusColors.muted,
         )
 
         Spacer(Modifier.height(10.dp))
 
-        if (vm.snapshot.snapshots.isEmpty()) {
+        if (visible.isEmpty()) {
             Text(
                 if (vm.snapshot.loadingSnapshots) {
                     "Looking…"
+                } else if (filter != null) {
+                    "No snapshots saved for $filter. Use Read & save above to capture one."
                 } else {
                     "Nothing saved yet. Use Read & save above — or run a live reset, which " +
                         "takes one for itself before it writes anything."
@@ -99,7 +122,7 @@ private fun SnapshotList(vm: ResetViewModel, modifier: Modifier = Modifier) {
         }
 
         LazyColumn {
-            items(vm.snapshot.snapshots) { snapshot ->
+            items(visible) { snapshot ->
                 SnapshotRow(
                     snapshot = snapshot,
                     selected = vm.snapshot.selectedSnapshot?.file == snapshot.file,

@@ -3,8 +3,10 @@
 A reset is one-way — the printer offers no undo — so before the first write of any live run the app
 saves the bytes that run is about to overwrite. After a live read, **Save snapshot** writes the same
 file whenever you ask for one, off the counters currently on screen — so a recovery point can exist
-before you decide to reset anything, rather than only as a side effect of deciding to. **Read &
-save** on the Snapshots tab performs a fresh real-printer read first. All three paths land in:
+before you decide to reset anything, rather than only as a side effect of deciding to. In
+Maintenance the same button becomes **Read & save snapshot** when no complete live reading exists;
+it takes the missing real-printer read itself. **Read & save** on the Snapshots tab always performs
+a fresh read first. All three paths land in:
 
 ```
 ~/Library/Application Support/EpsonReset/backups/     macOS
@@ -31,7 +33,7 @@ restore would happily write into an EEPROM. So **Save snapshot** is refused for 
 ## The Snapshots tab
 
 It can create a snapshot directly from the printer-and-model target shown in the top bar, without a
-trip through Reset. The action reads only the reset/recovery addresses and writes nothing to the
+trip through Maintenance. The action reads only the reset/recovery addresses and writes nothing to the
 printer. The model is automatic when the printer identifies itself exactly; an ambiguous family is
 settled from its constrained shortlist in the same target menu.
 

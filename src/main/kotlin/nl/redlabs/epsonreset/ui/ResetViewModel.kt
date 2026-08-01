@@ -61,6 +61,7 @@ class ResetViewModel(
         PrinterDiscovery.scan(crossCheck = PreferencesStore.current().crossCheckOverSnmp)
     },
     private val connectionTest: (DetectedPrinter, PrinterModel?) -> ConnectionTest.Result = ConnectionTest::run,
+    private val queryPrinterMib: (String) -> PrinterMib.Reading? = { PrinterMib.read(it) },
     private val loadSavedPrinters: () -> List<SavedPrinters.Saved> = SavedPrinters::load,
     private val addSavedPrinter: (SavedPrinters.Saved) -> List<SavedPrinters.Saved> = SavedPrinters::add,
     private val removeSavedPrinter: (Link.Network) -> List<SavedPrinters.Saved> = SavedPrinters::remove,
@@ -181,6 +182,18 @@ class ResetViewModel(
     var lastTest by mutableStateOf<ConnectionTest.Result?>(null)
         private set
 
+    /** The most recent explicit, read-only overview refresh. It belongs only to this app session. */
+    var overviewSnapshot by mutableStateOf<OverviewSnapshot?>(null)
+        private set
+
+    var overviewRefreshing by mutableStateOf(false)
+        private set
+
+    private var overviewRefreshVersion = 0L
+
+    val canRefreshOverview: Boolean
+        get() = !busy && selectedDevice != null
+
     val canTestConnection: Boolean get() = !printerOperationRunning && selectedDevice != null
 
     var query by mutableStateOf("")
@@ -213,7 +226,18 @@ class ResetViewModel(
     /** The user opened the secondary add-by-address step from the scan control. */
     var addByAddressRequested by mutableStateOf(false)
 
+    /** Monotonic UI event consumed by the top-bar printer chip. */
+    var printerMenuRequest by mutableStateOf(0L)
+        private set
+
+    fun requestPrinterMenu() {
+        printerMenuRequest++
+    }
+
     var tab by mutableStateOf(Tab.COUNTERS)
+
+    /** Presentation of the counter table inside Overview; it is session-only. */
+    var counterView by mutableStateOf(CounterView.SUMMARY)
 
     /** The settings window, which is a window rather than a tab — it is an errand, not a screen. */
     var settingsOpen by mutableStateOf(false)
@@ -349,8 +373,8 @@ class ResetViewModel(
         }
 
     /**
-     * What the Counters screen can show right now. The model supplies the layout even before a live
-     * read; dry-run mode additionally has a deterministic fake starting value.
+     * What the reset workflow can show in its counter table. The model supplies the layout before
+     * a live read; dry-run mode additionally has a deterministic fake starting value.
      */
     val counterDisplayReport: CounterReader.Report?
         get() {
@@ -563,7 +587,10 @@ class ResetViewModel(
     val searchResults: List<PrinterModel>
         get() = database?.search(query) ?: emptyList()
 
+    // COUNTERS remains the persisted/internal Overview route for compatibility.
     enum class Tab { COUNTERS, MAINTENANCE, SNAPSHOTS, INSPECT, MODELS }
+
+    enum class CounterView { SUMMARY, DETAILS, HISTORY }
 
     enum class MatrixFilter(val label: String) {
         ALL("All"),
@@ -615,6 +642,7 @@ class ResetViewModel(
         }
         selectModel(capability.model)
         query = capability.name
+        counterView = CounterView.DETAILS
         tab = Tab.COUNTERS
     }
 
@@ -622,6 +650,7 @@ class ResetViewModel(
         get() = runState == RunState.Running ||
             reading ||
             testing ||
+            overviewRefreshing ||
             inspect.inspecting ||
             maintenance.running != null
 
@@ -715,7 +744,10 @@ class ResetViewModel(
      * Startup sequence. The scan has to wait for the database, or matching runs against nothing and
      * reports a connected printer as unknown.
      */
-    fun start() {
+    private var startupPrinterId: String? = null
+
+    fun start(preferredPrinterId: String? = null) {
+        startupPrinterId = preferredPrinterId
         scope.launch {
             loadDatabaseNow()
             // Before the scan, because a current reading can offer a comparison the moment it lands
@@ -768,11 +800,7 @@ class ResetViewModel(
             val result = withContext(io) {
                 runCatching {
                     val text = java.net.URI(PrinterDatabase.OTA_URL).toURL().readText()
-                    // Parse before writing, so a truncated download can't replace a good cache.
-                    val parsed = PrinterDatabase.parse(text, PrinterDatabase.Source.CACHED)
-                    require(parsed.models.isNotEmpty()) { "downloaded database contained no models" }
-                    AppPaths.database.writeText(text)
-                    parsed
+                    PrinterDatabase.cacheDownloaded(text)
                 }
             }
             result.onSuccess {
@@ -886,12 +914,41 @@ class ResetViewModel(
             val usbCount = matched.count { !it.device.isNetwork }
             val netCount = matched.size - usbCount
             info("Found ${matched.size} Epson device(s) — $usbCount on USB, $netCount on the network.")
-            if (selectedDevice == null) matched.singleOrNull()?.let { select(it) }
+            if (selectedDevice == null) defaultPrinter(matched)?.let { select(it) }
         }
         return true
     }
 
+    /**
+     * Restores the exact link used last time. On a first launch, two discovered links may still be
+     * one physical printer; select its USB link because that is the reset-capable path.
+     */
+    private fun defaultPrinter(matched: List<MatchedPrinter>): MatchedPrinter? {
+        startupPrinterId?.let { id -> matched.firstOrNull { it.device.id == id }?.let { return it } }
+        if (matched.size == 1) return matched.single()
+
+        val serials = matched.mapNotNull { it.device.serial?.takeIf(String::isNotBlank) }
+        val onePhysicalSerial = serials.size == matched.size &&
+            serials.drop(1).all { Serials.same(serials.first(), it) }
+        if (onePhysicalSerial) return matched.preferredLink()
+
+        val pairedUsb = matched.filter { candidate ->
+            !candidate.device.isNetwork && candidate.device.crossCheck?.link?.let { peer ->
+                matched.any { it.device.link == peer }
+            } == true
+        }
+        if (matched.size == 2 && pairedUsb.size == 1) return pairedUsb.single()
+        return null
+    }
+
+    private fun List<MatchedPrinter>.preferredLink(): MatchedPrinter =
+        firstOrNull { !it.device.isNetwork && it.device.reachable }
+            ?: firstOrNull { !it.device.isNetwork }
+            ?: firstOrNull { it.device.reachable }
+            ?: first()
+
     private fun clearSelectedTarget() {
+        invalidateOverview()
         selectedDevice = null
         lastTest = null
         status = null
@@ -915,6 +972,7 @@ class ResetViewModel(
             return
         }
         stopScan(report = false)
+        invalidateOverview()
         selectedDevice = device
         lastTest = null
         // These all belong to the printer that was selected before this one, not to this one. In
@@ -952,6 +1010,18 @@ class ResetViewModel(
         }
 
         noteCrossCheck(device)
+    }
+
+    /** Selects a printer from the target menu and immediately fills its read-only overview. */
+    fun selectAndRefreshOverview(device: MatchedPrinter) {
+        // Discovery and add-by-address also call select(), but own their probe lifecycle. Keeping
+        // this as the menu action avoids starting a second operation inside either workflow.
+        if (!canChangeTarget) {
+            select(device)
+            return
+        }
+        select(device)
+        if (selectedDevice?.device?.id == device.device.id) refreshOverview()
     }
 
     /**
@@ -1215,6 +1285,10 @@ class ResetViewModel(
         selectedModel = model
         query = model.name
         if (changed) {
+            if (!overviewRefreshing) {
+                overviewSnapshot = null
+                overviewRefreshVersion++
+            }
             readReport = null
             beforeReport = null
             readWasSimulated = false
@@ -1336,6 +1410,127 @@ class ResetViewModel(
         warn("Cancelling after the current packet…")
     }
 
+    /**
+     * Builds one session-only overview snapshot from existing read-only probes. A missing optional
+     * source remains visible as missing coverage; it never turns the whole refresh into a false
+     * success, and no value from a dry-run transport can enter this path.
+     */
+    fun refreshOverview() {
+        if (!canRefreshOverview) {
+            val reason = when {
+                selectedDevice == null -> "Select a printer before refreshing overview."
+                else -> "Wait for the current printer operation to finish before refreshing overview."
+            }
+            warn(reason)
+            return
+        }
+
+        stopScan(report = false)
+        val selected = selectedDevice ?: return
+        val targetId = selected.device.id
+        val version = ++overviewRefreshVersion
+        cancelFlag.set(false)
+        overviewRefreshing = true
+        status = null
+        printerMib = null
+        progress = 0f
+        progressLabel = "Refreshing printer overview…"
+
+        scope.launch {
+            var connection: ConnectionTest.Result? = null
+            var refreshedStatus: Status.Report? = null
+            var refreshedMib: PrinterMib.Reading? = null
+            var counters: CounterReader.Report? = null
+            var counterReason: String? = null
+            try {
+                info("Refreshing overview for ${selected.device.displayName}…")
+                connection = withContext(io) { connectionTest(selected.device, selectedModel) }
+                if (!ownsOverviewRefresh(version, targetId)) return@launch
+                refreshedStatus = connection?.status
+                reportTest(connection!!, selected.device.link as? Link.Network)
+
+                if (connection?.opened != true) {
+                    counterReason = connection?.failure ?: "The connection could not be opened."
+                } else if (cancelFlag.get()) {
+                    counterReason = "Overview refresh was cancelled before counters were read."
+                } else {
+                    val model = selectedModel
+                    when {
+                        model == null -> counterReason = "The printer model is not resolved, so counters were not read."
+                        !model.hasResettableCounters && specsFor(model).isEmpty() ->
+                            counterReason = "This model has no known counter addresses."
+                        else -> counters = performRead(
+                            model,
+                            selectedDevice,
+                            isDry = false,
+                            publishResetProgress = false,
+                            resetCancellation = false,
+                            queryPrinterMibAfter = false,
+                        )
+                    }
+                    refreshedStatus = status ?: refreshedStatus
+                }
+
+                if (!ownsOverviewRefresh(version, targetId)) return@launch
+                if (connection?.opened == true && !cancelFlag.get()) {
+                    refreshedMib = try {
+                        readPrinterMib(selected.device, isDry = false)
+                    } catch (e: Exception) {
+                        warn("Printer-MIB information was unavailable: ${e.message ?: e::class.simpleName}.")
+                        null
+                    }
+                    printerMib = refreshedMib
+                }
+                if (cancelFlag.get() && counterReason == null && counters?.answered == 0) {
+                    counterReason = "Overview refresh was cancelled."
+                }
+            } catch (e: Exception) {
+                if (!ownsOverviewRefresh(version, targetId)) return@launch
+                counterReason = "Overview refresh stopped: ${e.message ?: e::class.simpleName}."
+                bad(counterReason!!)
+            } finally {
+                if (ownsOverviewRefresh(version, targetId)) {
+                    val model = selectedModel
+                    status = refreshedStatus
+                    overviewSnapshot = OverviewSnapshot.create(
+                        targetId = targetId,
+                        printerName = selected.device.displayName,
+                        linkKind = selected.device.link.kind,
+                        model = model?.name,
+                        refreshedAt = now(),
+                        connection = connection,
+                        status = refreshedStatus,
+                        printerMib = refreshedMib,
+                        counters = counters,
+                        specs = model?.let(::specsFor).orEmpty(),
+                        counterUnavailableReason = counterReason,
+                    )
+                    // Reset mode is a separate concern. Its dry-run preview must remain simulated,
+                    // so do not leave live overview-read progress painted onto that table.
+                    if (dryRun) counterByteStates = emptyMap()
+                    overviewRefreshing = false
+                    reading = false
+                    progress = 0f
+                    progressLabel = ""
+                    if (cancelFlag.get()) {
+                        warn("Overview refresh cancelled; available results were kept.")
+                    } else {
+                        info("Overview refresh complete.")
+                    }
+                }
+            }
+        }
+    }
+
+    private fun ownsOverviewRefresh(version: Long, targetId: String): Boolean =
+        overviewRefreshVersion == version && selectedDevice?.device?.id == targetId
+
+    private fun invalidateOverview() {
+        overviewRefreshVersion++
+        overviewRefreshing = false
+        overviewSnapshot = null
+    }
+
     /** Samples the model's counter addresses without writing anything. */
     fun readCounters() {
         if (busy) {
@@ -1350,36 +1545,53 @@ class ResetViewModel(
     }
 
     /** The read itself, so the Snapshot tab can ask for one without duplicating it. */
-    private suspend fun performRead(model: PrinterModel, device: MatchedPrinter?, isDry: Boolean) {
-        cancelFlag.set(false)
+    private suspend fun performRead(
+        model: PrinterModel,
+        device: MatchedPrinter?,
+        isDry: Boolean,
+        publishResetProgress: Boolean = true,
+        resetCancellation: Boolean = true,
+        queryPrinterMibAfter: Boolean = true,
+    ): CounterReader.Report {
+        if (resetCancellation) cancelFlag.set(false)
         reading = true
         beforeReport = null
         readReport = CounterReader.layout(model, specsFor(model))
         readWasSimulated = isDry
-        counterByteStates = readReport?.readings.orEmpty().associate { it.address to CounterByteState.PENDING }
+        counterByteStates = if (publishResetProgress) {
+            readReport?.readings.orEmpty().associate { it.address to CounterByteState.PENDING }
+        } else {
+            emptyMap()
+        }
         progress = 0f
         progressLabel = "Reading counters…"
 
         val listener = object : CounterReader.Listener {
-            override fun onProgress(done: Int, total: Int, address: Int) = onMain {
-                progress = done.toFloat() / total
-                progressLabel = "Reading address $address ($done / $total)"
-                val current = counterByteStates[address]
-                if (current != CounterByteState.READ && current != CounterByteState.FAILED) {
-                    counterByteStates = counterByteStates + (address to CounterByteState.READING)
+            override fun onProgress(done: Int, total: Int, address: Int) {
+                if (!publishResetProgress) return
+                onMain {
+                    progress = done.toFloat() / total
+                    progressLabel = "Reading address $address ($done / $total)"
+                    val current = counterByteStates[address]
+                    if (current != CounterByteState.READ && current != CounterByteState.FAILED) {
+                        counterByteStates = counterByteStates + (address to CounterByteState.READING)
+                    }
                 }
             }
 
-            override fun onReading(reading: CounterReader.Reading) = onMain {
-                val current = counterByteStates[reading.address]
-                if (current == CounterByteState.READ || current == CounterByteState.FAILED) return@onMain
-                readReport = readReport?.copy(
-                    readings = readReport?.readings.orEmpty().map { existing ->
-                        if (existing.address == reading.address) reading else existing
-                    },
-                )
-                val next = if (reading.value != null) CounterByteState.READ else CounterByteState.FAILED
-                counterByteStates = counterByteStates + (reading.address to next)
+            override fun onReading(reading: CounterReader.Reading) {
+                if (!publishResetProgress) return
+                onMain {
+                    val current = counterByteStates[reading.address]
+                    if (current == CounterByteState.READ || current == CounterByteState.FAILED) return@onMain
+                    readReport = readReport?.copy(
+                        readings = readReport?.readings.orEmpty().map { existing ->
+                            if (existing.address == reading.address) reading else existing
+                        },
+                    )
+                    val next = if (reading.value != null) CounterByteState.READ else CounterByteState.FAILED
+                    counterByteStates = counterByteStates + (reading.address to next)
+                }
             }
 
             override fun onTrace(line: String) = onMain { trace(line) }
@@ -1392,7 +1604,7 @@ class ResetViewModel(
                     val counters =
                         CounterReader.readAll(it, model, specsFor(model), listener) { cancelFlag.get() }
                     // Reuse the channel the counter read already opened.
-                    read = CounterReader.readStatus(it, listener)
+                    if (!cancelFlag.get()) read = CounterReader.readStatus(it, listener)
                     counters
                 }
             } ?: CounterReader.Report(model.name, emptyList(), transportError)
@@ -1401,9 +1613,13 @@ class ResetViewModel(
         readReport = report
         readWasSimulated = isDry
         val finalReadings = report.readings.associateBy { it.address }
-        counterByteStates = counterByteStates.mapValues { (address, state) ->
-            finalReadings[address]?.let { if (it.value != null) CounterByteState.READ else CounterByteState.FAILED }
-                ?: state.takeIf { it == CounterByteState.PENDING } ?: CounterByteState.FAILED
+        counterByteStates = if (publishResetProgress) {
+            counterByteStates.mapValues { (address, state) ->
+                finalReadings[address]?.let { if (it.value != null) CounterByteState.READ else CounterByteState.FAILED }
+                    ?: state.takeIf { it == CounterByteState.PENDING } ?: CounterByteState.FAILED
+            }
+        } else {
+            emptyMap()
         }
         // A percentage typed against the previous reading would silently pair with this one.
         calibration.resetForm()
@@ -1419,9 +1635,8 @@ class ResetViewModel(
         // serial-matched network twin a USB unit was cross-checked against (the same peer it borrows
         // its model name from). Never on a dry run, which has no host to ask. It uses the same GET
         // path the rest of the app does (port 161, community "public"), not the passthrough above.
-        val snmpHost = device?.device?.snmpLink?.host?.takeIf { !isDry }
-        printerMib = snmpHost?.let { host ->
-            withContext(io) { PrinterMib.read(host) }
+        if (queryPrinterMibAfter) {
+            printerMib = if (cancelFlag.get()) null else device?.device?.let { readPrinterMib(it, isDry) }
         }
         printerMib?.lifeCount?.let { info("Lifetime pages: $it") }
 
@@ -1430,6 +1645,12 @@ class ResetViewModel(
         progressLabel = ""
 
         describe(report, isDry)
+        return report
+    }
+
+    private suspend fun readPrinterMib(device: DetectedPrinter, isDry: Boolean): PrinterMib.Reading? {
+        val host = device.snmpLink?.host?.takeIf { !isDry } ?: return null
+        return withContext(io) { queryPrinterMib(host) }
     }
 
     private fun describe(report: CounterReader.Report, isDry: Boolean) {

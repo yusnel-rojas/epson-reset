@@ -1,13 +1,18 @@
 package nl.redlabs.epsonreset.db
 
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.int
+import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import nl.redlabs.epsonreset.AppPaths
+import java.io.File
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 
 /** Loads and searches the printer database (~1590 models, ~1475 of them resettable). */
 class PrinterDatabase private constructor(val models: List<PrinterModel>, val source: Source) {
@@ -52,6 +57,9 @@ class PrinterDatabase private constructor(val models: List<PrinterModel>, val so
         /** Newest schema this parser was written against; newer loads best-effort with a warning. */
         const val MAX_SUPPORTED_SCHEMA = 3
 
+        /** A remote file far smaller than the shipped database is almost certainly truncated or wrong. */
+        const val MIN_DOWNLOADED_MODELS = 1000
+
         private val json = Json {
             ignoreUnknownKeys = true
             isLenient = true
@@ -88,6 +96,121 @@ class PrinterDatabase private constructor(val models: List<PrinterModel>, val so
             }.sortedBy { it.name }
 
             return PrinterDatabase(models, source)
+        }
+
+        /**
+         * Strict boundary for data downloaded after the app was built. The ordinary parser remains
+         * backwards-compatible with hand-written and legacy fixtures; a network replacement gets no
+         * such benefit of the doubt because its addresses and byte values directly drive EEPROM writes.
+         */
+        fun parseDownloaded(text: String, minimumModels: Int = MIN_DOWNLOADED_MODELS): PrinterDatabase {
+            val root = json.parseToJsonElement(text).jsonObject
+            val schema = root["schema_version"]?.jsonPrimitive?.intOrNull
+            require(schema == null || schema in 1..MAX_SUPPORTED_SCHEMA) {
+                "unsupported database schema ${schema ?: "unknown"}"
+            }
+
+            val modelsRoot = when (val wrapped = root["models"]) {
+                null -> root
+                is JsonObject -> wrapped
+                else -> error("database models must be an object")
+            }
+            val entries = modelsRoot.entries.filter { it.key != "schema_version" }
+            require(entries.size >= minimumModels) {
+                "downloaded database contained ${entries.size} models; expected at least $minimumModels"
+            }
+            require(entries.map { it.key.lowercase() }.toSet().size == entries.size) {
+                "downloaded database contains duplicate model names"
+            }
+
+            entries.forEach { (name, element) ->
+                require(name.isNotBlank()) { "downloaded database contains a blank model name" }
+                val model = element as? JsonObject ?: error("$name is not an object")
+                validateModel(name, model)
+            }
+
+            return parse(text, Source.CACHED).also { parsed ->
+                require(parsed.size == entries.size) {
+                    "downloaded database parsed ${parsed.size} of ${entries.size} models"
+                }
+            }
+        }
+
+        /** Validates and atomically replaces the cached database, leaving the previous file on failure. */
+        fun cacheDownloaded(
+            text: String,
+            target: File = AppPaths.database,
+            minimumModels: Int = MIN_DOWNLOADED_MODELS,
+        ): PrinterDatabase {
+            val parsed = parseDownloaded(text, minimumModels)
+            val parent = target.absoluteFile.parentFile
+            parent.mkdirs()
+            val tmp = Files.createTempFile(parent.toPath(), "${target.name}.", ".tmp")
+            try {
+                Files.writeString(tmp, text)
+                runCatching {
+                    Files.move(
+                        tmp,
+                        target.toPath(),
+                        StandardCopyOption.REPLACE_EXISTING,
+                        StandardCopyOption.ATOMIC_MOVE,
+                    )
+                }.recoverCatching {
+                    Files.move(tmp, target.toPath(), StandardCopyOption.REPLACE_EXISTING)
+                }.getOrThrow()
+            } finally {
+                Files.deleteIfExists(tmp)
+            }
+            return parsed
+        }
+
+        private fun validateModel(name: String, model: JsonObject) {
+            val readKey = model.optionalInt("rkey", 0, name)
+            require(readKey in 0..0xFFFF) { "$name has rkey outside 0..65535" }
+            val memHigh = model.optionalInt("mem_high", 0x7FF, name)
+            require(memHigh in 0..0xFFFF) { "$name has mem_high outside 0..65535" }
+            model.optionalInt("rlen", 2, name).also { require(it > 0) { "$name has an invalid rlen" } }
+            model.optionalInt("wlen", 2, name).also { require(it > 0) { "$name has an invalid wlen" } }
+
+            val groups = when (val value = model["pad_groups"]) {
+                null -> {
+                    if (model["addresses"] == null) emptyList() else listOf(model)
+                }
+                is JsonArray -> value.mapIndexed { index, element ->
+                    element as? JsonObject ?: error("$name pad group $index is not an object")
+                }
+                else -> error("$name pad_groups must be an array")
+            }
+
+            val seen = mutableSetOf<Int>()
+            groups.forEachIndexed { index, group ->
+                val addresses = group.requiredInts("addresses", "$name pad group $index")
+                val resets = group.requiredInts("reset", "$name pad group $index")
+                require(addresses.size == resets.size) {
+                    "$name pad group $index has ${addresses.size} addresses but ${resets.size} reset values"
+                }
+                addresses.forEach { address ->
+                    require(address in 0..memHigh) {
+                        "$name address $address is outside 0..$memHigh"
+                    }
+                    require(seen.add(address)) { "$name repeats address $address" }
+                }
+                resets.forEach { value ->
+                    require(value in 0..255) { "$name reset value $value is outside 0..255" }
+                }
+            }
+        }
+
+        private fun JsonObject.optionalInt(key: String, default: Int, context: String): Int {
+            val value = this[key] ?: return default
+            return value.jsonPrimitive.intOrNull ?: error("$context $key must be an integer")
+        }
+
+        private fun JsonObject.requiredInts(key: String, context: String): List<Int> {
+            val array = this[key] as? JsonArray ?: error("$context $key must be an array")
+            return array.mapIndexed { index, element ->
+                element.jsonPrimitive.intOrNull ?: error("$context $key[$index] must be an integer")
+            }
         }
 
         private fun parseModel(name: String, obj: JsonObject): PrinterModel {

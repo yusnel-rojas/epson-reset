@@ -30,7 +30,7 @@ prefs/      Preferences + PreferencesStore (what survives a launch), ScreenFit �
             remembered window position still lands on a screen that exists
 update/     AppVersion (stamped into the jar at build time), UpdateCheck — is there a newer
             release than this one
-ui/         Compose screens — Reset, Models, Inspect, Maintenance, Snapshots — with one app-wide
+ui/         Compose screens — Overview, Models, Inspect, Maintenance, Snapshots — with one app-wide
             printer-and-model target in the top bar; the shared ResetViewModel core coordinates
             them, while CalibrationState, InspectState, SnapshotState and MaintenanceState own
             their area's state and actions
@@ -64,8 +64,10 @@ rate.
 Printer and model form one target with the same application scope. The top-bar chip shows both on
 every tab and opens their only selector: exact identifications choose the model automatically, a
 family exposes only its possible units, and no printer leaves the complete model search available
-for dry runs. Changing printers clears the previous model before resolving the new one. Reset is
-therefore full-width, while Snapshots retains its separate file selector. A printer operation owns
+for dry runs. Changing printers clears the previous model before resolving the new one. Overview is
+read-only, including its counter section's Summary, Counter details and History modes; simulated and live
+resets live with routine printer maintenance, while Snapshots retains its separate file selector and
+recovery path. A printer operation owns
 the target until its result is published: target changes, scans, tests, reads, resets, restores,
 inspection and maintenance all share the same exclusion gate.
 

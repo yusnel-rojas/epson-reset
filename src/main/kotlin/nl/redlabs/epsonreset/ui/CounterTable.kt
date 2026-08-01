@@ -37,11 +37,195 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import nl.redlabs.epsonreset.db.CounterSpec
 import nl.redlabs.epsonreset.db.PadGroup
 import nl.redlabs.epsonreset.db.PadKind
 import nl.redlabs.epsonreset.net.PrinterMib
 import nl.redlabs.epsonreset.protocol.CounterReader
 import nl.redlabs.epsonreset.protocol.Status
+
+internal data class OverviewCounterRow(
+    val description: String,
+    val current: String,
+    val value: Long?,
+    val maximum: Long?,
+    val percent: Double?,
+    val detail: String,
+    val uncertain: Boolean,
+)
+
+internal enum class OverviewCounterLevel { LOW, REACHING, MAXED }
+
+internal fun overviewCounterLevel(percent: Double): OverviewCounterLevel = when {
+    percent >= 100.0 -> OverviewCounterLevel.MAXED
+    percent >= 90.0 -> OverviewCounterLevel.REACHING
+    else -> OverviewCounterLevel.LOW
+}
+
+internal fun overviewCounterCoverageLabel(report: CounterReader.Report): String? =
+    if (report.answered < report.total) "${report.answered}/${report.total} addresses reported" else null
+
+/** Whether the percentage/value summary has at least one decoded, reported counter to show. */
+internal fun overviewCounterSummaryAvailable(report: CounterReader.Report?, specs: List<CounterSpec>): Boolean =
+    report?.takeIf { it.answered > 0 }?.let { current ->
+        specs.isNotEmpty() && CounterReader.decode(current.readings, specs).any { counter ->
+            counter.bytes.any { it != null }
+        }
+    } == true
+
+/** Current counter status only: no reset destinations and no model-only placeholder values. */
+internal fun overviewCounterRows(report: CounterReader.Report, specs: List<CounterSpec>): List<OverviewCounterRow> {
+    val decoded = CounterReader.decode(report.readings, specs)
+    val rows = decoded.mapNotNull { counter ->
+        if (counter.bytes.none { it != null }) return@mapNotNull null
+        val maximum = counter.spec.max?.takeIf { it > 0 }?.toLong()
+        val current = counter.value?.let { "%,d".format(it) } ?: counter.hexBytes
+        OverviewCounterRow(
+            description = counter.spec.description.removeSuffix(" (?)"),
+            current = current,
+            value = counter.value,
+            maximum = maximum,
+            percent = counter.percent,
+            detail = when {
+                counter.value == null -> "Current bytes; the complete counter value was not available."
+                maximum != null -> "%.1f%% of measured maximum".format(counter.percent)
+                else -> "Maximum not measured"
+            },
+            uncertain = counter.spec.isUncertain,
+        )
+    }.toMutableList()
+
+    val describedAddresses = specs.flatMapTo(mutableSetOf()) { it.addresses }
+    val other = report.readings.filter { it.value != null && it.address !in describedAddresses }
+    if (other.isNotEmpty()) {
+        rows += OverviewCounterRow(
+            description = "Other counter bytes",
+            current = other.joinToString("  ") { "${it.address}=%02X".format(it.value) },
+            value = null,
+            maximum = null,
+            percent = null,
+            detail = "Reported addresses without a decoded counter layout.",
+            uncertain = true,
+        )
+    }
+    return rows
+}
+
+/** Read-only Overview presentation. Reset targets remain exclusive to reset/snapshot tables. */
+@Composable
+fun OverviewCountersCard(
+    report: CounterReader.Report,
+    specs: List<CounterSpec>,
+    onCalibrate: (() -> Unit)? = null,
+    modifier: Modifier = Modifier,
+) {
+    val rows = overviewCounterRows(report, specs)
+    if (report.answered == 0 || rows.isEmpty()) return
+
+    Column(
+        modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(MaterialTheme.colorScheme.surface)
+            .border(1.dp, MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(10.dp))
+            .padding(14.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Counters", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.weight(1f))
+            overviewCounterCoverageLabel(report)?.let { coverage ->
+                Text(coverage, style = MaterialTheme.typography.labelSmall, color = StatusColors.warn)
+            }
+            if (onCalibrate != null && rows.any { it.value != null && it.maximum == null }) {
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    "Measure a maximum…",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.clickable(onClick = onCalibrate).padding(horizontal = 8.dp, vertical = 2.dp),
+                )
+            }
+        }
+
+        rows.forEachIndexed { index, row ->
+            Spacer(Modifier.height(if (index == 0) 12.dp else 8.dp))
+            if (index > 0) {
+                HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
+                Spacer(Modifier.height(8.dp))
+            }
+            OverviewCounterStatusRow(row)
+        }
+    }
+}
+
+@Composable
+private fun OverviewCounterStatusRow(row: OverviewCounterRow) {
+    val percent = row.percent
+    val level = percent?.let(::overviewCounterLevel)
+    val tone = when (level) {
+        OverviewCounterLevel.MAXED -> StatusColors.bad
+        OverviewCounterLevel.REACHING -> StatusColors.warn
+        OverviewCounterLevel.LOW -> StatusColors.good
+        null -> MaterialTheme.colorScheme.primary
+    }
+
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.width(190.dp)) {
+            Text(
+                row.description,
+                style = MaterialTheme.typography.bodySmall,
+                color = if (row.uncertain) StatusColors.warn else MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+            )
+            if (percent == null) {
+                Text(row.detail, style = MaterialTheme.typography.labelSmall, color = StatusColors.muted, maxLines = 1)
+            }
+        }
+
+        if (percent != null) {
+            Box(
+                Modifier
+                    .weight(1f)
+                    .height(8.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant),
+            ) {
+                Box(
+                    Modifier
+                        .fillMaxWidth((percent / 100.0).toFloat().coerceIn(0f, 1f))
+                        .height(8.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(tone),
+                )
+            }
+            Spacer(Modifier.width(12.dp))
+            Text(
+                "%.1f%%".format(percent),
+                style = MaterialTheme.typography.titleSmall,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Bold,
+                color = tone,
+                maxLines = 1,
+                modifier = Modifier.width(76.dp),
+            )
+        } else {
+            Spacer(Modifier.weight(1f))
+        }
+
+        Text(
+            if (row.maximum != null && row.value != null) {
+                "${row.current} / %,d".format(row.maximum)
+            } else {
+                row.current
+            },
+            style = MaterialTheme.typography.labelMedium,
+            fontFamily = FontFamily.Monospace,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            modifier = Modifier.width(150.dp),
+        )
+    }
+}
 
 /** Decoded counters and the EEPROM bytes behind them, kept together so neither view repeats the other. */
 @Composable
@@ -90,20 +274,23 @@ fun CounterOverview(
                 fontWeight = FontWeight.SemiBold,
             )
             Spacer(Modifier.weight(1f))
-            Text(
-                when {
-                    simulated -> "Simulated values"
-                    layoutOnly -> "Current values not read"
-                    else -> "${report.answered}/${report.total} answered"
-                },
-                style = MaterialTheme.typography.labelSmall,
-                color = when {
-                    simulated -> StatusColors.muted
-                    layoutOnly -> StatusColors.muted
-                    report.answered == report.total -> StatusColors.good
-                    else -> StatusColors.warn
-                },
-            )
+            val coverageLabel = when {
+                simulated -> "Simulated values"
+                layoutOnly -> "Current values not read"
+                report.answered < report.total -> "${report.answered}/${report.total} answered"
+                else -> null
+            }
+            coverageLabel?.let {
+                Text(
+                    it,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (report.answered < report.total && !layoutOnly) {
+                        StatusColors.warn
+                    } else {
+                        StatusColors.muted
+                    },
+                )
+            }
             onCalibrate?.takeIf { counters.isNotEmpty() }?.let {
                 // The one action a "no limit" invites. It lives up here rather than as a panel
                 // below, because measuring a maximum is a once-ever errand and the counters are

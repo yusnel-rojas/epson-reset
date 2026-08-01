@@ -11,6 +11,7 @@ import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import nl.redlabs.epsonreset.backup.EepromBackup
 import nl.redlabs.epsonreset.db.CounterSpecs
+import nl.redlabs.epsonreset.db.ModelCapabilities
 import nl.redlabs.epsonreset.db.PadGroup
 import nl.redlabs.epsonreset.db.PrinterDatabase
 import nl.redlabs.epsonreset.db.PrinterModel
@@ -22,6 +23,7 @@ import nl.redlabs.epsonreset.device.ModelChoices
 import nl.redlabs.epsonreset.device.PrinterDiscovery
 import nl.redlabs.epsonreset.device.PrinterTransports
 import nl.redlabs.epsonreset.history.CounterJournal
+import nl.redlabs.epsonreset.net.PrinterMib
 import nl.redlabs.epsonreset.net.SavedPrinters
 import nl.redlabs.epsonreset.protocol.CounterReader
 import nl.redlabs.epsonreset.protocol.DeviceId
@@ -30,6 +32,7 @@ import nl.redlabs.epsonreset.protocol.Maintenance
 import nl.redlabs.epsonreset.protocol.Status
 import nl.redlabs.epsonreset.protocol.Transport
 import nl.redlabs.epsonreset.ui.MaintenanceState
+import nl.redlabs.epsonreset.ui.OverviewSection
 import nl.redlabs.epsonreset.ui.ResetViewModel
 import nl.redlabs.epsonreset.ui.SnapshotState
 import nl.redlabs.epsonreset.usb.UsbPrinterScanner
@@ -207,6 +210,7 @@ private fun TestScope.viewModel(
     io: CoroutineContext = UnconfinedTestDispatcher(testScheduler),
     discover: () -> PrinterDiscovery.Result = { discovery() },
     connectionTest: (DetectedPrinter, PrinterModel?) -> ConnectionTest.Result = ConnectionTest::run,
+    queryPrinterMib: (String) -> PrinterMib.Reading? = { null },
     loadSavedPrinters: () -> List<SavedPrinters.Saved> = { emptyList() },
     addSavedPrinter: (SavedPrinters.Saved) -> List<SavedPrinters.Saved> = { listOf(it) },
     removeSavedPrinter: (Link.Network) -> List<SavedPrinters.Saved> = { emptyList() },
@@ -220,6 +224,7 @@ private fun TestScope.viewModel(
     transports = { openFailure ?: PrinterTransports.OpenResult.Ok(transport) },
     discover = discover,
     connectionTest = connectionTest,
+    queryPrinterMib = queryPrinterMib,
     loadSavedPrinters = loadSavedPrinters,
     addSavedPrinter = addSavedPrinter,
     removeSavedPrinter = removeSavedPrinter,
@@ -340,6 +345,17 @@ class ViewModelCounterHistoryTest {
 }
 
 class ViewModelBackupGateTest {
+
+    @Test
+    fun `showing a model's counters opens details inside Overview rather than another tab`() = runTest {
+        val vm = viewModel()
+        vm.tab = ResetViewModel.Tab.MODELS
+
+        vm.selectModelAndShowCounters(ModelCapabilities.of(testModel, emptyList()))
+
+        assertEquals(ResetViewModel.Tab.COUNTERS, vm.tab)
+        assertEquals(ResetViewModel.CounterView.DETAILS, vm.counterView)
+    }
 
     @Test
     fun `a selected model supplies an immediate dry preview without pretending it was read`() = runTest {
@@ -1266,6 +1282,27 @@ class ViewModelModelLockTest {
 class ViewModelSnapshotTest {
 
     @Test
+    fun `maintenance snapshot action reads and saves when no completed reading exists`() = runTest {
+        val hardware = ScriptedPrinter(serial = "UNIT-A", memory = mapOf(58 to 0x19, 59 to 0x0F))
+        val dir = createTempDirectory("vm-test").toFile()
+        val vm = viewModel(transport = hardware, backupDir = dir)
+        vm.select(printer())
+        vm.dryRun = false
+
+        assertNull(vm.readReport)
+        assertFalse(vm.snapshot.canSaveSnapshot)
+        assertTrue(vm.snapshot.canSaveOrReadSnapshot)
+
+        vm.snapshot.saveOrReadSnapshot()
+        advanceUntilIdle()
+
+        val saved = assertNotNull(dir.listFiles()?.singleOrNull()?.let(EepromBackup::load))
+        assertEquals(listOf(0x19, 0x0F), saved.entries.map { it.value })
+        assertTrue(hardware.packets > 0, "the action should take the missing live reading")
+        assertTrue(hardware.writes.isEmpty(), "saving a snapshot must not write EEPROM")
+    }
+
+    @Test
     fun `the snapshots tab takes a fresh live reading before it saves`() = runTest {
         val hardware = ScriptedPrinter(serial = "UNIT-A", memory = mapOf(58 to 0x19, 59 to 0x0F))
         val dir = createTempDirectory("vm-test").toFile()
@@ -1561,6 +1598,36 @@ class ViewModelSnapshotTest {
         assertEquals(quiet, hardware.packets, "reading a snapshot must send nothing")
     }
 
+    @Test
+    fun `the counters handoff opens snapshots filtered to the selected model`() = runTest {
+        val dir = createTempDirectory("vm-test").toFile()
+        EepromBackup(
+            model = "TEST-1",
+            createdAt = "20260801T120000Z",
+            printerSerial = null,
+            entries = listOf(EepromBackup.Entry(58, 0x19, 0)),
+        ).save(dir)
+        EepromBackup(
+            model = "OTHER-9",
+            createdAt = "20260801T130000Z",
+            printerSerial = null,
+            entries = listOf(EepromBackup.Entry(20, 0x20, 0)),
+        ).save(dir)
+        val vm = viewModel(backupDir = dir)
+        vm.select(printer())
+        vm.snapshot.refreshSnapshots()
+        advanceUntilIdle()
+
+        vm.snapshot.openSelectedModelSnapshots()
+
+        assertEquals(ResetViewModel.Tab.SNAPSHOTS, vm.tab)
+        assertEquals("TEST-1", vm.snapshot.modelFilter)
+        assertEquals(listOf("TEST-1"), vm.snapshot.visibleSnapshots.map { it.backup?.model })
+
+        vm.snapshot.showAllSnapshots()
+        assertEquals(2, vm.snapshot.visibleSnapshots.size)
+    }
+
     /** A file that will not parse is listed rather than hidden — it is a recovery point that isn't. */
     @Test
     fun `an unreadable file is listed, without contents`() = runTest {
@@ -1792,7 +1859,7 @@ class ViewModelComparisonTest {
     }
 
     /**
-     * The Counters tab hands off rather than growing a second comparison view, so what it offers has
+     * The Overview tab hands off rather than growing a second comparison view, so what it offers has
      * to be a real pairing — a model with something saved, and a reading worth comparing.
      */
     @Test
@@ -1821,6 +1888,58 @@ class ViewModelComparisonTest {
 }
 
 class ViewModelScanTest {
+
+    @Test
+    fun `startup restores the last selected printer when several are discovered`() = runTest {
+        val usb = printer(serial = "UNIT-A", product = "EPSON L3150 Series")
+        val network = printer(
+            serial = "UNIT-B",
+            link = Link.Network("192.0.2.44"),
+            product = "ET-2825",
+        )
+        val vm = viewModel(discover = { discovery(usb, network) })
+
+        vm.start(network.device.id)
+        advanceUntilIdle()
+
+        assertEquals(network.device.id, assertNotNull(vm.selectedDevice).device.id)
+    }
+
+    @Test
+    fun `startup treats USB and network links for one printer as one default and prefers USB`() = runTest {
+        val networkLink = Link.Network("192.0.2.45")
+        val usb = printer(serial = "UNIT-A", product = "EPSON ET-2820 Series").let { matched ->
+            matched.copy(
+                device = matched.device.copy(
+                    crossCheck = DetectedPrinter.CrossCheck("ET-2825", networkLink),
+                ),
+            )
+        }
+        val network = printer(serial = "UNIT-A", link = networkLink, product = "ET-2825")
+        val vm = viewModel(discover = { discovery(usb, network) })
+
+        vm.start()
+        advanceUntilIdle()
+
+        assertEquals(usb.device.id, assertNotNull(vm.selectedDevice).device.id)
+        assertFalse(assertNotNull(vm.selectedDevice).device.isNetwork)
+    }
+
+    @Test
+    fun `startup does not invent a default when several unrelated printers are discovered`() = runTest {
+        val first = printer(serial = "UNIT-A", product = "EPSON L3150 Series")
+        val second = printer(
+            serial = "UNIT-B",
+            link = Link.Network("192.0.2.46"),
+            product = "ET-2825",
+        )
+        val vm = viewModel(discover = { discovery(first, second) })
+
+        vm.start()
+        advanceUntilIdle()
+
+        assertNull(vm.selectedDevice)
+    }
 
     @Test
     fun `an unreachable saved printer allows simulation but not live controls`() = runTest {
@@ -2288,6 +2407,287 @@ class ViewModelCalibrationTest {
 
         vm.calibration.model = "  "
         assertFalse(vm.calibration.canSubmit)
+    }
+}
+
+class ViewModelOverviewRefreshTest {
+    private fun connection(
+        status: Status.Report? = status(Status.STATE_IDLE),
+        opened: Boolean = true,
+        reach: ConnectionTest.Reach = ConnectionTest.Reach.COUNTERS,
+        failure: String? = null,
+    ) = ConnectionTest.Result(
+        opened = opened,
+        identity = null,
+        answered = opened,
+        status = status,
+        overNetwork = true,
+        reach = reach,
+        reportedModel = "TEST-1",
+        firmware = "01.23",
+        failure = failure,
+    )
+
+    private fun status(state: Int): Status.Report = Status.Report(
+        fields = listOf(Status.Field(Status.TYPE_STATE, byteArrayOf(state.toByte()))),
+        raw = ByteArray(0),
+    )
+
+    @Test
+    fun `selecting a printer from the target menu refreshes its overview without writing`() = runTest {
+        val hardware = ScriptedPrinter(state = Status.STATE_IDLE, memory = mapOf(58 to 11, 59 to 0))
+        val selected = printer(serial = "UNIT0001", link = Link.Network("192.0.2.9"))
+        val vm = viewModel(transport = hardware, connectionTest = { _, _ -> connection() })
+        vm.dryRun = false
+
+        vm.selectAndRefreshOverview(selected)
+        advanceUntilIdle()
+
+        assertEquals(selected.device.id, vm.selectedDevice?.device?.id)
+        assertEquals(selected.device.id, assertNotNull(vm.overviewSnapshot).targetId)
+        assertEquals(listOf(11, 0), vm.overviewSnapshot?.counters?.readings?.map { it.value })
+        assertTrue(hardware.writes.isEmpty(), "selection refresh emitted EEPROM writes: ${hardware.writes}")
+    }
+
+    @Test
+    fun `a complete refresh keeps every reported section and sends no writes`() = runTest {
+        val hardware = ScriptedPrinter(state = Status.STATE_IDLE, memory = mapOf(58 to 10, 59 to 0))
+        val mib = PrinterMib.Reading(
+            lifeCount = 1234,
+            supplies = listOf(PrinterMib.Supply(1, "Maintenance box", 4, 8, 20, 100, null)),
+        )
+        val vm = viewModel(
+            transport = hardware,
+            connectionTest = { _, _ -> connection() },
+            queryPrinterMib = { mib },
+        )
+        vm.select(printer(serial = "UNIT0001", link = Link.Network("192.0.2.10")))
+        vm.dryRun = false
+
+        vm.refreshOverview()
+        advanceUntilIdle()
+
+        val overview = assertNotNull(vm.overviewSnapshot)
+        assertEquals(5, overview.coverage.count { it.available })
+        assertEquals(1234, overview.printerMib?.lifeCount)
+        assertEquals(2, overview.counters?.answered)
+        assertTrue(overview.alerts.isEmpty())
+        assertTrue(hardware.writes.isEmpty(), "overview refresh emitted EEPROM writes: ${hardware.writes}")
+    }
+
+    @Test
+    fun `a status-only printer produces a partial snapshot instead of false success`() = runTest {
+        val hardware = ScriptedPrinter(refuseReads = true, state = Status.STATE_IDLE)
+        val vm = viewModel(
+            transport = hardware,
+            connectionTest = { _, _ -> connection(reach = ConnectionTest.Reach.STATUS_ONLY) },
+        )
+        vm.select(printer(link = Link.Network("192.0.2.11")))
+        vm.dryRun = false
+
+        vm.refreshOverview()
+        advanceUntilIdle()
+
+        val overview = assertNotNull(vm.overviewSnapshot)
+        assertTrue(overview.coverage.first { it.section == OverviewSection.CONNECTION }.available)
+        assertTrue(overview.coverage.first { it.section == OverviewSection.STATUS }.available)
+        assertFalse(overview.coverage.first { it.section == OverviewSection.COUNTERS }.available)
+        assertTrue(hardware.writes.isEmpty())
+    }
+
+    @Test
+    fun `a later refresh never reuses status or supplies from an earlier refresh`() = runTest {
+        val hardware = ScriptedPrinter(memory = mapOf(58 to 3, 59 to 0))
+        var reportedStatus: Status.Report? = status(Status.STATE_IDLE)
+        var reportedMib: PrinterMib.Reading? = PrinterMib.Reading(
+            lifeCount = 50,
+            supplies = listOf(PrinterMib.Supply(1, "Maintenance box", 4, 8, 10, 100, null)),
+        )
+        val vm = viewModel(
+            transport = hardware,
+            connectionTest = { _, _ -> connection(status = reportedStatus) },
+            queryPrinterMib = { reportedMib },
+        )
+        vm.select(printer(link = Link.Network("192.0.2.15")))
+
+        vm.refreshOverview()
+        advanceUntilIdle()
+        assertNotNull(vm.overviewSnapshot?.status)
+        assertNotNull(vm.overviewSnapshot?.printerMib)
+
+        reportedStatus = null
+        reportedMib = null
+        vm.refreshOverview()
+        advanceUntilIdle()
+
+        val refreshed = assertNotNull(vm.overviewSnapshot)
+        assertNull(refreshed.status)
+        assertNull(refreshed.printerMib)
+        assertFalse(refreshed.coverage.first { it.section == OverviewSection.STATUS }.available)
+        assertFalse(
+            refreshed.coverage
+                .first { it.section == OverviewSection.SUPPLIES }
+                .available,
+        )
+    }
+
+    @Test
+    fun `an unavailable Printer-MIB does not discard counters already read`() = runTest {
+        val hardware = ScriptedPrinter(state = Status.STATE_IDLE, memory = mapOf(58 to 4, 59 to 0))
+        val vm = viewModel(
+            transport = hardware,
+            connectionTest = { _, _ -> connection() },
+            queryPrinterMib = { error("SNMP timed out") },
+        )
+        vm.select(printer(link = Link.Network("192.0.2.16")))
+
+        vm.refreshOverview()
+        advanceUntilIdle()
+
+        val overview = assertNotNull(vm.overviewSnapshot)
+        assertEquals(2, overview.counters?.answered)
+        assertNull(overview.printerMib)
+        assertTrue(vm.said("Printer-MIB information was unavailable"))
+        assertTrue(hardware.writes.isEmpty())
+    }
+
+    @Test
+    fun `an unopened connection keeps a failed snapshot and does not probe the transport`() = runTest {
+        val hardware = ScriptedPrinter()
+        val vm = viewModel(
+            transport = hardware,
+            connectionTest = { _, _ ->
+                connection(status = null, opened = false, reach = ConnectionTest.Reach.NONE, failure = "offline")
+            },
+        )
+        vm.select(printer())
+        vm.dryRun = false
+
+        vm.refreshOverview()
+        advanceUntilIdle()
+
+        val overview = assertNotNull(vm.overviewSnapshot)
+        assertFalse(overview.coverage.first { it.section == OverviewSection.CONNECTION }.available)
+        assertEquals(0, hardware.packets)
+        assertTrue(hardware.writes.isEmpty())
+    }
+
+    @Test
+    fun `overview refresh can retry a remembered printer not reached by the last scan`() = runTest {
+        val hardware = ScriptedPrinter(state = Status.STATE_IDLE, memory = mapOf(58 to 1, 59 to 0))
+        val vm = viewModel(transport = hardware, connectionTest = { _, _ -> connection() })
+        val remembered = printer(link = Link.Network("192.0.2.14")).let { matched ->
+            matched.copy(device = matched.device.copy(reachable = false))
+        }
+        vm.select(remembered)
+        vm.dryRun = false
+
+        assertTrue(vm.canRefreshOverview)
+        vm.refreshOverview()
+        advanceUntilIdle()
+
+        assertTrue(assertNotNull(vm.overviewSnapshot).coverage.first().available)
+        assertTrue(vm.selectedDevice?.device?.reachable == true)
+    }
+
+    @Test
+    fun `cancelling after the connection keeps partial data and skips counters`() = runTest {
+        val hardware = ScriptedPrinter()
+        lateinit var vm: ResetViewModel
+        vm = viewModel(
+            transport = hardware,
+            connectionTest = { _, _ ->
+                vm.cancel()
+                connection()
+            },
+        )
+        vm.select(printer())
+        vm.dryRun = false
+
+        vm.refreshOverview()
+        advanceUntilIdle()
+
+        val overview = assertNotNull(vm.overviewSnapshot)
+        assertFalse(vm.overviewRefreshing)
+        assertFalse(overview.coverage.first { it.section == OverviewSection.COUNTERS }.available)
+        assertContains(
+            overview.coverage.first { it.section == OverviewSection.COUNTERS }.detail,
+            "cancelled",
+        )
+        assertEquals(0, hardware.packets)
+    }
+
+    @Test
+    fun `a target change is refused while refresh owns the printer`() = runTest {
+        lateinit var vm: ResetViewModel
+        val first = printer(link = Link.Network("192.0.2.12"))
+        val second = printer(link = Link.Network("192.0.2.13"))
+        vm = viewModel(
+            connectionTest = { _, _ ->
+                vm.select(second)
+                connection(opened = false, status = null, failure = "offline")
+            },
+        )
+        vm.select(first)
+        vm.dryRun = false
+
+        vm.refreshOverview()
+        advanceUntilIdle()
+
+        assertEquals(first.device.id, vm.selectedDevice?.device?.id)
+        assertEquals(first.device.id, assertNotNull(vm.overviewSnapshot).targetId)
+        assertTrue(vm.said("finish before changing printers"))
+    }
+
+    @Test
+    fun `missing serial keeps overview data but cannot create joined history`() = runTest {
+        val hardware = ScriptedPrinter(state = Status.STATE_IDLE, memory = mapOf(58 to 1, 59 to 0))
+        val vm = viewModel(transport = hardware, connectionTest = { _, _ -> connection() })
+        vm.select(printer(serial = null))
+        vm.dryRun = false
+
+        vm.refreshOverview()
+        advanceUntilIdle()
+
+        assertNotNull(vm.overviewSnapshot)
+        assertNull(vm.history.view)
+        assertContains(assertNotNull(vm.history.unavailableReason), "no serial")
+    }
+
+    @Test
+    fun `model-only simulated mode cannot produce an overview snapshot or touch hardware`() = runTest {
+        val hardware = ScriptedPrinter()
+        val vm = viewModel(transport = hardware)
+        vm.selectModel(testModel)
+        vm.dryRun = true
+
+        vm.refreshOverview()
+        advanceUntilIdle()
+
+        assertNull(vm.overviewSnapshot)
+        assertEquals(0, hardware.packets)
+        assertTrue(vm.said("Select a printer before refreshing overview"))
+    }
+
+    @Test
+    fun `overview refresh reads hardware without changing dry reset mode`() = runTest {
+        val hardware = ScriptedPrinter(state = Status.STATE_IDLE, memory = mapOf(58 to 7, 59 to 0))
+        val vm = viewModel(transport = hardware, connectionTest = { _, _ -> connection() })
+        vm.select(printer())
+        vm.dryRun = true
+
+        vm.refreshOverview()
+        advanceUntilIdle()
+
+        assertTrue(vm.dryRun)
+        assertEquals(listOf(7, 0), assertNotNull(vm.overviewSnapshot).counters?.readings?.map { it.value })
+        assertEquals(
+            listOf(0x7F, 0x7F),
+            assertNotNull(vm.counterDisplayReport).readings.map { it.value },
+            "the reset preview must stay simulated after a live overview read",
+        )
+        assertTrue(vm.counterByteStates.isEmpty())
+        assertTrue(hardware.writes.isEmpty())
     }
 }
 

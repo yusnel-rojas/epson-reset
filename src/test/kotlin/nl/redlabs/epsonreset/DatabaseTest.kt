@@ -6,8 +6,11 @@ import nl.redlabs.epsonreset.device.DetectedPrinter
 import nl.redlabs.epsonreset.device.DeviceMatcher
 import nl.redlabs.epsonreset.device.Link
 import nl.redlabs.epsonreset.device.MatchedPrinter
+import java.io.File
+import kotlin.io.path.createTempDirectory
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -19,6 +22,15 @@ class DatabaseTest {
     @Test
     fun `bundled database loads the full model set`() {
         assertTrue(db.size > 1000, "expected the full database, got ${db.size}")
+    }
+
+    @Test
+    fun `the bundled data passes the downloaded-data trust boundary`() {
+        val text = assertNotNull(PrinterDatabase::class.java.getResourceAsStream("/database.json"))
+            .bufferedReader()
+            .use { it.readText() }
+
+        assertEquals(db.size, PrinterDatabase.parseDownloaded(text).size)
     }
 
     @Test
@@ -104,6 +116,61 @@ class DatabaseTest {
               {"desc": "Main Pad Counter", "kind": "main", "addresses": [2], "reset": [0]}]}}
         """.trimIndent()
         assertTrue(!assertNotNull(PrinterDatabase.parse(both)["B"]).isPlatenOnly)
+    }
+
+    @Test
+    fun `a downloaded database is checked without weakening the legacy parser`() {
+        val valid = """
+            {"ONE": {"rkey": 1, "mem_high": 255, "pad_groups": [
+              {"kind": "main", "addresses": [1, 2], "reset": [0, 94]}
+            ]}}
+        """.trimIndent()
+
+        assertEquals(1, PrinterDatabase.parseDownloaded(valid, minimumModels = 1).size)
+        assertFailsWith<IllegalArgumentException> { PrinterDatabase.parseDownloaded(valid) }
+
+        // The ordinary parser still accepts this old shape and pads its reset values.
+        assertNotNull(PrinterDatabase.parse("""{"OLD": {"addresses": [1,2], "reset": [0]}}""")["OLD"])
+    }
+
+    @Test
+    fun `a downloaded database rejects unsafe addresses values and structure`() {
+        val mismatch = """{"ONE":{"pad_groups":[{"addresses":[1,2],"reset":[0]}]}}"""
+        val outOfBounds =
+            """{"ONE":{"mem_high":10,"pad_groups":[{"addresses":[11],"reset":[0]}]}}"""
+        val invalidByte = """{"ONE":{"pad_groups":[{"addresses":[1],"reset":[256]}]}}"""
+        val duplicate = """{"ONE":{"pad_groups":[{"addresses":[1,1],"reset":[0,0]}]}}"""
+
+        listOf(mismatch, outOfBounds, invalidByte, duplicate).forEach { text ->
+            assertFailsWith<IllegalArgumentException> {
+                PrinterDatabase.parseDownloaded(text, minimumModels = 1)
+            }
+        }
+    }
+
+    @Test
+    fun `a rejected download leaves the previous cache untouched`() {
+        val dir = createTempDirectory("database-cache-test").toFile()
+        val target = File(dir, "database.json").apply { writeText("working copy") }
+        val invalid = """{"ONE":{"pad_groups":[{"addresses":[1],"reset":[999]}]}}"""
+
+        assertFailsWith<IllegalArgumentException> {
+            PrinterDatabase.cacheDownloaded(invalid, target, minimumModels = 1)
+        }
+
+        assertEquals("working copy", target.readText())
+        assertTrue(dir.listFiles().orEmpty().none { it.name.endsWith(".tmp") })
+    }
+
+    @Test
+    fun `a valid download atomically replaces the cache`() {
+        val target = File(createTempDirectory("database-cache-test").toFile(), "database.json")
+        val valid = """{"ONE":{"pad_groups":[{"addresses":[1],"reset":[0]}]}}"""
+
+        val parsed = PrinterDatabase.cacheDownloaded(valid, target, minimumModels = 1)
+
+        assertEquals(1, parsed.size)
+        assertEquals(valid, target.readText())
     }
 }
 

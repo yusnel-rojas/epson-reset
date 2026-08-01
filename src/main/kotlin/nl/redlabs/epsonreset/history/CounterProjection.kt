@@ -8,6 +8,9 @@ import kotlin.math.roundToLong
 /** Trends one printer's decoded counters, restarting a counter's trend whenever its value drops. */
 object CounterProjection {
 
+    /** One drawable history point. A true [startsSegment] breaks the line after a counter drop. */
+    data class TrendPoint(val at: Instant, val value: Long, val startsSegment: Boolean)
+
     data class Trend(
         val spec: CounterSpec,
         val samplesUsed: Int,
@@ -21,6 +24,7 @@ object CounterProjection {
         val projectedAt: Instant?,
         val projectionReason: String?,
         val resetObserved: Boolean,
+        val points: List<TrendPoint>,
     )
 
     /** One sample reduced to the single number this counter decodes to at that moment. */
@@ -41,6 +45,10 @@ object CounterProjection {
         // earlier reset cannot pull the fill rate negative.
         var segmentStart = 0
         var resetObserved = false
+        val points = usable.mapIndexed { index, point ->
+            val startsSegment = index == 0 || point.value < usable[index - 1].value
+            TrendPoint(point.at, point.value, startsSegment)
+        }
         for (index in 1 until usable.size) {
             if (usable[index].value < usable[index - 1].value) {
                 segmentStart = index
@@ -74,6 +82,7 @@ object CounterProjection {
             projectedAt = projection.first,
             projectionReason = projection.second,
             resetObserved = resetObserved,
+            points = points,
         )
     }
 

@@ -20,6 +20,8 @@ data class Preferences(
     val maximized: Boolean = false,
     /** Model name as the database spells it; resolved on load, dropped if it no longer exists. */
     val lastModel: String? = null,
+    /** Exact discovered link selected last time; ignored when that link is no longer present. */
+    val lastPrinterId: String? = null,
     val logCollapsed: Boolean = false,
     val checkForUpdates: Boolean = true,
     /** Epoch millis of the last release check, which is what throttles it to once a day. */
@@ -43,6 +45,7 @@ data class Preferences(
         windowX = windowX?.takeIf { it in -MAX_DIMENSION..MAX_DIMENSION },
         windowY = windowY?.takeIf { it in -MAX_DIMENSION..MAX_DIMENSION },
         lastModel = lastModel?.takeIf { it.isNotBlank() },
+        lastPrinterId = lastPrinterId?.takeIf { it.isNotBlank() },
         lastUpdateCheck = lastUpdateCheck.coerceAtLeast(0L),
     )
 
@@ -76,6 +79,7 @@ data class Preferences(
                 windowY = root.int("windowY"),
                 maximized = root.bool("maximized") ?: defaults.maximized,
                 lastModel = root.str("lastModel"),
+                lastPrinterId = root.str("lastPrinterId"),
                 logCollapsed = root.bool("logCollapsed") ?: defaults.logCollapsed,
                 checkForUpdates = root.bool("checkForUpdates") ?: defaults.checkForUpdates,
                 lastUpdateCheck = root.long("lastUpdateCheck") ?: defaults.lastUpdateCheck,
@@ -94,6 +98,7 @@ data class Preferences(
                 p.windowY?.let { put("windowY", JsonPrimitive(it)) }
                 put("maximized", JsonPrimitive(p.maximized))
                 p.lastModel?.let { put("lastModel", JsonPrimitive(it)) }
+                p.lastPrinterId?.let { put("lastPrinterId", JsonPrimitive(it)) }
                 put("logCollapsed", JsonPrimitive(p.logCollapsed))
                 put("checkForUpdates", JsonPrimitive(p.checkForUpdates))
                 put("lastUpdateCheck", JsonPrimitive(p.lastUpdateCheck))

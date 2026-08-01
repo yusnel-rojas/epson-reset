@@ -1,7 +1,7 @@
 # Preferences
 
-Window size and position, the model you last worked on, and whether the log panel was collapsed
-are kept in `preferences.json` beside the database cache and the backups:
+Window size and position, the printer and model you last worked on, and whether the log panel was
+collapsed are kept in `preferences.json` beside the database cache and the backups:
 
 ```
 ~/Library/Application Support/EpsonReset/preferences.json     macOS
@@ -27,6 +27,11 @@ A remembered window position that no longer lands on a screen is dropped and the
 places the window instead — an unplugged second monitor should not open the app somewhere you
 can't reach it. A remembered model yields to whatever the connected printer says it is; it fills
 the selection when nothing else has, and never over the top of the printer's own answer.
+
+The last selected printer link is restored after discovery when it is still present. On a first
+launch, USB and network entries proven to belong to the same unit count as one default and USB is
+preferred because it is the reset-capable path. Multiple unrelated printers still require an
+explicit choice.
 
 ## Update check
 

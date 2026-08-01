@@ -68,10 +68,12 @@ print data stream in ESC/P2 remote mode, which is a different path — see
 [the field notes](field-notes.md#the-control-channel-parses-nc-and-does-nothing-with-it) for both
 runs in full.
 
-The Maintenance tab exposes these operations as a guided USB-only sequence. It starts with a nozzle
-check, asks whether its printed pattern has gaps, and enables cleaning only when the answer is yes.
-Every operation names the target printer in a confirmation; every cleaning states its ink and pad
-cost before the button. After cleaning, the tab offers another nozzle check to confirm the result.
+The print-maintenance section exposes these operations as a guided USB-only sequence. It starts
+with a nozzle check, asks whether its printed pattern has gaps, and enables cleaning only when the
+answer is yes. Every operation names the target printer in a confirmation; every cleaning states
+its ink and pad cost before the button. After cleaning, the tab offers another nozzle check to
+confirm the result. The same tab contains the separate counter-reset workflow, keeping reset beside
+the other routine printer-maintenance actions.
 
 The nozzle check is proven end to end on one ET-2820 — command, print, eject — and cross-checked
 against `escputil` driving the same printer. Head cleaning ran first time on the same printer. Power
@@ -235,10 +237,11 @@ it is already cleaning: asking again is at best ignored and at worst another cyc
 That is the same gate the reset path uses, `Status.busyReason`, which is phrased without naming the
 operation because every caller's answer to a busy printer is the same one.
 
-Nothing here writes EEPROM. That is enforced rather than promised — `Maintenance.packetFor` asserts
-that what it built is not a write packet, and the test suite walks every operation to check it, the
-same way the [inspector's read-only guarantee](inspect.md) is checked. Maintenance costs ink, which
-is recoverable. A stray write to the wrong address is not.
+The nozzle-check and cleaning commands do not write EEPROM. That is enforced rather than promised —
+`Maintenance.packetFor` asserts that what it built is not a write packet, and the test suite walks
+every operation to check it, the same way the [inspector's read-only guarantee](inspect.md) is
+checked. The Maintenance tab also houses the separate, explicitly gated counter-reset workflow;
+that path retains its Dry run default, confirmation, backup and write verification.
 
 ## Over the network
 

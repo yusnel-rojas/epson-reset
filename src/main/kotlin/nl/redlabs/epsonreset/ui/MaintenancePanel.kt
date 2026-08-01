@@ -37,6 +37,7 @@ fun MaintenancePanel(vm: ResetViewModel, modifier: Modifier = Modifier) {
     val device = vm.selectedDevice?.device
     val assessment = maintenance.patternAssessment
     var confirming by remember { mutableStateOf<Maintenance.Operation?>(null) }
+    var resetConfirming by remember { mutableStateOf(false) }
 
     Column(modifier.verticalScroll(rememberScrollState()).padding(20.dp)) {
         Text(
@@ -46,8 +47,8 @@ fun MaintenancePanel(vm: ResetViewModel, modifier: Modifier = Modifier) {
         )
         Spacer(Modifier.height(4.dp))
         Text(
-            "Start with evidence. A nozzle check spends little ink; cleaning flushes ink into the " +
-                "waste pad whose counter this app reads and resets.",
+            "Routine maintenance actions live here. Counter reset has a safe simulation mode and " +
+                "automatic backup; print maintenance starts with evidence before spending ink.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -56,6 +57,50 @@ fun MaintenancePanel(vm: ResetViewModel, modifier: Modifier = Modifier) {
         if (device != null) {
             Note("Target: ${device.displayName} on ${device.link.kind} (${device.link.where}).", StatusColors.muted)
         }
+
+        Spacer(Modifier.height(18.dp))
+        Text(
+            "Counter maintenance",
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Spacer(Modifier.height(8.dp))
+        vm.selectedModel?.let { model ->
+            MaintenanceResetSection(
+                vm = vm,
+                model = model,
+                confirming = resetConfirming,
+                onConfirmChange = { resetConfirming = it },
+            )
+        } ?: Note(
+            "Select a printer model to preview or reset its counters.",
+            StatusColors.muted,
+        )
+
+        // A failed live reset can have acknowledged writes even though the complete run failed.
+        // Keep its recovery beside the reset action, rather than sending the user hunting for it.
+        val finishedReset = vm.runState as? ResetViewModel.RunState.Finished
+        val recoveryNeeded = finishedReset != null &&
+            vm.runKind == ResetViewModel.RunKind.RESET &&
+            !finishedReset.result.success &&
+            !finishedReset.wasDryRun &&
+            finishedReset.result.writesAcknowledged > 0
+        if (recoveryNeeded && vm.lastBackup != null) {
+            Spacer(Modifier.height(12.dp))
+            MaintenanceResetRecovery(vm)
+        }
+
+        Spacer(Modifier.height(28.dp))
+        Text(
+            "Print maintenance",
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Text(
+            "Start with a nozzle check. Cleaning flushes ink into the waste pad and raises its counter.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
         maintenance.blockedReason?.let {
             Spacer(Modifier.height(5.dp))
             Note(it, StatusColors.bad)

@@ -223,7 +223,7 @@ private fun DeviceList(vm: ResetViewModel) {
                 entry = entry,
                 selected = vm.selectedDevice?.device?.id == entry.device.id,
                 enabled = vm.canChangeTarget,
-                onClick = { vm.select(entry) },
+                onClick = { vm.selectAndRefreshOverview(entry) },
             )
         }
     }
