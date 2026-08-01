@@ -138,7 +138,11 @@ private fun CreateSnapshotControl(vm: ResetViewModel) {
                     listOfNotNull(device?.displayName, model?.name).joinToString(" · ")
                         .ifBlank { "No target selected" },
                     style = MaterialTheme.typography.labelSmall,
-                    color = if (blocked == null) StatusColors.good else StatusColors.warn,
+                    color = if (blocked == null && vm.modelMismatch == null) {
+                        StatusColors.good
+                    } else {
+                        StatusColors.warn
+                    },
                 )
             }
             Spacer(Modifier.width(8.dp))
@@ -155,6 +159,20 @@ private fun CreateSnapshotControl(vm: ResetViewModel) {
             style = MaterialTheme.typography.labelSmall,
             color = if (blocked == null) StatusColors.muted else StatusColors.warn,
         )
+
+        // Reading is how a disagreement about the model gets settled, so it is said here rather
+        // than used to disable the button. The saved file is labelled with the selected model,
+        // and the restore gate is where that has to match.
+        if (blocked == null) {
+            vm.modelMismatch?.let {
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    "$it The snapshot would be saved as ${model?.name}.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = StatusColors.warn,
+                )
+            }
+        }
     }
 }
 

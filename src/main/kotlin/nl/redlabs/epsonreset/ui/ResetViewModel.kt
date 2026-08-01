@@ -458,7 +458,7 @@ class ResetViewModel(
         selectedModel = { selectedModel },
         selectedDevice = { selectedDevice },
         dryRun = { dryRun },
-        targetModelBlockedReason = { targetModelBlockedReason },
+        familyBlockedReason = { familyBlockedReason },
         writeBlockedReason = { writeBlockedReason },
         busy = { busy },
         reading = { reading },
@@ -628,16 +628,20 @@ class ResetViewModel(
                 "a ${said.name}."
         }
 
+    /**
+     * Why the printer's family has not been narrowed to one model. Unlike a mismatch, this blocks
+     * reading too: without a model there is no layout and no read key to ask with.
+     */
+    val familyBlockedReason: String?
+        get() = pendingClass?.let {
+            "This printer reports itself as \"${it.reported}\", which names a family of " +
+                "${it.candidates.size} models that do not share a reset recipe. Choose the " +
+                "model printed on the printer."
+        }
+
     /** Why the model half of the current target is not settled, independent of transport limits. */
     val targetModelBlockedReason: String?
-        get() {
-            pendingClass?.let {
-                return "This printer reports itself as \"${it.reported}\", which names a family of " +
-                    "${it.candidates.size} models that do not share a reset recipe. Choose the " +
-                    "model printed on the printer."
-            }
-            return modelMismatch
-        }
+        get() = familyBlockedReason ?: modelMismatch
 
     /** Why a live write to the selected printer is not allowed, or null when it is. */
     val writeBlockedReason: String?

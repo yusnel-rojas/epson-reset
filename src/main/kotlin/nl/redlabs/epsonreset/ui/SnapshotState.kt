@@ -33,7 +33,7 @@ class SnapshotState(
     private val selectedModel: () -> PrinterModel?,
     private val selectedDevice: () -> MatchedPrinter?,
     private val dryRun: () -> Boolean,
-    private val targetModelBlockedReason: () -> String?,
+    private val familyBlockedReason: () -> String?,
     private val writeBlockedReason: () -> String?,
     private val busy: () -> Boolean,
     private val reading: () -> Boolean,
@@ -209,13 +209,16 @@ class SnapshotState(
 
     fun loadBackup(file: File): EepromBackup? = EepromBackup.load(file)
 
-    /** Why a fresh snapshot cannot be read from the application-wide target. */
+    /**
+     * Why a fresh snapshot cannot be read from the application-wide target. This action reads the
+     * printer and writes a file, so it is gated as a read is: a model the printer disagrees with is
+     * a caution, not a block — reading it is how that disagreement gets settled.
+     */
     val createSnapshotBlockedReason: String?
         get() = when {
             selectedDevice() == null -> "Select a printer from the target above."
             selectedModel() == null -> "Choose the printer's model in the target above."
-            targetModelBlockedReason() != null -> targetModelBlockedReason()
-            else -> null
+            else -> familyBlockedReason()
         }
 
     val canCreateSnapshot: Boolean
