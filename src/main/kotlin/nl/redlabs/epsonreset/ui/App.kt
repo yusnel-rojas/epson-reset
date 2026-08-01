@@ -112,6 +112,15 @@ private fun RememberedState(vm: ResetViewModel) {
         }
     }
 
+    LaunchedEffect(Unit) {
+        vm.developerMode = PreferencesStore.current().developerMode
+        vm.applyDeveloperMode(vm.developerMode)
+        snapshotFlow { vm.developerMode }.collect { on ->
+            PreferencesStore.update { it.copy(developerMode = on) }
+            vm.applyDeveloperMode(on)
+        }
+    }
+
     // The model is only restorable once the database it names exists. A name that no longer matches
     // an entry — a renamed model, a rolled-back database — is dropped in silence;
     LaunchedEffect(Unit) {

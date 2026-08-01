@@ -2,6 +2,7 @@ package nl.redlabs.epsonreset.usb
 
 import com.sun.jna.Memory
 import com.sun.jna.ptr.IntByReference
+import nl.redlabs.epsonreset.Diag
 import nl.redlabs.epsonreset.device.DetectedPrinter
 import nl.redlabs.epsonreset.device.Link
 
@@ -22,7 +23,12 @@ object WindowsPrinterScanner {
             ?: return ScanResult.Failed(Winspool.loadError ?: "winspool.drv could not be loaded")
 
         return try {
-            ScanResult.Ok(enumerate(spool).filter(::isEpsonUsb).map(::toPrinter))
+            val queues = enumerate(spool)
+            Diag.log { "[DBG] EnumPrinters found ${queues.size} queue(s)" }
+            queues.forEach { q ->
+                Diag.log { "[DBG]   queue=\"${q.name}\" port=${q.port} driver=${q.driver} epsonUsb=${isEpsonUsb(q)}" }
+            }
+            ScanResult.Ok(queues.filter(::isEpsonUsb).map(::toPrinter))
         } catch (e: Exception) {
             ScanResult.Failed(e.message ?: e.toString())
         }

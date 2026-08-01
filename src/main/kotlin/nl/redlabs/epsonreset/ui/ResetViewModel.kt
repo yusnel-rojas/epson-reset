@@ -9,6 +9,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import nl.redlabs.epsonreset.AppPaths
+import nl.redlabs.epsonreset.Diag
 import nl.redlabs.epsonreset.backup.Capture
 import nl.redlabs.epsonreset.backup.EepromBackup
 import nl.redlabs.epsonreset.db.CapabilitySummary
@@ -224,6 +225,18 @@ class ResetViewModel(
     var crossCheckOverSnmp by mutableStateOf(true)
     var checkForUpdates by mutableStateOf(true)
     var keepCounterHistory by mutableStateOf(true)
+    var developerMode by mutableStateOf(false)
+
+    /**
+     * Turns the cross-cutting [Diag] logger on or off and points it at this log. Called from App.kt
+     * on restore and whenever the Developer toggle changes. Lines arrive as TRACE — captured by the
+     * log's Copy, and shown live in the panel while Developer mode is on.
+     */
+    fun applyDeveloperMode(on: Boolean) {
+        Diag.wire { line -> onMain { trace(line) } }
+        Diag.enabled = on
+        if (on) trace("[DBG] Developer mode on — verbose transport and scan diagnostics enabled.")
+    }
 
     /** Every family answer on file, for the window that lists them. Loaded on open. */
     var rememberedChoices by mutableStateOf<List<ModelChoices.Choice>>(emptyList())
@@ -645,8 +658,17 @@ class ResetViewModel(
             selectedModel?.hasResettableCounters == true &&
             (dryRun || (selectedDevice?.device?.reachable == true && writeBlockedReason == null))
 
-    /** Reading has the same prerequisites but never writes, so it needs no confirmation. */
-    val canRead: Boolean get() = canRun
+    /**
+     * Reading carries only the read key and never writes, so the write-only blocks — above all a
+     * model mismatch — do not apply: reading a printer the descriptor named a different unit for is
+     * exactly how you find out which it is. It still needs a settled model (for the layout and read
+     * key) and, in Live, a printer that was reached; the family question must be answered first.
+     */
+    val canRead: Boolean
+        get() = !busy &&
+            selectedModel?.hasResettableCounters == true &&
+            pendingClass == null &&
+            (dryRun || selectedDevice?.device?.reachable == true)
 
     /** Switches preview sources without carrying fake values into Live or live values into Dry run. */
     fun changeDryRunMode(value: Boolean) {

@@ -52,8 +52,10 @@ fun LogPanel(vm: ResetViewModel, modifier: Modifier = Modifier) {
     val operationLabel = vm.globalProgressLabel
     val operationProgress = vm.globalProgressValue
 
-    val visible = remember(vm.log.size, showTrace) {
-        if (showTrace) {
+    // Developer mode reveals the TRACE lines live without the extra click — that's the point of it.
+    val showAllLines = showTrace || vm.developerMode
+    val visible = remember(vm.log.size, showAllLines) {
+        if (showAllLines) {
             vm.log.toList()
         } else {
             vm.log.filter { it.level != ResetViewModel.Level.TRACE }

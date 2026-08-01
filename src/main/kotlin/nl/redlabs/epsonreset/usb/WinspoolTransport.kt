@@ -1,9 +1,11 @@
 package nl.redlabs.epsonreset.usb
 
+import com.sun.jna.Native
 import com.sun.jna.Pointer
 import com.sun.jna.WString
 import com.sun.jna.ptr.IntByReference
 import com.sun.jna.ptr.PointerByReference
+import nl.redlabs.epsonreset.Diag
 import nl.redlabs.epsonreset.device.Link
 import nl.redlabs.epsonreset.protocol.EscpRemote
 import nl.redlabs.epsonreset.protocol.Transport
@@ -111,12 +113,18 @@ private class WinspoolChannel private constructor(private val spool: Winspool, p
 
     override fun write(data: ByteArray): Int {
         val written = IntByReference()
-        return if (spool.WritePrinter(handle, data, data.size, written)) written.value else -1
+        val ok = spool.WritePrinter(handle, data, data.size, written)
+        Diag.log {
+            "[DBG] WritePrinter ok=$ok wrote=${written.value}/${data.size} err=${Native.getLastError()}"
+        }
+        return if (ok) written.value else -1
     }
 
     override fun read(buffer: ByteArray): Int {
         val read = IntByReference()
-        return if (spool.ReadPrinter(handle, buffer, buffer.size, read)) read.value else -1
+        val ok = spool.ReadPrinter(handle, buffer, buffer.size, read)
+        Diag.log { "[DBG] ReadPrinter ok=$ok read=${read.value} err=${Native.getLastError()}" }
+        return if (ok) read.value else -1
     }
 
     override fun close() {
@@ -132,8 +140,10 @@ private class WinspoolChannel private constructor(private val spool: Winspool, p
 
     companion object {
         fun open(spool: Winspool, queueName: String): Result {
+            Diag.log { "[DBG] OpenPrinter \"$queueName\"…" }
             val handleRef = PointerByReference()
             if (!spool.OpenPrinterW(WString(queueName), handleRef, null) || handleRef.value == null) {
+                Diag.log { "[DBG] OpenPrinter failed err=${Native.getLastError()}" }
                 return Result.Failed(
                     "Could not open the printer \"$queueName\".",
                     "Plug the printer in and let Windows finish installing its driver, then rescan.",
@@ -146,6 +156,7 @@ private class WinspoolChannel private constructor(private val spool: Winspool, p
                 pDatatype = WString("RAW")
             }
             val job = spool.StartDocPrinterW(handle, 1, docInfo)
+            Diag.log { "[DBG] StartDocPrinter(RAW) job=$job err=${Native.getLastError()}" }
             if (job == 0) {
                 spool.ClosePrinter(handle)
                 return Result.Failed(
@@ -155,7 +166,9 @@ private class WinspoolChannel private constructor(private val spool: Winspool, p
                 )
             }
 
-            if (!spool.StartPagePrinter(handle)) {
+            val page = spool.StartPagePrinter(handle)
+            Diag.log { "[DBG] StartPagePrinter ok=$page err=${Native.getLastError()}" }
+            if (!page) {
                 spool.EndDocPrinter(handle)
                 spool.ClosePrinter(handle)
                 return Result.Failed("The printer \"$queueName\" would not start the job.", null)

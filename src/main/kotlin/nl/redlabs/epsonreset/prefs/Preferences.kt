@@ -32,6 +32,8 @@ data class Preferences(
     val crossCheckOverSnmp: Boolean = true,
     /** Successful real-printer counter reads are appended locally; disabling does not delete them. */
     val keepCounterHistory: Boolean = true,
+    /** Extra low-level diagnostics in the log (transport return codes, spooler enumeration, etc.). */
+    val developerMode: Boolean = false,
 ) {
 
     /** Clamps the stored geometry back into the range the app can actually render. */
@@ -79,6 +81,7 @@ data class Preferences(
                 lastUpdateCheck = root.long("lastUpdateCheck") ?: defaults.lastUpdateCheck,
                 crossCheckOverSnmp = root.bool("crossCheckOverSnmp") ?: defaults.crossCheckOverSnmp,
                 keepCounterHistory = root.bool("keepCounterHistory") ?: defaults.keepCounterHistory,
+                developerMode = root.bool("developerMode") ?: defaults.developerMode,
             ).sanitised()
         }
 
@@ -96,6 +99,7 @@ data class Preferences(
                 put("lastUpdateCheck", JsonPrimitive(p.lastUpdateCheck))
                 put("crossCheckOverSnmp", JsonPrimitive(p.crossCheckOverSnmp))
                 put("keepCounterHistory", JsonPrimitive(p.keepCounterHistory))
+                put("developerMode", JsonPrimitive(p.developerMode))
             }
             return json.encodeToString(JsonObject.serializer(), obj) + "\n"
         }

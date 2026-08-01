@@ -70,6 +70,9 @@ fun SettingsDialog(vm: ResetViewModel, updates: AppUpdates) {
                 DataDirectory(vm)
 
                 Divider()
+                Developer(vm)
+
+                Divider()
                 About()
                 Divider()
                 OutlinedButton(onClick = { vm.settingsOpen = false }) { Text("Close") }
@@ -370,6 +373,21 @@ private fun RememberedChoices(vm: ResetViewModel) {
     TextButton(onClick = { vm.forgetAllRememberedChoices() }, enabled = vm.canChangeTarget) {
         Text("Forget all", color = StatusColors.bad)
     }
+}
+
+@Composable
+private fun Developer(vm: ResetViewModel) {
+    Section("Developer")
+
+    Toggle(
+        label = "Developer mode (verbose logging)",
+        checked = vm.developerMode,
+        onChange = { vm.developerMode = it },
+        body = "Adds low-level diagnostics to the log: which printers the Windows spooler enumerates " +
+            "and on which ports, and every WritePrinter/ReadPrinter result with its Windows error " +
+            "code. When something like a USB read fails, turn this on, reproduce it, and use Copy in " +
+            "the log panel — the extra lines are included and make the cause visible.",
+    )
 }
 
 @Composable

@@ -909,6 +909,10 @@ class ViewModelModelLockTest {
         vm.selectModel(otherModel)
         vm.dryRun = false
         assertNotNull(vm.writeBlockedReason)
+        // A mismatch blocks the live write, but reading carries only the read key and never writes —
+        // it stays available, which is how you find out which unit the descriptor's family name hides.
+        assertFalse(vm.canRun, "a mismatch must block the live write")
+        assertTrue(vm.canRead, "but reading must stay available under a mismatch")
 
         vm.useIdentifiedModel()
 
