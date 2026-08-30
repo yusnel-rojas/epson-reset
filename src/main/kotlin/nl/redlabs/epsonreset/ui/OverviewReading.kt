@@ -4,6 +4,7 @@ import nl.redlabs.epsonreset.db.CounterSpec
 import nl.redlabs.epsonreset.device.ConnectionTest
 import nl.redlabs.epsonreset.i18n.StatusText
 import nl.redlabs.epsonreset.i18n.UiText
+import nl.redlabs.epsonreset.i18n.counterName
 import nl.redlabs.epsonreset.net.PrinterMib
 import nl.redlabs.epsonreset.protocol.CounterReader
 import nl.redlabs.epsonreset.protocol.Status
@@ -207,7 +208,7 @@ data class OverviewReading(
                     val value = counter.value ?: return@forEach
                     val maximum = counter.spec.max?.takeIf { it > 0 } ?: return@forEach
                     val percent = counter.percent ?: return@forEach
-                    val name = counter.spec.description.removeSuffix(" (?)")
+                    val name = counterName(counter.spec.description)
 
                     when (overviewCounterLevel(percent)) {
                         OverviewCounterLevel.MAXED -> add(

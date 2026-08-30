@@ -42,7 +42,9 @@ import nl.redlabs.epsonreset.db.PadGroup
 import nl.redlabs.epsonreset.db.PadKind
 import nl.redlabs.epsonreset.i18n.StatusText
 import nl.redlabs.epsonreset.i18n.Strings
+import nl.redlabs.epsonreset.i18n.counterName
 import nl.redlabs.epsonreset.i18n.resolve
+import nl.redlabs.epsonreset.i18n.resolveNow
 import nl.redlabs.epsonreset.net.PrinterMib
 import nl.redlabs.epsonreset.protocol.CounterReader
 import nl.redlabs.epsonreset.protocol.Status
@@ -65,9 +67,12 @@ import nl.redlabs.epsonreset.resources.ink_title
 import nl.redlabs.epsonreset.resources.legend_before_current
 import nl.redlabs.epsonreset.resources.legend_changed_highlighted
 import nl.redlabs.epsonreset.resources.legend_main
+import nl.redlabs.epsonreset.resources.legend_main_badge
 import nl.redlabs.epsonreset.resources.legend_platen
+import nl.redlabs.epsonreset.resources.legend_platen_badge
 import nl.redlabs.epsonreset.resources.legend_target
 import nl.redlabs.epsonreset.resources.legend_unclassified
+import nl.redlabs.epsonreset.resources.legend_unclassified_badge
 import nl.redlabs.epsonreset.resources.status_lifetime_pages
 import nl.redlabs.epsonreset.resources.status_standard_mib
 import nl.redlabs.epsonreset.resources.status_title
@@ -119,7 +124,7 @@ internal fun overviewCounterRows(report: CounterReader.Report, specs: List<Count
         val maximum = counter.spec.max?.takeIf { it > 0 }?.toLong()
         val current = counter.value?.let { "%,d".format(it) } ?: counter.hexBytes
         OverviewCounterRow(
-            description = counter.spec.description.removeSuffix(" (?)"),
+            description = counterName(counter.spec.description).resolveNow(),
             current = current,
             value = counter.value,
             maximum = maximum,
@@ -448,10 +453,8 @@ private fun CounterByteRow(
     Column(Modifier.padding(vertical = 5.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                if (counter.spec.isUncertain) {
-                    stringResource(Res.string.counters_layout_uncertain, counter.spec.description)
-                } else {
-                    counter.spec.description
+                counterName(counter.spec.description).resolve().let {
+                    if (counter.spec.isUncertain) stringResource(Res.string.counters_layout_uncertain, it) else it
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = if (counter.spec.isUncertain) StatusColors.warn else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -515,18 +518,20 @@ private fun ByteStrip(cells: List<ByteCell>, showBefore: Boolean, modifier: Modi
 
 @Composable
 private fun ByteChip(cell: ByteCell, showBefore: Boolean) {
-    // The box itself is neutral for every kind; only the M/P/? marker carries the kind's colour.
+    // The box itself is neutral for every kind; only the badge letter carries the kind's colour.
     val boxTone = StatusColors.muted
     val kindTone = when (cell.kind) {
         PadKind.MAIN -> MaterialTheme.colorScheme.primary
         PadKind.PLATEN -> StatusColors.warn
         PadKind.UNKNOWN -> StatusColors.muted
     }
-    val marker = when (cell.kind) {
-        PadKind.MAIN -> "M"
-        PadKind.PLATEN -> "P"
-        PadKind.UNKNOWN -> "?"
-    }
+    val marker = stringResource(
+        when (cell.kind) {
+            PadKind.MAIN -> Res.string.legend_main_badge
+            PadKind.PLATEN -> Res.string.legend_platen_badge
+            PadKind.UNKNOWN -> Res.string.legend_unclassified_badge
+        },
+    )
     val shownCurrent = when (cell.state) {
         ResetViewModel.CounterByteState.ACKNOWLEDGED,
         ResetViewModel.CounterByteState.VERIFIED,
@@ -670,11 +675,23 @@ private fun byteHex(value: Int?): String = value?.let { "%02X".format(it) } ?: "
 @Composable
 private fun ByteLegend(showBefore: Boolean, targetLabel: StringResource) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        LegendItem("M", stringResource(Res.string.legend_main), MaterialTheme.colorScheme.primary)
+        LegendItem(
+            stringResource(Res.string.legend_main_badge),
+            stringResource(Res.string.legend_main),
+            MaterialTheme.colorScheme.primary,
+        )
         Spacer(Modifier.width(12.dp))
-        LegendItem("P", stringResource(Res.string.legend_platen), StatusColors.warn)
+        LegendItem(
+            stringResource(Res.string.legend_platen_badge),
+            stringResource(Res.string.legend_platen),
+            StatusColors.warn,
+        )
         Spacer(Modifier.width(12.dp))
-        LegendItem("?", stringResource(Res.string.legend_unclassified), StatusColors.muted)
+        LegendItem(
+            stringResource(Res.string.legend_unclassified_badge),
+            stringResource(Res.string.legend_unclassified),
+            StatusColors.muted,
+        )
         Spacer(Modifier.weight(1f))
         if (showBefore) {
             Row {

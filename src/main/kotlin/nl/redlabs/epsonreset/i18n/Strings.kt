@@ -18,7 +18,7 @@ object Strings {
     private var cachedEnvironment: ResourceEnvironment? = null
 
     /**
-     * Built from the locale rather than from `getSystemResourceEnvironment()`, which asks AWT for the
+     * Built from the locale rather than from `ResourceEnvironments.forLocale(locale)`, which asks AWT for the
      * screen resolution and so cannot run without a display. Cached and keyed on the locale, so a
      * language switch needs no notification and a log-heavy run does not rebuild it per line.
      */

@@ -2,7 +2,11 @@ package nl.redlabs.epsonreset.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -188,7 +192,7 @@ private fun TopBar(vm: ResetViewModel, updates: AppUpdates) {
                 fontWeight = FontWeight.SemiBold,
             )
             Text(
-                vm.database?.let { stringResource(Res.string.topbar_database, it.size, it.source.name.lowercase()) }
+                vm.database?.let { stringResource(Res.string.topbar_database, it.size) }
                     ?: vm.databaseError?.let { stringResource(Res.string.topbar_database_error) }
                     ?: stringResource(Res.string.topbar_database_loading),
                 style = MaterialTheme.typography.labelSmall,
@@ -196,10 +200,14 @@ private fun TopBar(vm: ResetViewModel, updates: AppUpdates) {
             )
         }
 
-        Spacer(Modifier.width(28.dp))
-        Tabs(vm)
-        Spacer(Modifier.weight(1f))
+        Spacer(Modifier.width(20.dp))
 
+        // The tabs take the slack instead of a plain spacer, and wrap onto a second line inside it
+        // rather than being clipped. Everything after them is measured first and so always has
+        // room: the gear is how you reach Settings, and wider words must not be able to hide it.
+        Box(Modifier.weight(1f)) { Tabs(vm) }
+
+        Spacer(Modifier.width(12.dp))
         PrinterChip(vm)
         Spacer(Modifier.width(10.dp))
 
@@ -222,12 +230,16 @@ private fun TopBar(vm: ResetViewModel, updates: AppUpdates) {
 }
 
 @Composable
+@OptIn(ExperimentalLayoutApi::class)
 private fun Tabs(vm: ResetViewModel) {
-    Row(
+    // A translation whose words are longer takes a second line here instead of losing a tab off
+    // the end. Every tab stays visible and clickable at the narrowest window the app allows.
+    FlowRow(
         Modifier
             .clip(RoundedCornerShape(20.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant)
             .padding(3.dp),
+        verticalArrangement = Arrangement.spacedBy(3.dp),
     ) {
         // Keep the internal COUNTERS route stable; only the experience and visible name change.
         Tab(stringResource(Res.string.tab_overview), vm.tab == ResetViewModel.Tab.COUNTERS) {

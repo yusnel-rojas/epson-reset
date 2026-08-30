@@ -22,6 +22,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import nl.redlabs.epsonreset.history.CounterProjection
 import nl.redlabs.epsonreset.i18n.UiText
+import nl.redlabs.epsonreset.i18n.counterName
 import nl.redlabs.epsonreset.i18n.resolve
 import nl.redlabs.epsonreset.i18n.resolveNow
 import nl.redlabs.epsonreset.resources.Res
@@ -151,7 +152,7 @@ private fun TrendRow(trend: CounterProjection.Trend) {
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                trend.spec.description + if (trend.spec.isUncertain) " (?)" else "",
+                counterName(trend.spec.description).resolve() + if (trend.spec.isUncertain) " (?)" else "",
                 style = MaterialTheme.typography.bodySmall,
                 fontWeight = FontWeight.Medium,
                 modifier = Modifier.weight(1f),

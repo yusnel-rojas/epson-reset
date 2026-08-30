@@ -43,6 +43,8 @@ import androidx.compose.ui.window.rememberDialogState
 import nl.redlabs.epsonreset.db.Calibration
 import nl.redlabs.epsonreset.i18n.StatusText
 import nl.redlabs.epsonreset.i18n.Strings
+import nl.redlabs.epsonreset.i18n.counterName
+import nl.redlabs.epsonreset.i18n.resolve
 import nl.redlabs.epsonreset.i18n.resolveNow
 import nl.redlabs.epsonreset.resources.Res
 import nl.redlabs.epsonreset.resources.cal_applied_label
@@ -291,7 +293,7 @@ private fun CounterRow(calibration: CalibrationState, row: CalibrationState.Row)
             )
             Column(Modifier.weight(1f)) {
                 Text(
-                    spec.description,
+                    counterName(spec.description).resolve(),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

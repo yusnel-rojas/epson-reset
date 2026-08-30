@@ -375,7 +375,7 @@
     <string name="settings_identification_body">A USB descriptor names a family — "ET-2820 Series" covers eight units that are not all the same printer. The same machine on the network answers SNMP with the unit. When both links show the same serial, the unit is used. Costs no extra traffic: the network entry has already been asked by the time the two are compared.</string>
 
     <string name="settings_database_section">Printer database</string>
-    <string name="settings_database_loaded">%1$s models · %2$s</string>
+    <string name="settings_database_loaded">%1$s models</string>
     <string name="settings_database_error">could not be loaded — %1$s</string>
     <string name="settings_database_loading">loading…</string>
     <string name="settings_database_body">The copy in the jar is used until a download replaces it. A download that does not parse is discarded rather than cached, so a failed update keeps the working copy.</string>
@@ -571,10 +571,13 @@
     <string name="update_no_browser">Could not open a browser. The release page is %1$s</string>
 
     <!-- ===== Target chip: PrinterChip.kt ===== -->
+    <string name="printer_unnamed_pid">Epson device %1$s</string>
+    <string name="printer_unnamed_at">Epson at %1$s</string>
     <string name="chip_no_printer">No printer</string>
     <string name="chip_choose_model">choose model</string>
     <string name="chip_printer">Printer</string>
     <string name="chip_saved_not_reached">Saved · not reached · %1$s</string>
+    <string name="chip_saved_not_reached_only">Saved · not reached</string>
     <string name="chip_link_choose_model">%1$s · choose model</string>
     <string name="chip_model_only">Model only · no printer selected</string>
     <string name="chip_open_to_scan">Open to scan for printers</string>
@@ -596,8 +599,19 @@
     </plurals>
 
     <!-- ===== Counter table: CounterTable.kt ===== -->
+    <!-- The names upstream ships for a counter group, translated for the screen only: see i18n/CounterText.kt. -->
+    <string name="counter_waste">Waste counter</string>
+    <string name="counter_wastes">Waste counters</string>
+    <string name="counter_platen_pads">Platen pad counters</string>
+    <string name="counter_waste_main">Waste counter (main pad)</string>
+    <string name="counter_waste_platen">Waste counter (platen pad)</string>
+
     <string name="table_eeprom_bytes">EEPROM bytes</string>
     <string name="table_other_eeprom_bytes">Other EEPROM bytes</string>
+    <!-- One character, and it must stay distinct from the other two: it is the badge on every byte. -->
+    <string name="legend_main_badge">M</string>
+    <string name="legend_platen_badge">P</string>
+    <string name="legend_unclassified_badge">?</string>
     <string name="legend_main">Main</string>
     <string name="legend_platen">Platen</string>
     <string name="legend_unclassified">Unclassified</string>
@@ -1023,7 +1037,9 @@
     </plurals>
 
     <!-- ===== Top bar: App.kt ===== -->
-    <string name="topbar_database">%1$s models · %2$s</string>
+    <string name="topbar_database">%1$s models</string>
+    <string name="db_source_bundled">bundled</string>
+    <string name="db_source_cached">downloaded</string>
     <string name="topbar_database_error">database error</string>
     <string name="topbar_database_loading">loading database…</string>
     <string name="topbar_update_available">Update available — %1$s</string>

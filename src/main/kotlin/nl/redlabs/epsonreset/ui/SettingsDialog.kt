@@ -82,6 +82,7 @@ import nl.redlabs.epsonreset.resources.settings_identification_body
 import nl.redlabs.epsonreset.resources.settings_identification_section
 import nl.redlabs.epsonreset.resources.settings_identification_toggle
 import nl.redlabs.epsonreset.resources.settings_language_en
+import nl.redlabs.epsonreset.resources.settings_language_es
 import nl.redlabs.epsonreset.resources.settings_language_section
 import nl.redlabs.epsonreset.resources.settings_language_system
 import nl.redlabs.epsonreset.resources.settings_maxima_body
@@ -288,7 +289,7 @@ private fun Database(vm: ResetViewModel) {
     Section(stringResource(Res.string.settings_database_section))
 
     Text(
-        vm.database?.let { stringResource(Res.string.settings_database_loaded, it.size, it.source.name.lowercase()) }
+        vm.database?.let { stringResource(Res.string.settings_database_loaded, it.size) }
             ?: vm.databaseError?.let { stringResource(Res.string.settings_database_error, it) }
             ?: stringResource(Res.string.settings_database_loading),
         style = MaterialTheme.typography.bodySmall,

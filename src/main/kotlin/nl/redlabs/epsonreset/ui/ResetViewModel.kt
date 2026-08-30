@@ -36,6 +36,7 @@ import nl.redlabs.epsonreset.i18n.AppLanguage
 import nl.redlabs.epsonreset.i18n.StatusText
 import nl.redlabs.epsonreset.i18n.Strings
 import nl.redlabs.epsonreset.i18n.UiText
+import nl.redlabs.epsonreset.i18n.label
 import nl.redlabs.epsonreset.i18n.resolveNow
 import nl.redlabs.epsonreset.net.NetworkAddress
 import nl.redlabs.epsonreset.net.PrinterMib
@@ -926,7 +927,7 @@ class ResetViewModel(
             val loaded = withContext(io) { runCatching { PrinterDatabase.load() } }
             loaded.onSuccess {
                 database = it
-                info(Strings.get(Res.string.vm_models_loaded, it.size, it.source.name.lowercase()))
+                info(Strings.get(Res.string.vm_models_loaded, it.size, Strings.get(it.source.label())))
 
                 val specs = withContext(io) { runCatching { CounterSpecs.load() } }
                 specs.onSuccess { s ->

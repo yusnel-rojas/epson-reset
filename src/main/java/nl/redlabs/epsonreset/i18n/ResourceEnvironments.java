@@ -13,12 +13,12 @@ import org.jetbrains.compose.resources.ThemeQualifier;
  * <p>Compose's own {@code getSystemResourceEnvironment()} asks AWT for the screen resolution, which
  * throws {@code HeadlessException} where there is no display — the test JVM, CI, and the
  * {@code diagnose} and {@code restore} command-line tools on a server. Strings are chosen by locale
- * only: a key resolves to one item per locale here, so the theme and density this passes are never
- * consulted.
+ * only: one item per key per locale here, so the theme and density this passes are never consulted.
  *
  * <p>This is Java because the constructors are {@code internal} to Kotlin callers but public in the
- * bytecode. That couples us to the library's internals, deliberately: it breaks at compile time if
- * they change, which reflection would not.
+ * bytecode. Kotlin can reach them with an INVISIBLE_REFERENCE suppression, but the compiler warns
+ * that such behaviour is unspecified; from Java it is ordinary, and still breaks the build if
+ * Compose changes the signatures, which reflection would not.
  */
 public final class ResourceEnvironments {
 
