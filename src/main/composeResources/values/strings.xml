@@ -25,6 +25,10 @@
     <string name="settings_language_system">System</string>
     <string name="settings_language_en">English</string>
     <string name="settings_language_es">Español</string>
+    <string name="settings_language_body">Applies at once, everywhere in the app.</string>
+    <string name="settings_nav_general">General</string>
+    <string name="settings_nav_printers">Printers</string>
+    <string name="settings_nav_advanced">Advanced</string>
 
 
     <!-- ===== Safety gates: EepromWriteConfirmation.kt ===== -->
@@ -387,6 +391,7 @@
     <string name="settings_updates_toggle">Check automatically</string>
     <string name="settings_updates_body">Once a day at most, and never for a development build. A check that cannot reach GitHub does not count against the day's allowance.</string>
     <string name="settings_updates_checking">Checking…</string>
+    <string name="settings_updates_dev">No release to compare a dev build against, so the check is off here.</string>
     <string name="settings_updates_check_now">Check now</string>
 
     <string name="settings_maxima_section">Counter maxima</string>
