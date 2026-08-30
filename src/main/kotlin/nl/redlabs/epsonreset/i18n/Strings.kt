@@ -6,7 +6,6 @@ import org.jetbrains.compose.resources.ResourceEnvironment
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.getPluralString
 import org.jetbrains.compose.resources.getString
-import org.jetbrains.compose.resources.getSystemResourceEnvironment
 import java.util.Locale
 
 /**
@@ -19,14 +18,15 @@ object Strings {
     private var cachedEnvironment: ResourceEnvironment? = null
 
     /**
-     * `getSystemResourceEnvironment()` is expensive and a log-heavy run calls this hundreds of times.
-     * Keyed on the locale rather than invalidated by hand, so a language switch needs no notification.
+     * Built from the locale rather than from `getSystemResourceEnvironment()`, which asks AWT for the
+     * screen resolution and so cannot run without a display. Cached and keyed on the locale, so a
+     * language switch needs no notification and a log-heavy run does not rebuild it per line.
      */
     @Synchronized
     fun environment(): ResourceEnvironment {
         val locale = Locale.getDefault()
         cachedEnvironment?.takeIf { cachedLocale == locale }?.let { return it }
-        return getSystemResourceEnvironment().also {
+        return ResourceEnvironments.forLocale(locale).also {
             cachedLocale = locale
             cachedEnvironment = it
         }
