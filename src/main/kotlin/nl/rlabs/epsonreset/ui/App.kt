@@ -1,5 +1,6 @@
 package nl.rlabs.epsonreset.ui
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -12,9 +13,11 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -28,7 +31,10 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.flow.filterNotNull
@@ -47,6 +53,8 @@ import nl.rlabs.epsonreset.resources.topbar_database_error
 import nl.rlabs.epsonreset.resources.topbar_database_loading
 import nl.rlabs.epsonreset.resources.topbar_update_available
 import org.jetbrains.compose.resources.stringResource
+import kotlin.math.cos
+import kotlin.math.sin
 
 @Composable
 fun App() {
@@ -223,8 +231,40 @@ private fun TopBar(vm: ResetViewModel, updates: AppUpdates) {
             }
         }
 
-        TextButton(onClick = { vm.openSettings() }) {
-            Text("⚙", style = MaterialTheme.typography.titleMedium)
+        IconButton(onClick = { vm.openSettings() }) {
+            Gear(MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+/**
+ * Drawn rather than pulled from material-icons, which this project doesn't depend on — same
+ * reasoning as Chevron in SplitButton.kt. A glyph would also have left this button's width to
+ * whatever font the platform picked for it, and the comment above Tabs explains why that matters.
+ */
+@Composable
+private fun Gear(color: Color) {
+    Canvas(Modifier.size(18.dp)) {
+        val centre = Offset(size.width / 2f, size.height / 2f)
+        val radius = size.minDimension * 0.28f
+        val tooth = size.minDimension * 0.13f
+        val stroke = 1.6.dp.toPx()
+
+        drawCircle(color, radius = radius, center = centre, style = Stroke(width = stroke))
+
+        // Eight teeth on the ring, each a short radial stub. Enough to read as a gear at 18dp
+        // without the spokes closing up into a blur.
+        repeat(8) { i ->
+            val angle = (i * 2.0 * Math.PI / 8.0).toFloat()
+            val dx = cos(angle)
+            val dy = sin(angle)
+            drawLine(
+                color,
+                Offset(centre.x + dx * radius, centre.y + dy * radius),
+                Offset(centre.x + dx * (radius + tooth), centre.y + dy * (radius + tooth)),
+                strokeWidth = stroke,
+                cap = StrokeCap.Round,
+            )
         }
     }
 }

@@ -17,6 +17,10 @@
     <string name="settings_language_system">Sistema</string>
     <string name="settings_language_en">English</string>
     <string name="settings_language_es">Español</string>
+    <string name="settings_language_body">Se aplica al instante, en toda la aplicación.</string>
+    <string name="settings_nav_general">General</string>
+    <string name="settings_nav_printers">Impresoras</string>
+    <string name="settings_nav_advanced">Avanzado</string>
 
     <!-- ===== Safety gates: EepromWriteConfirmation.kt ===== -->
     <string name="confirm_back">Atrás</string>
@@ -377,6 +381,7 @@
     <string name="settings_updates_toggle">Comprobar automáticamente</string>
     <string name="settings_updates_body">Una vez al día como mucho, y nunca en una compilación de desarrollo. Una comprobación que no consigue llegar a GitHub no gasta el cupo del día.</string>
     <string name="settings_updates_checking">Comprobando…</string>
+    <string name="settings_updates_dev">No hay ninguna versión con la que comparar una compilación de desarrollo, así que la comprobación está desactivada aquí.</string>
     <string name="settings_updates_check_now">Comprobar ahora</string>
 
     <string name="settings_maxima_section">Máximos de los contadores</string>
