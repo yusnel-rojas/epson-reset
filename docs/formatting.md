@@ -54,7 +54,7 @@ would produce code that compiles and then misbehaves.
   `ktlint_function_naming_ignore_when_annotated_with = Composable`, which is the knob ktlint
   provides for exactly this.
 - **The libusb structs.** JNA maps struct fields *by name*, so `MaxPower` and `extra_length` in
-  [`usb/LibUsb.kt`](../src/main/kotlin/nl/redlabs/epsonreset/usb/LibUsb.kt) are the names libusb's
+  [`usb/LibUsb.kt`](../src/main/kotlin/nl/rlabs/epsonreset/usb/LibUsb.kt) are the names libusb's
   headers use. Renaming them compiles and then reads the wrong offsets at run time. The naming rule
   is suppressed for that file, at the file, with the reason written next to it.
 

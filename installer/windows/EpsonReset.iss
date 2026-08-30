@@ -10,7 +10,7 @@
 ;   iscc installer\windows\EpsonReset.iss /DAppVersion=1.2.0
 
 #define AppName "Epson Reset"
-#define AppPublisher "redlabs"
+#define AppPublisher "rlabs"
 #define AppExeName "EpsonReset.exe"
 #define AppId "{{ED1ADA46-A1B1-469C-BDDF-E998262C10F0}"
 

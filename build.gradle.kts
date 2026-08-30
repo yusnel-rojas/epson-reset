@@ -8,7 +8,7 @@ plugins {
     id("org.jlleitschuh.gradle.ktlint")
 }
 
-group = "nl.redlabs.epsonreset"
+group = "nl.rlabs.epsonreset"
 
 // Set by the release workflow from the v* tag. Absent everywhere else, which is the difference
 // between a release and a working copy — see the version resource below.
@@ -61,7 +61,7 @@ dependencies {
 }
 
 compose.resources {
-    packageOfResClass = "nl.redlabs.epsonreset.resources"
+    packageOfResClass = "nl.rlabs.epsonreset.resources"
 }
 
 tasks.test {
@@ -223,7 +223,7 @@ sourceSets["main"].resources.srcDir(generatePrinterData)
 tasks.register<JavaExec>("diagnose") {
     group = "verification"
     description = "Print environment, database, USB scan, and a dry run for one model"
-    mainClass.set("nl.redlabs.epsonreset.Diagnostics")
+    mainClass.set("nl.rlabs.epsonreset.Diagnostics")
     classpath = sourceSets["main"].runtimeClasspath
 }
 
@@ -232,7 +232,7 @@ tasks.register<JavaExec>("diagnose") {
 tasks.register<JavaExec>("restore") {
     group = "verification"
     description = "List or replay an EEPROM backup taken before a reset"
-    mainClass.set("nl.redlabs.epsonreset.RestoreTool")
+    mainClass.set("nl.rlabs.epsonreset.RestoreTool")
     classpath = sourceSets["main"].runtimeClasspath
 }
 
@@ -241,7 +241,7 @@ tasks.register<JavaExec>("restore") {
 tasks.register<JavaExec>("readProbe") {
     group = "debug"
     description = "Dump raw D4 exchanges while probing EEPROM read framing"
-    mainClass.set("nl.redlabs.epsonreset.debug.ReadProbe")
+    mainClass.set("nl.rlabs.epsonreset.debug.ReadProbe")
     classpath = sourceSets["main"].runtimeClasspath
 }
 
@@ -250,7 +250,7 @@ tasks.register<JavaExec>("readProbe") {
 tasks.register<JavaExec>("netProbe") {
     group = "debug"
     description = "Probe a network printer in stages: connect, status, then one EEPROM read"
-    mainClass.set("nl.redlabs.epsonreset.debug.NetworkProbe")
+    mainClass.set("nl.rlabs.epsonreset.debug.NetworkProbe")
     classpath = sourceSets["main"].runtimeClasspath
 }
 
@@ -260,7 +260,7 @@ tasks.register<JavaExec>("netProbe") {
 tasks.register<JavaExec>("maintenanceProbe") {
     group = "debug"
     description = "Preview or run one maintenance operation against a connected printer"
-    mainClass.set("nl.redlabs.epsonreset.debug.MaintenanceProbe")
+    mainClass.set("nl.rlabs.epsonreset.debug.MaintenanceProbe")
     classpath = sourceSets["main"].runtimeClasspath
 }
 
@@ -269,13 +269,13 @@ tasks.register<JavaExec>("maintenanceProbe") {
 tasks.register<JavaExec>("statusProbe") {
     group = "debug"
     description = "Query the printer's ESC/P remote status for waste-pad and ink fields"
-    mainClass.set("nl.redlabs.epsonreset.debug.StatusProbe")
+    mainClass.set("nl.rlabs.epsonreset.debug.StatusProbe")
     classpath = sourceSets["main"].runtimeClasspath
 }
 
 compose.desktop {
     application {
-        mainClass = "nl.redlabs.epsonreset.MainKt"
+        mainClass = "nl.rlabs.epsonreset.MainKt"
 
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
@@ -293,7 +293,7 @@ compose.desktop {
             packageName = "EpsonReset"
             packageVersion = installerVersion
             description = "Reset Epson waste ink pad counters"
-            vendor = "redlabs"
+            vendor = "rlabs"
 
             linux {
                 iconFile.set(project.file("src/main/composeResources/drawable/icon.png"))
@@ -308,7 +308,7 @@ compose.desktop {
 
             macOS {
                 iconFile.set(project.file("src/main/icons/macos/EpsonReset.icns"))
-                bundleID = "nl.redlabs.epsonreset"
+                bundleID = "nl.rlabs.epsonreset"
                 appCategory = "public.app-category.utilities"
                 dockName = "Epson Reset"
 
