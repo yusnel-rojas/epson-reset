@@ -69,6 +69,8 @@ tasks.test {
 
     systemProperty("user.language", "en")
     systemProperty("user.country", "US")
+
+    systemProperty("java.awt.headless", "true")
 }
 
 // Formatting. The rules themselves live in .editorconfig so the IDE and the command line read the
