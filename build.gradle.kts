@@ -66,6 +66,9 @@ compose.resources {
 
 tasks.test {
     useJUnitPlatform()
+
+    systemProperty("user.language", "en")
+    systemProperty("user.country", "US")
 }
 
 // Formatting. The rules themselves live in .editorconfig so the IDE and the command line read the

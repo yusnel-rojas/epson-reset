@@ -31,6 +31,41 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogWindow
 import androidx.compose.ui.window.rememberDialogState
 import nl.redlabs.epsonreset.protocol.Maintenance
+import nl.redlabs.epsonreset.resources.Res
+import nl.redlabs.epsonreset.resources.confirm_back
+import nl.redlabs.epsonreset.resources.maint_check_again_title
+import nl.redlabs.epsonreset.resources.maint_check_title
+import nl.redlabs.epsonreset.resources.maint_clean_blurb
+import nl.redlabs.epsonreset.resources.maint_clean_title
+import nl.redlabs.epsonreset.resources.maint_confirm_ink_cost
+import nl.redlabs.epsonreset.resources.maint_confirm_no_poll
+import nl.redlabs.epsonreset.resources.maint_confirm_one_sheet
+import nl.redlabs.epsonreset.resources.maint_confirm_question
+import nl.redlabs.epsonreset.resources.maint_confirm_run
+import nl.redlabs.epsonreset.resources.maint_confirm_title
+import nl.redlabs.epsonreset.resources.maint_confirm_unproven
+import nl.redlabs.epsonreset.resources.maint_counter_no_model
+import nl.redlabs.epsonreset.resources.maint_counter_section
+import nl.redlabs.epsonreset.resources.maint_gaps_note
+import nl.redlabs.epsonreset.resources.maint_intro
+import nl.redlabs.epsonreset.resources.maint_last_failed
+import nl.redlabs.epsonreset.resources.maint_no_gaps_note
+import nl.redlabs.epsonreset.resources.maint_pattern_body
+import nl.redlabs.epsonreset.resources.maint_pattern_dialog_title
+import nl.redlabs.epsonreset.resources.maint_pattern_no_gaps
+import nl.redlabs.epsonreset.resources.maint_pattern_question
+import nl.redlabs.epsonreset.resources.maint_pattern_yes_gaps
+import nl.redlabs.epsonreset.resources.maint_print_intro
+import nl.redlabs.epsonreset.resources.maint_print_nozzle_check
+import nl.redlabs.epsonreset.resources.maint_print_section
+import nl.redlabs.epsonreset.resources.maint_run_confirmation_check
+import nl.redlabs.epsonreset.resources.maint_seen_gaps
+import nl.redlabs.epsonreset.resources.maint_start_over
+import nl.redlabs.epsonreset.resources.maint_target
+import nl.redlabs.epsonreset.resources.maint_the_printer
+import nl.redlabs.epsonreset.resources.maint_title
+import nl.redlabs.epsonreset.resources.maint_waiting_answer
+import org.jetbrains.compose.resources.stringResource
 
 /** Guided maintenance: establish need with a nozzle check before making cleaning reachable. */
 @Composable
@@ -43,26 +78,28 @@ fun MaintenancePanel(vm: ResetViewModel, modifier: Modifier = Modifier) {
 
     Column(modifier.verticalScroll(rememberScrollState()).padding(20.dp)) {
         Text(
-            "Printer maintenance",
+            stringResource(Res.string.maint_title),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold,
         )
         Spacer(Modifier.height(4.dp))
         Text(
-            "Routine maintenance actions live here. Counter reset has a safe simulation mode and " +
-                "automatic backup; print maintenance starts with evidence before spending ink.",
+            stringResource(Res.string.maint_intro),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(Modifier.height(10.dp))
 
         if (device != null) {
-            Note("Target: ${device.displayName} on ${device.link.kind} (${device.link.where}).", StatusColors.muted)
+            Note(
+                stringResource(Res.string.maint_target, device.displayName, device.link.kind, device.link.where),
+                StatusColors.muted,
+            )
         }
 
         Spacer(Modifier.height(18.dp))
         Text(
-            "Counter maintenance",
+            stringResource(Res.string.maint_counter_section),
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.SemiBold,
         )
@@ -75,7 +112,7 @@ fun MaintenancePanel(vm: ResetViewModel, modifier: Modifier = Modifier) {
                 onConfirmChange = { resetConfirming = it },
             )
         } ?: Note(
-            "Select a printer model to preview or reset its counters.",
+            stringResource(Res.string.maint_counter_no_model),
             StatusColors.muted,
         )
 
@@ -94,12 +131,12 @@ fun MaintenancePanel(vm: ResetViewModel, modifier: Modifier = Modifier) {
 
         Spacer(Modifier.height(28.dp))
         Text(
-            "Print maintenance",
+            stringResource(Res.string.maint_print_section),
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.SemiBold,
         )
         Text(
-            "Start with a nozzle check. Cleaning flushes ink into the waste pad and raises its counter.",
+            stringResource(Res.string.maint_print_intro),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -109,7 +146,7 @@ fun MaintenancePanel(vm: ResetViewModel, modifier: Modifier = Modifier) {
         }
         maintenance.lastResult?.error?.let {
             Spacer(Modifier.height(5.dp))
-            Note("The last operation was not sent — $it", StatusColors.bad)
+            Note(stringResource(Res.string.maint_last_failed, it), StatusColors.bad)
         }
 
         Spacer(Modifier.height(16.dp))
@@ -124,7 +161,7 @@ fun MaintenancePanel(vm: ResetViewModel, modifier: Modifier = Modifier) {
 
     if (assessment == MaintenanceState.PatternAssessment.AWAITING_ANSWER) {
         PatternQuestion(
-            printer = device?.displayName ?: "the printer",
+            printer = device?.displayName ?: stringResource(Res.string.maint_the_printer),
             onAnswer = maintenance::answerNozzleCheck,
         )
     }
@@ -132,7 +169,7 @@ fun MaintenancePanel(vm: ResetViewModel, modifier: Modifier = Modifier) {
     confirming?.let { operation ->
         MaintenanceConfirmation(
             operation = operation,
-            printer = device?.displayName ?: "the printer",
+            printer = device?.displayName ?: stringResource(Res.string.maint_the_printer),
             onDismiss = { confirming = null },
             onConfirm = {
                 confirming = null
@@ -161,51 +198,59 @@ private fun PrintMaintenanceStep(
         MaintenanceState.PatternAssessment.AWAITING_ANSWER,
         -> StepCard(
             number = 1,
-            title = if (maintenance.cleaningCompleted) "Check whether the cleaning worked" else "Print a nozzle check",
-            blurb = Maintenance.Operation.NOZZLE_CHECK.summary,
+            title = if (maintenance.cleaningCompleted) {
+                stringResource(Res.string.maint_check_again_title)
+            } else {
+                stringResource(Res.string.maint_check_title)
+            },
+            blurb = stringResource(Maintenance.Operation.NOZZLE_CHECK.summary),
             enabled = maintenance.canRun(Maintenance.Operation.NOZZLE_CHECK),
         ) {
             Button(
                 onClick = { onRun(Maintenance.Operation.NOZZLE_CHECK) },
                 enabled = maintenance.canRun(Maintenance.Operation.NOZZLE_CHECK),
             ) {
-                Text(if (maintenance.cleaningCompleted) "Run a confirmation check" else "Print nozzle check")
+                Text(
+                    if (maintenance.cleaningCompleted) {
+                        stringResource(Res.string.maint_run_confirmation_check)
+                    } else {
+                        stringResource(Res.string.maint_print_nozzle_check)
+                    },
+                )
             }
 
             if (assessment == MaintenanceState.PatternAssessment.AWAITING_ANSWER) {
                 Spacer(Modifier.height(8.dp))
-                Note("Waiting for your answer in the pattern dialog.", StatusColors.warn)
+                Note(stringResource(Res.string.maint_waiting_answer), StatusColors.warn)
             }
 
             // The gate is that somebody said there are gaps, not that this app printed the sheet.
             if (assessment == MaintenanceState.PatternAssessment.NOT_CHECKED) {
                 Spacer(Modifier.height(10.dp))
                 TextButton(onClick = maintenance::assumeGaps, enabled = maintenance.blockedReason == null) {
-                    Text("I have already seen the pattern — it has gaps")
+                    Text(stringResource(Res.string.maint_seen_gaps))
                 }
             }
         }
 
         // Nothing to do, and nothing worth a card to say it with.
         MaintenanceState.PatternAssessment.NO_GAPS -> SettledStep(
-            text = "The pattern has no gaps — nothing needs cleaning.",
+            text = stringResource(Res.string.maint_no_gaps_note),
             colour = StatusColors.good,
             onStartOver = maintenance::clearAssessment,
         )
 
         MaintenanceState.PatternAssessment.GAPS -> {
             SettledStep(
-                text = "The pattern has gaps.",
+                text = stringResource(Res.string.maint_gaps_note),
                 colour = StatusColors.warn,
                 onStartOver = maintenance::clearAssessment,
             )
             Spacer(Modifier.height(10.dp))
             StepCard(
                 number = 2,
-                title = "Clean the head",
-                blurb = "Both cycles flush ink into the waste pad and raise its counter. Run the " +
-                    "ordinary one first; power cleaning is a last resort, not a stronger default. " +
-                    "What each costs is on its confirmation.",
+                title = stringResource(Res.string.maint_clean_title),
+                blurb = stringResource(Res.string.maint_clean_blurb),
                 enabled = maintenance.cleaningEnabled,
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -233,7 +278,7 @@ private fun SettledStep(text: String, colour: Color, onStartOver: () -> Unit) {
         Text("✓", color = colour, fontWeight = FontWeight.Bold, modifier = Modifier.width(20.dp))
         Text(text, style = MaterialTheme.typography.bodySmall, color = colour)
         Spacer(Modifier.weight(1f))
-        TextButton(onClick = onStartOver) { Text("Start over") }
+        TextButton(onClick = onStartOver) { Text(stringResource(Res.string.maint_start_over)) }
     }
 }
 
@@ -247,7 +292,7 @@ private fun CleaningChoice(operation: Maintenance.Operation, enabled: Boolean, o
         } else {
             cautionButtonColors()
         },
-    ) { Text(operation.label) }
+    ) { Text(stringResource(operation.title)) }
 }
 
 @Composable
@@ -255,28 +300,29 @@ private fun PatternQuestion(printer: String, onAnswer: (Boolean) -> Unit) {
     DialogWindow(
         onCloseRequest = {},
         state = rememberDialogState(size = DpSize(520.dp, 280.dp)),
-        title = "Check the nozzle pattern — $printer",
+        title = stringResource(Res.string.maint_pattern_dialog_title, printer),
     ) {
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
             Column(Modifier.fillMaxSize().padding(20.dp)) {
                 Text(
-                    "Do you see gaps or missing lines?",
+                    stringResource(Res.string.maint_pattern_question),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
                 )
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    "Compare the printed lines carefully. Cleaning is enabled only when the page " +
-                        "shows that it is needed.",
+                    stringResource(Res.string.maint_pattern_body),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Spacer(Modifier.weight(1f))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    OutlinedButton(onClick = { onAnswer(false) }) { Text("No gaps") }
+                    OutlinedButton(onClick = {
+                        onAnswer(false)
+                    }) { Text(stringResource(Res.string.maint_pattern_no_gaps)) }
                     Spacer(Modifier.width(8.dp))
                     Button(onClick = { onAnswer(true) }, colors = cautionButtonColors()) {
-                        Text("Yes, there are gaps")
+                        Text(stringResource(Res.string.maint_pattern_yes_gaps))
                     }
                 }
             }
@@ -294,32 +340,35 @@ private fun MaintenanceConfirmation(
     DialogWindow(
         onCloseRequest = onDismiss,
         state = rememberDialogState(size = DpSize(560.dp, 420.dp)),
-        title = "${operation.label} — $printer",
+        title = stringResource(Res.string.maint_confirm_title, stringResource(operation.title), printer),
     ) {
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
             Column(Modifier.fillMaxSize().padding(20.dp)) {
                 Text(
-                    "Send ${operation.label.lowercase()} to $printer over USB?",
+                    stringResource(
+                        Res.string.maint_confirm_question,
+                        stringResource(operation.title).lowercase(),
+                        printer,
+                    ),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
                 )
                 Spacer(Modifier.height(10.dp))
                 Text(
-                    operation.summary,
+                    stringResource(operation.summary),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Spacer(Modifier.height(12.dp))
                 if (operation.printsPage) {
                     Text(
-                        "This prints one sheet and uses ${operation.inkCost.label} ink.",
+                        stringResource(Res.string.maint_confirm_one_sheet, stringResource(operation.inkCost.label)),
                         style = MaterialTheme.typography.bodyMedium,
                         color = StatusColors.muted,
                     )
                 } else if (operation.raisesWasteCounter) {
                     Text(
-                        "Ink cost: ${operation.inkCost.label}. That ink is flushed into the waste pad " +
-                            "and raises the counter this app otherwise exists to lower.",
+                        stringResource(Res.string.maint_confirm_ink_cost, stringResource(operation.inkCost.label)),
                         style = MaterialTheme.typography.bodyMedium,
                         color = StatusColors.warn,
                         fontWeight = FontWeight.SemiBold,
@@ -330,24 +379,21 @@ private fun MaintenanceConfirmation(
                 if (operation == Maintenance.Operation.POWER_CLEANING) {
                     Spacer(Modifier.height(10.dp))
                     Text(
-                        "This is the only operation in the app that has not been run on a printer " +
-                            "in this project. Its command bytes are independently corroborated, but " +
-                            "nobody here has watched one execute.",
+                        stringResource(Res.string.maint_confirm_unproven),
                         style = MaterialTheme.typography.bodySmall,
                         color = StatusColors.warn,
                     )
                 }
                 Spacer(Modifier.height(12.dp))
                 Text(
-                    "The app checks that the printer is idle, sends the job, and then deliberately " +
-                        "does not poll while it may still be active. Watch the printer to verify the result.",
+                    stringResource(Res.string.maint_confirm_no_poll),
                     style = MaterialTheme.typography.bodySmall,
                     color = StatusColors.muted,
                 )
                 Spacer(Modifier.weight(1f))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Spacer(Modifier.weight(1f))
-                    OutlinedButton(onClick = onDismiss) { Text("Back") }
+                    OutlinedButton(onClick = onDismiss) { Text(stringResource(Res.string.confirm_back)) }
                     Spacer(Modifier.width(8.dp))
                     Button(
                         onClick = onConfirm,
@@ -356,7 +402,9 @@ private fun MaintenanceConfirmation(
                             Maintenance.Operation.HEAD_CLEANING -> cautionButtonColors()
                             Maintenance.Operation.POWER_CLEANING -> dangerButtonColors()
                         },
-                    ) { Text("Run ${operation.label.lowercase()}") }
+                    ) {
+                        Text(stringResource(Res.string.maint_confirm_run, stringResource(operation.title).lowercase()))
+                    }
                 }
             }
         }

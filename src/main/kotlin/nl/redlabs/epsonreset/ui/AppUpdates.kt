@@ -5,7 +5,17 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import nl.redlabs.epsonreset.i18n.Strings
 import nl.redlabs.epsonreset.prefs.PreferencesStore
+import nl.redlabs.epsonreset.resources.Res
+import nl.redlabs.epsonreset.resources.update_available
+import nl.redlabs.epsonreset.resources.update_available_log
+import nl.redlabs.epsonreset.resources.update_failed
+import nl.redlabs.epsonreset.resources.update_failed_log
+import nl.redlabs.epsonreset.resources.update_inconclusive
+import nl.redlabs.epsonreset.resources.update_inconclusive_log
+import nl.redlabs.epsonreset.resources.update_no_browser
+import nl.redlabs.epsonreset.resources.update_up_to_date
 import nl.redlabs.epsonreset.update.AppVersion
 import nl.redlabs.epsonreset.update.UpdateCheck
 
@@ -55,31 +65,29 @@ class AppUpdates {
             is UpdateCheck.Result.Available -> {
                 available = result.release
                 lastResult = ResetViewModel.Outcome(
-                    "Version ${result.release.version} is available.",
+                    Strings.get(Res.string.update_available, result.release.version),
                     ok = true,
                 )
-                log.good(
-                    "Version ${result.release.version} is available — you have " +
-                        "${AppVersion.display}.",
-                )
+                log.good(Strings.get(Res.string.update_available_log, result.release.version, AppVersion.display))
             }
 
             UpdateCheck.Result.UpToDate -> {
                 available = null
-                lastResult = ResetViewModel.Outcome("Up to date — ${AppVersion.display}.", ok = true)
-                if (!automatic) log.info("Up to date — ${AppVersion.display}.")
+                val upToDate = Strings.get(Res.string.update_up_to_date, AppVersion.display)
+                lastResult = ResetViewModel.Outcome(upToDate, ok = true)
+                if (!automatic) log.info(upToDate)
             }
 
             // Plain in the window, specific in the log: an HTTP code names what the release feed
             // did, which is not something the reader can do anything about.
             is UpdateCheck.Result.Unknown -> {
-                lastResult = ResetViewModel.Outcome("Could not confirm the latest version.", ok = false)
-                if (!automatic) log.warn("Update check inconclusive — ${result.detail}.")
+                lastResult = ResetViewModel.Outcome(Strings.get(Res.string.update_inconclusive), ok = false)
+                if (!automatic) log.warn(Strings.get(Res.string.update_inconclusive_log, result.detail))
             }
 
             is UpdateCheck.Result.Failed -> {
-                lastResult = ResetViewModel.Outcome("Could not check for updates.", ok = false)
-                if (!automatic) log.warn("Update check failed — ${result.detail}.")
+                lastResult = ResetViewModel.Outcome(Strings.get(Res.string.update_failed), ok = false)
+                if (!automatic) log.warn(Strings.get(Res.string.update_failed_log, result.detail))
             }
         }
     }
@@ -87,6 +95,6 @@ class AppUpdates {
     /** Opens the release page in the user's browser. Reports rather than throws if it can't. */
     fun openReleasePage(log: ResetViewModel) {
         val page = available?.page ?: UpdateCheck.RELEASES_PAGE
-        if (!Browser.open(page)) log.warn("Could not open a browser. The release page is $page")
+        if (!Browser.open(page)) log.warn(Strings.get(Res.string.update_no_browser, page))
     }
 }

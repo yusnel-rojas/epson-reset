@@ -2,6 +2,7 @@ package nl.redlabs.epsonreset
 
 import nl.redlabs.epsonreset.backup.SnapshotComparison
 import nl.redlabs.epsonreset.db.CounterSpec
+import nl.redlabs.epsonreset.i18n.resolveNow
 import nl.redlabs.epsonreset.protocol.CounterReader
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -45,7 +46,7 @@ class SnapshotComparisonTest {
         assertEquals(3839L, counter.before)
         assertEquals(3875L, counter.after)
         assertEquals(36L, counter.delta)
-        assertEquals("+36", counter.deltaLabel)
+        assertEquals("+36", counter.deltaLabel.resolveNow())
         assertTrue(counter.moved)
 
         // And the byte level still reports both addresses, low one included, falling.
@@ -61,7 +62,7 @@ class SnapshotComparisonTest {
         val result = SnapshotComparison.compare(before, after, listOf(pad))
 
         assertEquals(-3865L, result.counters.single().delta)
-        assertEquals("-3865", result.counters.single().deltaLabel)
+        assertEquals("-3865", result.counters.single().deltaLabel.resolveNow())
         assertTrue(result.afterIsAtResetValue)
     }
 
@@ -95,7 +96,7 @@ class SnapshotComparisonTest {
 
         assertNull(counter.delta)
         assertTrue(counter.moved)
-        assertEquals("changed", counter.deltaLabel)
+        assertEquals("changed", counter.deltaLabel.resolveNow())
     }
 
     /**
@@ -141,7 +142,7 @@ class SnapshotComparisonTest {
 
         assertEquals(0, result.changedBytes)
         assertTrue(result.identical)
-        assertTrue(result.notes.any { it.contains("only one side") }, "${result.notes}")
+        assertTrue(result.notes.any { it.resolveNow().contains("only one side") }, "${result.notes}")
 
         // Both addresses still appear — the union, so the one-sided one is visible rather than
         // quietly dropped.
@@ -167,7 +168,7 @@ class SnapshotComparisonTest {
 
         val result = SnapshotComparison.compare(before, after, listOf(pad))
 
-        assertTrue(result.notes.any { it.contains("Different printers") }, "${result.notes}")
+        assertTrue(result.notes.any { it.resolveNow().contains("Different printers") }, "${result.notes}")
     }
 
     /**
@@ -181,7 +182,7 @@ class SnapshotComparisonTest {
 
         val result = SnapshotComparison.compare(before, after, listOf(pad))
 
-        assertFalse(result.notes.any { it.contains("Different printers") }, "${result.notes}")
+        assertFalse(result.notes.any { it.resolveNow().contains("Different printers") }, "${result.notes}")
     }
 
     @Test
@@ -191,7 +192,7 @@ class SnapshotComparisonTest {
 
         val result = SnapshotComparison.compare(before, after, listOf(pad))
 
-        assertTrue(result.notes.any { it.contains("different models") }, "${result.notes}")
+        assertTrue(result.notes.any { it.resolveNow().contains("different models") }, "${result.notes}")
     }
 
     /**
@@ -208,7 +209,7 @@ class SnapshotComparisonTest {
         assertEquals(0, result.comparable)
         assertFalse(result.identical)
         assertFalse(result.afterIsAtResetValue)
-        assertTrue(result.summary.contains("Nothing can be compared"), result.summary)
+        assertTrue(result.summary.resolveNow().contains("Nothing can be compared"), result.summary.resolveNow())
     }
 
     @Test
@@ -222,6 +223,6 @@ class SnapshotComparisonTest {
 
         assertTrue(result.identical)
         assertTrue(result.movedCounters.isEmpty())
-        assertTrue(result.summary.contains("Nothing moved"), result.summary)
+        assertTrue(result.summary.resolveNow().contains("Nothing moved"), result.summary.resolveNow())
     }
 }

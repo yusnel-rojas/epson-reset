@@ -17,6 +17,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.snapshotFlow
@@ -30,6 +31,18 @@ import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import nl.redlabs.epsonreset.prefs.PreferencesStore
+import nl.redlabs.epsonreset.resources.Res
+import nl.redlabs.epsonreset.resources.app_name
+import nl.redlabs.epsonreset.resources.tab_inspect
+import nl.redlabs.epsonreset.resources.tab_maintenance
+import nl.redlabs.epsonreset.resources.tab_models
+import nl.redlabs.epsonreset.resources.tab_overview
+import nl.redlabs.epsonreset.resources.tab_snapshots
+import nl.redlabs.epsonreset.resources.topbar_database
+import nl.redlabs.epsonreset.resources.topbar_database_error
+import nl.redlabs.epsonreset.resources.topbar_database_loading
+import nl.redlabs.epsonreset.resources.topbar_update_available
+import org.jetbrains.compose.resources.stringResource
 
 @Composable
 fun App() {
@@ -43,40 +56,46 @@ fun App() {
     LaunchedEffect(Unit) { updates.check(vm, automatic = true) }
 
     EpsonResetTheme {
-        Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-            Column(Modifier.fillMaxSize()) {
-                TopBar(vm, updates)
-                SettingsDialog(vm, updates)
-                RunCompletionDialog(vm)
-                HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
+        SettingsDialog(vm, updates)
+        RunCompletionDialog(vm)
 
-                when (vm.tab) {
-                    ResetViewModel.Tab.COUNTERS ->
-                        // Printer and model now form one application-scoped target in the top bar.
-                        OverviewPanel(vm, Modifier.fillMaxWidth().weight(1f))
+        key(vm.language) { AppContent(vm, updates) }
+    }
+}
 
-                    // The matrix is about the database rather than one printer, so it takes the
-                    // whole width — there is no selection for a sidebar to show.
-                    ResetViewModel.Tab.MODELS ->
-                        CapabilityMatrix(vm, Modifier.fillMaxWidth().weight(1f))
+@Composable
+private fun AppContent(vm: ResetViewModel, updates: AppUpdates) {
+    Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+        Column(Modifier.fillMaxSize()) {
+            TopBar(vm, updates)
+            HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
 
-                    // Same reasoning: the inspector is a guided sequence, not a selection.
-                    ResetViewModel.Tab.INSPECT ->
-                        InspectPanel(vm, Modifier.fillMaxWidth().weight(1f))
+            when (vm.tab) {
+                ResetViewModel.Tab.COUNTERS ->
+                    // Printer and model now form one application-scoped target in the top bar.
+                    OverviewPanel(vm, Modifier.fillMaxWidth().weight(1f))
 
-                    // Also a guided sequence: establish need before the ink-spending operation.
-                    ResetViewModel.Tab.MAINTENANCE ->
-                        MaintenancePanel(vm, Modifier.fillMaxWidth().weight(1f))
+                // The matrix is about the database rather than one printer, so it takes the
+                // whole width — there is no selection for a sidebar to show.
+                ResetViewModel.Tab.MODELS ->
+                    CapabilityMatrix(vm, Modifier.fillMaxWidth().weight(1f))
 
-                    // Its own selection — a file, not a printer — so it brings its own sidebar.
-                    ResetViewModel.Tab.SNAPSHOTS ->
-                        SnapshotPanel(vm, Modifier.fillMaxWidth().weight(1f))
-                }
+                // Same reasoning: the inspector is a guided sequence, not a selection.
+                ResetViewModel.Tab.INSPECT ->
+                    InspectPanel(vm, Modifier.fillMaxWidth().weight(1f))
 
-                HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
-                // Height belongs to the panel now — it decides it from its collapsed state.
-                LogPanel(vm, Modifier.fillMaxWidth())
+                // Also a guided sequence: establish need before the ink-spending operation.
+                ResetViewModel.Tab.MAINTENANCE ->
+                    MaintenancePanel(vm, Modifier.fillMaxWidth().weight(1f))
+
+                // Its own selection — a file, not a printer — so it brings its own sidebar.
+                ResetViewModel.Tab.SNAPSHOTS ->
+                    SnapshotPanel(vm, Modifier.fillMaxWidth().weight(1f))
             }
+
+            HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
+            // Height belongs to the panel now — it decides it from its collapsed state.
+            LogPanel(vm, Modifier.fillMaxWidth())
         }
     }
 }
@@ -85,6 +104,13 @@ fun App() {
 @Composable
 private fun RememberedState(vm: ResetViewModel) {
     // Restore and observe in one effect, in that order.
+    LaunchedEffect(Unit) {
+        vm.applyLanguage(PreferencesStore.current().language)
+        snapshotFlow { vm.language }.collect { tag ->
+            PreferencesStore.update { it.copy(language = tag) }
+        }
+    }
+
     LaunchedEffect(Unit) {
         vm.logCollapsed = PreferencesStore.current().logCollapsed
         snapshotFlow { vm.logCollapsed }.collect { collapsed ->
@@ -157,14 +183,14 @@ private fun TopBar(vm: ResetViewModel, updates: AppUpdates) {
     ) {
         Column {
             Text(
-                "Epson Reset",
+                stringResource(Res.string.app_name),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
             )
             Text(
-                vm.database?.let { "${it.size} models · ${it.source.name.lowercase()}" }
-                    ?: vm.databaseError?.let { "database error" }
-                    ?: "loading database…",
+                vm.database?.let { stringResource(Res.string.topbar_database, it.size, it.source.name.lowercase()) }
+                    ?: vm.databaseError?.let { stringResource(Res.string.topbar_database_error) }
+                    ?: stringResource(Res.string.topbar_database_loading),
                 style = MaterialTheme.typography.labelSmall,
                 color = StatusColors.muted,
             )
@@ -182,7 +208,7 @@ private fun TopBar(vm: ResetViewModel, updates: AppUpdates) {
         updates.available?.let { release ->
             TextButton(onClick = { updates.openReleasePage(vm) }) {
                 Text(
-                    "Update available — ${release.version}",
+                    stringResource(Res.string.topbar_update_available, release.version),
                     color = StatusColors.good,
                     fontWeight = FontWeight.SemiBold,
                 )
@@ -204,14 +230,22 @@ private fun Tabs(vm: ResetViewModel) {
             .padding(3.dp),
     ) {
         // Keep the internal COUNTERS route stable; only the experience and visible name change.
-        Tab("Overview", vm.tab == ResetViewModel.Tab.COUNTERS) { vm.tab = ResetViewModel.Tab.COUNTERS }
-        Tab("Maintenance", vm.tab == ResetViewModel.Tab.MAINTENANCE) { vm.tab = ResetViewModel.Tab.MAINTENANCE }
-        Tab("Snapshots", vm.tab == ResetViewModel.Tab.SNAPSHOTS) {
+        Tab(stringResource(Res.string.tab_overview), vm.tab == ResetViewModel.Tab.COUNTERS) {
+            vm.tab = ResetViewModel.Tab.COUNTERS
+        }
+        Tab(stringResource(Res.string.tab_maintenance), vm.tab == ResetViewModel.Tab.MAINTENANCE) {
+            vm.tab = ResetViewModel.Tab.MAINTENANCE
+        }
+        Tab(stringResource(Res.string.tab_snapshots), vm.tab == ResetViewModel.Tab.SNAPSHOTS) {
             vm.snapshot.showAllSnapshots()
             vm.tab = ResetViewModel.Tab.SNAPSHOTS
         }
-        Tab("Inspect", vm.tab == ResetViewModel.Tab.INSPECT) { vm.tab = ResetViewModel.Tab.INSPECT }
-        Tab("Models", vm.tab == ResetViewModel.Tab.MODELS) { vm.tab = ResetViewModel.Tab.MODELS }
+        Tab(stringResource(Res.string.tab_inspect), vm.tab == ResetViewModel.Tab.INSPECT) {
+            vm.tab = ResetViewModel.Tab.INSPECT
+        }
+        Tab(stringResource(Res.string.tab_models), vm.tab == ResetViewModel.Tab.MODELS) {
+            vm.tab = ResetViewModel.Tab.MODELS
+        }
     }
 }
 

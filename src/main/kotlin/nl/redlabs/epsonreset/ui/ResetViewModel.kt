@@ -32,6 +32,11 @@ import nl.redlabs.epsonreset.device.PrinterDiscovery
 import nl.redlabs.epsonreset.device.PrinterTransports
 import nl.redlabs.epsonreset.device.Serials
 import nl.redlabs.epsonreset.history.CounterJournal
+import nl.redlabs.epsonreset.i18n.AppLanguage
+import nl.redlabs.epsonreset.i18n.StatusText
+import nl.redlabs.epsonreset.i18n.Strings
+import nl.redlabs.epsonreset.i18n.UiText
+import nl.redlabs.epsonreset.i18n.resolveNow
 import nl.redlabs.epsonreset.net.NetworkAddress
 import nl.redlabs.epsonreset.net.PrinterMib
 import nl.redlabs.epsonreset.net.SavedPrinters
@@ -42,9 +47,138 @@ import nl.redlabs.epsonreset.protocol.FakeTransport
 import nl.redlabs.epsonreset.protocol.SequenceGenerator
 import nl.redlabs.epsonreset.protocol.Status
 import nl.redlabs.epsonreset.protocol.Transport
+import nl.redlabs.epsonreset.resources.Res
+import nl.redlabs.epsonreset.resources.maint_status_sending
+import nl.redlabs.epsonreset.resources.matrix_filter_all
+import nl.redlabs.epsonreset.resources.matrix_filter_decoded
+import nl.redlabs.epsonreset.resources.matrix_filter_platen_only
+import nl.redlabs.epsonreset.resources.matrix_filter_resettable
+import nl.redlabs.epsonreset.resources.matrix_filter_with_limit
+import nl.redlabs.epsonreset.resources.overview_reason_cancelled
+import nl.redlabs.epsonreset.resources.overview_reason_cancelled_before
+import nl.redlabs.epsonreset.resources.overview_reason_no_addresses
+import nl.redlabs.epsonreset.resources.overview_reason_no_model
+import nl.redlabs.epsonreset.resources.overview_reason_not_opened
+import nl.redlabs.epsonreset.resources.overview_reason_stopped
+import nl.redlabs.epsonreset.resources.via_confirmed
+import nl.redlabs.epsonreset.resources.via_network_advert
+import nl.redlabs.epsonreset.resources.via_snmp
+import nl.redlabs.epsonreset.resources.via_snmp_cross_link
+import nl.redlabs.epsonreset.resources.via_usb_descriptor
+import nl.redlabs.epsonreset.resources.via_usb_ejl
+import nl.redlabs.epsonreset.resources.vm_added_address
+import nl.redlabs.epsonreset.resources.vm_all_at_reset
+import nl.redlabs.epsonreset.resources.vm_and_more
+import nl.redlabs.epsonreset.resources.vm_back_to_model
+import nl.redlabs.epsonreset.resources.vm_backed_up
+import nl.redlabs.epsonreset.resources.vm_backing_up
+import nl.redlabs.epsonreset.resources.vm_backup_not_saved
+import nl.redlabs.epsonreset.resources.vm_bad_address
+import nl.redlabs.epsonreset.resources.vm_blocker_clear_it
+import nl.redlabs.epsonreset.resources.vm_busy_add
+import nl.redlabs.epsonreset.resources.vm_busy_forget
+import nl.redlabs.epsonreset.resources.vm_busy_models
+import nl.redlabs.epsonreset.resources.vm_busy_overview
+import nl.redlabs.epsonreset.resources.vm_busy_printers
+import nl.redlabs.epsonreset.resources.vm_busy_read
+import nl.redlabs.epsonreset.resources.vm_busy_remembered_models
+import nl.redlabs.epsonreset.resources.vm_busy_reset
+import nl.redlabs.epsonreset.resources.vm_busy_scan
+import nl.redlabs.epsonreset.resources.vm_busy_target
+import nl.redlabs.epsonreset.resources.vm_busy_test
+import nl.redlabs.epsonreset.resources.vm_cancelling
+import nl.redlabs.epsonreset.resources.vm_cross_link_conflict
+import nl.redlabs.epsonreset.resources.vm_cross_link_used
+import nl.redlabs.epsonreset.resources.vm_database_download_failed
+import nl.redlabs.epsonreset.resources.vm_database_failed
+import nl.redlabs.epsonreset.resources.vm_database_update_failed
+import nl.redlabs.epsonreset.resources.vm_database_updated
+import nl.redlabs.epsonreset.resources.vm_database_updated_status
+import nl.redlabs.epsonreset.resources.vm_devices_found
+import nl.redlabs.epsonreset.resources.vm_downloading
+import nl.redlabs.epsonreset.resources.vm_downloading_database
+import nl.redlabs.epsonreset.resources.vm_dry_run_backup
+import nl.redlabs.epsonreset.resources.vm_dry_run_complete
+import nl.redlabs.epsonreset.resources.vm_dry_run_missing
+import nl.redlabs.epsonreset.resources.vm_dry_run_nothing_written
+import nl.redlabs.epsonreset.resources.vm_dry_run_values
+import nl.redlabs.epsonreset.resources.vm_dry_run_would_stop
+import nl.redlabs.epsonreset.resources.vm_dry_runs_still_work
+import nl.redlabs.epsonreset.resources.vm_family_blocked
+import nl.redlabs.epsonreset.resources.vm_family_pick
+import nl.redlabs.epsonreset.resources.vm_family_remembered
+import nl.redlabs.epsonreset.resources.vm_firmware
+import nl.redlabs.epsonreset.resources.vm_forgot
+import nl.redlabs.epsonreset.resources.vm_forgot_choice
+import nl.redlabs.epsonreset.resources.vm_forgot_choice_reports
+import nl.redlabs.epsonreset.resources.vm_forgot_choices
+import nl.redlabs.epsonreset.resources.vm_forgot_model
+import nl.redlabs.epsonreset.resources.vm_generated
+import nl.redlabs.epsonreset.resources.vm_generating
+import nl.redlabs.epsonreset.resources.vm_ink_levels
+import nl.redlabs.epsonreset.resources.vm_layouts_loaded
+import nl.redlabs.epsonreset.resources.vm_layouts_unavailable
+import nl.redlabs.epsonreset.resources.vm_libusb_missing
+import nl.redlabs.epsonreset.resources.vm_lifetime_pages
+import nl.redlabs.epsonreset.resources.vm_live_would_refuse
+import nl.redlabs.epsonreset.resources.vm_match_exact
+import nl.redlabs.epsonreset.resources.vm_match_family
+import nl.redlabs.epsonreset.resources.vm_match_likely
+import nl.redlabs.epsonreset.resources.vm_match_none
+import nl.redlabs.epsonreset.resources.vm_matched_from_report
+import nl.redlabs.epsonreset.resources.vm_matched_log
+import nl.redlabs.epsonreset.resources.vm_mib_unavailable
+import nl.redlabs.epsonreset.resources.vm_mismatch_dry_ok
+import nl.redlabs.epsonreset.resources.vm_model_mismatch
+import nl.redlabs.epsonreset.resources.vm_models_loaded
+import nl.redlabs.epsonreset.resources.vm_network_refused
+import nl.redlabs.epsonreset.resources.vm_network_unavailable
+import nl.redlabs.epsonreset.resources.vm_no_answer_at_all
+import nl.redlabs.epsonreset.resources.vm_no_database_entry
+import nl.redlabs.epsonreset.resources.vm_no_printer_selected
+import nl.redlabs.epsonreset.resources.vm_no_printers_found
+import nl.redlabs.epsonreset.resources.vm_no_write_packets
+import nl.redlabs.epsonreset.resources.vm_not_reached
+import nl.redlabs.epsonreset.resources.vm_overlay_applied
+import nl.redlabs.epsonreset.resources.vm_overlay_ignored
+import nl.redlabs.epsonreset.resources.vm_overview_cancelled
+import nl.redlabs.epsonreset.resources.vm_overview_complete
+import nl.redlabs.epsonreset.resources.vm_partial_read
+import nl.redlabs.epsonreset.resources.vm_power_cycle_now
+import nl.redlabs.epsonreset.resources.vm_progress_packet
+import nl.redlabs.epsonreset.resources.vm_read_failed
+import nl.redlabs.epsonreset.resources.vm_read_of_addresses
+import nl.redlabs.epsonreset.resources.vm_readback_failed
+import nl.redlabs.epsonreset.resources.vm_readback_not_reset
+import nl.redlabs.epsonreset.resources.vm_readback_partial
+import nl.redlabs.epsonreset.resources.vm_readback_unavailable
+import nl.redlabs.epsonreset.resources.vm_readback_unverified
+import nl.redlabs.epsonreset.resources.vm_reading_address
+import nl.redlabs.epsonreset.resources.vm_reading_before_reset
+import nl.redlabs.epsonreset.resources.vm_reading_counters
+import nl.redlabs.epsonreset.resources.vm_refreshing_overview
+import nl.redlabs.epsonreset.resources.vm_refreshing_overview_for
+import nl.redlabs.epsonreset.resources.vm_remembered_choice
+import nl.redlabs.epsonreset.resources.vm_reports_itself_as
+import nl.redlabs.epsonreset.resources.vm_reset_complete
+import nl.redlabs.epsonreset.resources.vm_reset_incomplete
+import nl.redlabs.epsonreset.resources.vm_saved_no_answer
+import nl.redlabs.epsonreset.resources.vm_scan_stopped
+import nl.redlabs.epsonreset.resources.vm_select_printer_overview
+import nl.redlabs.epsonreset.resources.vm_serial
+import nl.redlabs.epsonreset.resources.vm_session_only_model
+import nl.redlabs.epsonreset.resources.vm_stopped_no_backup
+import nl.redlabs.epsonreset.resources.vm_stuck_addresses
+import nl.redlabs.epsonreset.resources.vm_testing_device
+import nl.redlabs.epsonreset.resources.vm_transport_no_printer
+import nl.redlabs.epsonreset.resources.vm_usb_scan_failed
+import nl.redlabs.epsonreset.resources.vm_verified
+import nl.redlabs.epsonreset.resources.vm_verifying
+import nl.redlabs.epsonreset.resources.vm_writes_acknowledged
 import nl.redlabs.epsonreset.update.AppVersion
 import nl.redlabs.epsonreset.usb.LibUsb
 import nl.redlabs.epsonreset.usb.UsbPrinterScanner
+import org.jetbrains.compose.resources.StringResource
 import java.io.File
 import java.time.Instant
 import java.time.LocalDateTime
@@ -130,24 +264,27 @@ class ResetViewModel(
      * `ET-2820` entry is a family answering for eight units, and only the original string says so.
      */
     data class Identity(val model: PrinterModel, val via: Via, val reported: String) {
-        enum class Via(val label: String) {
+        enum class Via(private val resource: StringResource) {
             /** iProduct off the USB descriptor. Names a family far more often than a unit. */
-            USB_DESCRIPTOR("its USB descriptor"),
+            USB_DESCRIPTOR(Res.string.via_usb_descriptor),
 
             /** `@EJL ID` asked over the open USB channel. */
-            USB_EJL("an EJL query over USB"),
+            USB_EJL(Res.string.via_usb_ejl),
 
             /** An mDNS advertisement, or a name cached from one. */
-            NETWORK_ADVERT("its network advertisement"),
+            NETWORK_ADVERT(Res.string.via_network_advert),
 
             /** The Epson MIB over SNMP — the one source that reliably gives a unit. */
-            SNMP("SNMP"),
+            SNMP(Res.string.via_snmp),
 
             /** The same printer's SNMP answer, borrowed from its network entry onto its USB one. */
-            SNMP_CROSS_LINK("SNMP on its network address"),
+            SNMP_CROSS_LINK(Res.string.via_snmp_cross_link),
 
             /** A person read the label on the printer, because nothing else could tell. */
-            CONFIRMED("you"),
+            CONFIRMED(Res.string.via_confirmed),
+            ;
+
+            val label: String get() = Strings.get(resource)
         }
 
         /** Whether the words behind this were a family name rather than a unit's. */
@@ -255,6 +392,18 @@ class ResetViewModel(
     var developerMode by mutableStateOf(false)
 
     /**
+     * The chosen UI language, or null to follow the OS. Written through [applyLanguage] so the
+     * default locale is in place before the recomposition it triggers.
+     */
+    var language by mutableStateOf<String?>(null)
+        private set
+
+    fun applyLanguage(tag: String?) {
+        AppLanguage.apply(tag)
+        language = tag
+    }
+
+    /**
      * Turns the cross-cutting [Diag] logger on or off and points it at this log. Called from App.kt
      * on restore and whenever the Developer toggle changes. Lines arrive as TRACE — captured by the
      * log's Copy, and shown live in the panel while Developer mode is on.
@@ -288,7 +437,7 @@ class ResetViewModel(
      */
     fun forgetRememberedChoice(key: String) {
         if (!canChangeTarget) {
-            warn("Wait for the current printer operation to finish before changing remembered models.")
+            warn(Strings.get(Res.string.vm_busy_remembered_models))
             return
         }
         if (key in printerKeys) {
@@ -299,14 +448,14 @@ class ResetViewModel(
 
         scope.launch {
             withContext(io) { ModelChoices.forget(choicesFile(), key) }
-            info("Forgot the remembered model for $key.")
+            info(Strings.get(Res.string.vm_forgot_model, key))
             refreshRememberedChoices()
         }
     }
 
     fun forgetAllRememberedChoices() {
         if (!canChangeTarget) {
-            warn("Wait for the current printer operation to finish before changing remembered models.")
+            warn(Strings.get(Res.string.vm_busy_remembered_models))
             return
         }
         val known = rememberedChoices
@@ -315,7 +464,7 @@ class ResetViewModel(
         scope.launch {
             withContext(io) { ModelChoices.save(choicesFile(), emptyList()) }
             if (identity?.via == Identity.Via.CONFIRMED) identity = null
-            info("Forgot ${known.size} remembered model choice(s).")
+            info(UiText.plural(Res.plurals.vm_forgot_choices, known.size, known.size).resolveNow())
             refreshRememberedChoices()
         }
     }
@@ -552,7 +701,9 @@ class ResetViewModel(
     /** Operation feedback rendered by the fixed status bar instead of shifting individual panels. */
     val globalProgressLabel: String?
         get() = progressLabel.takeIf { it.isNotBlank() }
-            ?: maintenance.running?.let { "Sending ${it.label.lowercase()}…" }
+            ?: maintenance.running?.let {
+                Strings.get(Res.string.maint_status_sending, Strings.get(it.title).lowercase())
+            }
 
     /** Null means that the active operation has no meaningful percentage and should be indeterminate. */
     val globalProgressValue: Float?
@@ -597,12 +748,12 @@ class ResetViewModel(
     // the detail is a disclosure inside them rather than a sibling to switch to.
     enum class CounterView { COUNTERS, HISTORY }
 
-    enum class MatrixFilter(val label: String) {
-        ALL("All"),
-        RESETTABLE("Resettable"),
-        PLATEN_ONLY("Platen only"),
-        DECODED("Decoded values"),
-        WITH_LIMIT("Has a limit"),
+    enum class MatrixFilter(val label: StringResource) {
+        ALL(Res.string.matrix_filter_all),
+        RESETTABLE(Res.string.matrix_filter_resettable),
+        PLATEN_ONLY(Res.string.matrix_filter_platen_only),
+        DECODED(Res.string.matrix_filter_decoded),
+        WITH_LIMIT(Res.string.matrix_filter_with_limit),
     }
 
     // Deriving a capability per model is cheap but not free, and the matrix asks for the list on
@@ -642,7 +793,7 @@ class ResetViewModel(
 
     fun selectModelAndShowCounters(capability: ModelCapability) {
         if (!canChangeTarget) {
-            warn("Wait for the current printer operation to finish before changing the target.")
+            warn(Strings.get(Res.string.vm_busy_target))
             return
         }
         selectModel(capability.model)
@@ -674,9 +825,7 @@ class ResetViewModel(
             val said = identifiedModel ?: return null
             val chosen = selectedModel ?: return null
             if (chosen.name.equals(said.name, ignoreCase = true)) return null
-            return "This printer identifies itself as ${said.name}, but ${chosen.name} is " +
-                "selected. A live run would write ${chosen.name}'s write key and addresses into " +
-                "a ${said.name}."
+            return Strings.get(Res.string.vm_model_mismatch, said.name, chosen.name, chosen.name, said.name)
         }
 
     /**
@@ -685,9 +834,7 @@ class ResetViewModel(
      */
     val familyBlockedReason: String?
         get() = pendingClass?.let {
-            "This printer reports itself as \"${it.reported}\", which names a family of " +
-                "${it.candidates.size} models that do not share a reset recipe. Choose the " +
-                "model printed on the printer."
+            Strings.get(Res.string.vm_family_blocked, it.reported, it.candidates.size)
         }
 
     /** Why the model half of the current target is not settled, independent of transport limits. */
@@ -703,8 +850,7 @@ class ResetViewModel(
 
             val selected = selectedDevice ?: return null
             if (!selected.device.reachable) {
-                return "The selected printer was not reached. Rescan or test its connection " +
-                    "before using live mode."
+                return Strings.get(Res.string.vm_not_reached)
             }
 
             if (!selected.device.isNetwork) return null
@@ -713,8 +859,7 @@ class ResetViewModel(
             if (!test.overNetwork || test.reach != ConnectionTest.Reach.STATUS_ONLY) return null
 
             return test.refusal
-                ?: "This printer answered identity and status over the network but refused " +
-                "counter access. Connect it over USB to reset."
+                ?: Strings.get(Res.string.vm_network_refused)
         }
 
     /** A simulation needs a model and nothing else — it never opens the printer. */
@@ -781,18 +926,18 @@ class ResetViewModel(
             val loaded = withContext(io) { runCatching { PrinterDatabase.load() } }
             loaded.onSuccess {
                 database = it
-                info("Loaded ${it.size} printer models (${it.source.name.lowercase()}).")
+                info(Strings.get(Res.string.vm_models_loaded, it.size, it.source.name.lowercase()))
 
                 val specs = withContext(io) { runCatching { CounterSpecs.load() } }
                 specs.onSuccess { s ->
                     counterSpecs = s
-                    info("Counter layouts for ${s.modelCount} models.")
-                    if (s.overlayLoaded) info("User overlay applied from ${AppPaths.counterOverlay}.")
-                    s.overlayError?.let { e -> warn("Overlay ignored — $e") }
-                }.onFailure { e -> warn("Counter layouts unavailable: ${e.message}") }
+                    info(Strings.get(Res.string.vm_layouts_loaded, s.modelCount))
+                    if (s.overlayLoaded) info(Strings.get(Res.string.vm_overlay_applied, AppPaths.counterOverlay))
+                    s.overlayError?.let { e -> warn(Strings.get(Res.string.vm_overlay_ignored, e)) }
+                }.onFailure { e -> warn(Strings.get(Res.string.vm_layouts_unavailable, e.message.orEmpty())) }
             }.onFailure {
                 databaseError = it.message ?: it.toString()
-                bad("Could not load the printer database: ${it.message}")
+                bad(Strings.get(Res.string.vm_database_failed, it.message.orEmpty()))
             }
         }
     }
@@ -809,8 +954,8 @@ class ResetViewModel(
 
     fun refreshDatabaseFromNetwork() {
         scope.launch {
-            databaseUpdateStatus = Outcome("Downloading…", ok = true)
-            info("Downloading the latest printer database…")
+            databaseUpdateStatus = Outcome(Strings.get(Res.string.vm_downloading), ok = true)
+            info(Strings.get(Res.string.vm_downloading_database))
             val result = withContext(io) {
                 runCatching {
                     val text = java.net.URI(PrinterDatabase.OTA_URL).toURL().readText()
@@ -819,15 +964,16 @@ class ResetViewModel(
             }
             result.onSuccess {
                 database = it
-                databaseUpdateStatus = Outcome("Updated — ${it.size} models.", ok = true)
-                good("Database updated — ${it.size} models.")
+                databaseUpdateStatus =
+                    Outcome(Strings.get(Res.string.vm_database_updated_status, it.size), ok = true)
+                good(Strings.get(Res.string.vm_database_updated, it.size))
             }.onFailure {
                 // Plain here, specific in the log. What went wrong is usually a URL and an HTTP
                 // code, which is the maintainer's problem rather than something the reader can act
                 // on — and the one thing they do need to know is that nothing was lost.
                 databaseUpdateStatus =
-                    Outcome("Could not download the database. Keeping the current copy.", ok = false)
-                warn("Database update failed: ${it.message}. Keeping the current copy.")
+                    Outcome(Strings.get(Res.string.vm_database_download_failed), ok = false)
+                warn(Strings.get(Res.string.vm_database_update_failed, it.message.orEmpty()))
             }
         }
     }
@@ -838,7 +984,7 @@ class ResetViewModel(
             return
         }
         if (!canScan) {
-            warn("Wait for the current printer operation to finish before scanning again.")
+            warn(Strings.get(Res.string.vm_busy_scan))
             return
         }
         val generation = beginScan()
@@ -858,7 +1004,7 @@ class ResetViewModel(
         if (scanState !is ScanState.Scanning) return
         scanGeneration += 1
         scanState = ScanState.Stopped
-        if (report) info("Printer scan stopped.")
+        if (report) info(Strings.get(Res.string.vm_scan_stopped))
     }
 
     /** Scans both buses. */
@@ -885,8 +1031,8 @@ class ResetViewModel(
 
         usbNote = when (val usb = discovery.usb) {
             is UsbPrinterScanner.ScanResult.Ok -> null
-            is UsbPrinterScanner.ScanResult.LibraryMissing -> "libusb is not installed — ${usb.hint}"
-            is UsbPrinterScanner.ScanResult.Failed -> "USB scan failed — ${usb.message}"
+            is UsbPrinterScanner.ScanResult.LibraryMissing -> Strings.get(Res.string.vm_libusb_missing, usb.hint)
+            is UsbPrinterScanner.ScanResult.Failed -> Strings.get(Res.string.vm_usb_scan_failed, usb.message)
         }
 
         networkNote = when (val net = discovery.network) {
@@ -908,8 +1054,8 @@ class ResetViewModel(
             else -> ScanState.Done
         }
 
-        usbNote?.let { warn("$it Dry runs still work.") }
-        networkNote?.let { warn("Network discovery unavailable — $it") }
+        usbNote?.let { warn(Strings.get(Res.string.vm_dry_runs_still_work, it)) }
+        networkNote?.let { warn(Strings.get(Res.string.vm_network_unavailable, it)) }
 
         val previousSelection = selectedDevice
         val refreshedSelection = previousSelection?.let { previous ->
@@ -923,11 +1069,19 @@ class ResetViewModel(
         refreshIdentity()
 
         if (matched.isEmpty()) {
-            warn("No Epson printers found on USB or the network.")
+            warn(Strings.get(Res.string.vm_no_printers_found))
         } else {
             val usbCount = matched.count { !it.device.isNetwork }
             val netCount = matched.size - usbCount
-            info("Found ${matched.size} Epson device(s) — $usbCount on USB, $netCount on the network.")
+            info(
+                UiText.plural(
+                    Res.plurals.vm_devices_found,
+                    matched.size,
+                    matched.size,
+                    usbCount,
+                    netCount,
+                ).resolveNow(),
+            )
             if (selectedDevice == null) {
                 defaultPrinter(matched)?.let { chosen ->
                     select(chosen)
@@ -997,7 +1151,7 @@ class ResetViewModel(
 
     fun select(device: MatchedPrinter) {
         if (!canChangeTarget) {
-            warn("Wait for the current printer operation to finish before changing printers.")
+            warn(Strings.get(Res.string.vm_busy_printers))
             return
         }
         stopScan(report = false)
@@ -1022,14 +1176,22 @@ class ResetViewModel(
         device.model?.let {
             stageModel(it)
             val how = when (device.confidence) {
-                MatchedPrinter.Confidence.EXACT -> "matched exactly"
-                MatchedPrinter.Confidence.LIKELY -> "matched (likely — please confirm)"
-                MatchedPrinter.Confidence.CLASS_ONLY -> "matched to a family, not to a unit"
-                MatchedPrinter.Confidence.NONE -> "unmatched"
+                MatchedPrinter.Confidence.EXACT -> Strings.get(Res.string.vm_match_exact)
+                MatchedPrinter.Confidence.LIKELY -> Strings.get(Res.string.vm_match_likely)
+                MatchedPrinter.Confidence.CLASS_ONLY -> Strings.get(Res.string.vm_match_family)
+                MatchedPrinter.Confidence.NONE -> Strings.get(Res.string.vm_match_none)
             }
-            info("${device.device.displayName} on ${device.device.link.kind} → ${it.name} ($how).")
+            info(
+                Strings.get(
+                    Res.string.vm_matched_log,
+                    device.device.displayName,
+                    device.device.link.kind,
+                    it.name,
+                    how,
+                ),
+            )
         } ?: warn(
-            "${device.device.displayName} did not match any database entry — pick the model manually.",
+            Strings.get(Res.string.vm_no_database_entry, device.device.displayName),
         )
 
         if (device.confidence == MatchedPrinter.Confidence.CLASS_ONLY) {
@@ -1071,10 +1233,14 @@ class ResetViewModel(
             identity = null
             modelSelectionVisible = true
             warn(
-                "This printer's descriptor matches ${fromDescriptor.name}, but the same serial " +
-                    "answers SNMP at ${cross.link.where} as ${fromPeer.name} — and the two do not " +
-                    "write the same bytes (rkey ${fromDescriptor.readKey} against " +
-                    "${fromPeer.readKey}). Pick the one on the label before running live.",
+                Strings.get(
+                    Res.string.vm_cross_link_conflict,
+                    fromDescriptor.name,
+                    cross.link.where,
+                    fromPeer.name,
+                    fromDescriptor.readKey,
+                    fromPeer.readKey,
+                ),
             )
             return
         }
@@ -1085,8 +1251,12 @@ class ResetViewModel(
         manualModelRequested = false
         modelSelectionVisible = false
         info(
-            "The same serial answers SNMP at ${cross.link.where} as ${fromPeer.name}. Using that: " +
-                "the descriptor says only \"${device.device.product}\", which names a family.",
+            Strings.get(
+                Res.string.vm_cross_link_used,
+                cross.link.where,
+                fromPeer.name,
+                device.device.product.toString(),
+            ),
         )
     }
 
@@ -1103,7 +1273,7 @@ class ResetViewModel(
             identity = Identity(remembered, Identity.Via.CONFIRMED, reported)
             stageModel(remembered)
             modelSelectionVisible = false
-            info("\"$reported\" names a family; this printer was confirmed as ${remembered.name} before.")
+            info(Strings.get(Res.string.vm_family_remembered, reported, remembered.name))
             return
         }
 
@@ -1113,9 +1283,7 @@ class ResetViewModel(
         selectedModel = null
         query = ""
         warn(
-            "This printer reports \"$reported\", which covers ${candidates.size} models that do not " +
-                "share a reset recipe. Pick the model printed on the printer itself — another " +
-                "member's key would be written to this one otherwise.",
+            Strings.get(Res.string.vm_family_pick, reported, candidates.size),
         )
     }
 
@@ -1172,18 +1340,18 @@ class ResetViewModel(
     /** Adds a printer by address, then immediately asks it what it is. */
     fun addNetworkPrinter() {
         val link = NetworkAddress.parse(networkAddressInput) ?: run {
-            warn("'$networkAddressInput' is not an address or hostname.")
+            warn(Strings.get(Res.string.vm_bad_address, networkAddressInput))
             return
         }
         if (printerOperationRunning) {
-            warn("Wait for the current printer operation to finish before adding a printer.")
+            warn(Strings.get(Res.string.vm_busy_add))
             return
         }
         stopScan(report = false)
 
         scope.launch {
             networkAddressInput = ""
-            info("Added ${link.where}. Asking what is there…")
+            info(Strings.get(Res.string.vm_added_address, link.where))
             withContext(io) { addSavedPrinter(SavedPrinters.Saved(link)) }
 
             // Listed and selected before the probe, not after.
@@ -1206,7 +1374,7 @@ class ResetViewModel(
     /** Drops a hand-added address. Discovered printers come back on the next scan regardless. */
     fun forgetNetworkPrinter(printer: MatchedPrinter) {
         if (!canChangeTarget) {
-            warn("Wait for the current printer operation to finish before forgetting a printer.")
+            warn(Strings.get(Res.string.vm_busy_forget))
             return
         }
         stopScan(report = false)
@@ -1216,14 +1384,14 @@ class ResetViewModel(
             savedNetworkPrinters = remaining.map { it.link }.toSet()
             devices.removeAll { it.device.link == link }
             if (selectedDevice?.device?.link == link) clearSelectedTarget()
-            info("Forgot ${link.where}.")
+            info(Strings.get(Res.string.vm_forgot, link.where))
         }
     }
 
     /** Checks the selected printer answers, without writing. */
     fun testConnection() {
         if (!canTestConnection) {
-            warn("Wait for the current printer operation to finish before testing the connection.")
+            warn(Strings.get(Res.string.vm_busy_test))
             return
         }
         stopScan(report = false)
@@ -1232,7 +1400,7 @@ class ResetViewModel(
 
         scope.launch {
             try {
-                info("Testing ${device.device.displayName} on ${device.device.link.kind}…")
+                info(Strings.get(Res.string.vm_testing_device, device.device.displayName, device.device.link.kind))
                 val result = withContext(io) { connectionTest(device.device, selectedModel) }
                 reportTest(result, device.device.link as? Link.Network)
             } finally {
@@ -1252,7 +1420,7 @@ class ResetViewModel(
             val reachable = result.opened && (result.answered || result.identity != null || result.status != null)
             val updated = selected.copy(
                 device = selected.device.copy(
-                    accessNote = if (reachable) null else "Saved address did not answer the connection test.",
+                    accessNote = if (reachable) null else Strings.get(Res.string.vm_saved_no_answer),
                     reachable = reachable,
                 ),
             )
@@ -1261,11 +1429,12 @@ class ResetViewModel(
             selectedDevice = updated
         }
 
-        if (result.usable) good(result.headline) else warn(result.headline)
-        result.advice?.let { info(it) }
-        result.model?.let { info("Reports itself as: $it") }
-        result.firmware?.let { info("Firmware: $it") }
-        result.serial?.let { info("Serial: $it") }
+        val headline = result.headline.resolveNow()
+        if (result.usable) good(headline) else warn(headline)
+        result.advice?.let { info(it.resolveNow()) }
+        result.model?.let { info(Strings.get(Res.string.vm_reports_itself_as, it)) }
+        result.firmware?.let { info(Strings.get(Res.string.vm_firmware, it)) }
+        result.serial?.let { info(Strings.get(Res.string.vm_serial, it)) }
 
         val reported = result.model
         if (reported != null && link != null) {
@@ -1290,7 +1459,7 @@ class ResetViewModel(
                     pendingClass = null
                     manualModelRequested = false
                     modelSelectionVisible = false
-                    info("Matched to ${it.name} from what the printer reported.")
+                    info(Strings.get(Res.string.vm_matched_from_report, it.name))
                 }
             }
             if (resolution.confidence == MatchedPrinter.Confidence.CLASS_ONLY) {
@@ -1303,7 +1472,7 @@ class ResetViewModel(
             ) {
                 resolution.model?.let {
                     stageModel(it)
-                    info("Matched to ${it.name} from what the printer reported.")
+                    info(Strings.get(Res.string.vm_matched_from_report, it.name))
                 }
             }
         }
@@ -1335,7 +1504,7 @@ class ResetViewModel(
 
     fun selectModel(model: PrinterModel): Boolean {
         if (!canChangeTarget) {
-            warn("Wait for the current printer operation to finish before changing models.")
+            warn(Strings.get(Res.string.vm_busy_models))
             return false
         }
         stopScan(report = false)
@@ -1354,7 +1523,7 @@ class ResetViewModel(
         if (runState is RunState.Finished) runState = RunState.Idle
         modelSelectionVisible = false
         // Every other decision that could end badly is in the log; this one belongs there too.
-        modelMismatch?.let { warn("$it Dry runs still work; a live run will refuse.") }
+        modelMismatch?.let { warn(Strings.get(Res.string.vm_mismatch_dry_ok, it)) }
         return true
     }
 
@@ -1369,22 +1538,21 @@ class ResetViewModel(
         val key = printerKeys.firstOrNull()
         if (key == null) {
             info(
-                "Using ${model.name} for this printer, for this session — nothing identifies it " +
-                    "well enough to remember the choice.",
+                Strings.get(Res.string.vm_session_only_model, model.name),
             )
             return
         }
 
         scope.launch {
             withContext(io) { ModelChoices.pin(choicesFile(), ModelChoices.Choice(key, reported, model.name)) }
-            info("Remembered: the printer at $key reporting \"$reported\" is a ${model.name}.")
+            info(Strings.get(Res.string.vm_remembered_choice, key, reported, model.name))
         }
     }
 
     /** Drops a remembered answer and asks again — for when the wrong member was confirmed. */
     fun forgetModelChoice() {
         if (!canChangeTarget) {
-            warn("Wait for the current printer operation to finish before changing the target.")
+            warn(Strings.get(Res.string.vm_busy_target))
             return
         }
         val reported = confirmedClass ?: return
@@ -1402,12 +1570,12 @@ class ResetViewModel(
             if (key != null) withContext(io) { ModelChoices.forget(choicesFile(), key) }
             val candidates = DeviceMatcher.resolve(reported, db).candidates
             if (candidates.isEmpty()) {
-                info("Forgot the choice for this printer.")
+                info(Strings.get(Res.string.vm_forgot_choice))
                 return@launch
             }
             pendingClass = PendingClass(reported, candidates)
             modelSelectionVisible = true
-            info("Forgot the choice for this printer. It reports \"$reported\" — pick again.")
+            info(Strings.get(Res.string.vm_forgot_choice_reports, reported))
         }
     }
 
@@ -1421,7 +1589,7 @@ class ResetViewModel(
     /** Puts the selection back on what the printer said it was, and re-locks the picker. */
     fun useIdentifiedModel() {
         if (!canChangeTarget) {
-            warn("Wait for the current printer operation to finish before changing the target.")
+            warn(Strings.get(Res.string.vm_busy_target))
             return
         }
         val model = identifiedModel ?: return
@@ -1430,13 +1598,13 @@ class ResetViewModel(
         if (selectedModel?.name != model.name) {
             stageModel(model)
             if (runState is RunState.Finished) runState = RunState.Idle
-            info("Back to ${model.name}, which is what this printer reports itself as.")
+            info(Strings.get(Res.string.vm_back_to_model, model.name))
         }
     }
 
     fun cancel() {
         cancelFlag.set(true)
-        warn("Cancelling after the current packet…")
+        warn(Strings.get(Res.string.vm_cancelling))
     }
 
     /**
@@ -1447,8 +1615,8 @@ class ResetViewModel(
     fun refreshOverview() {
         if (!canRefreshOverview) {
             val reason = when {
-                selectedDevice == null -> "Select a printer before refreshing overview."
-                else -> "Wait for the current printer operation to finish before refreshing overview."
+                selectedDevice == null -> Strings.get(Res.string.vm_select_printer_overview)
+                else -> Strings.get(Res.string.vm_busy_overview)
             }
             warn(reason)
             return
@@ -1463,31 +1631,32 @@ class ResetViewModel(
         status = null
         printerMib = null
         progress = 0f
-        progressLabel = "Refreshing printer overview…"
+        progressLabel = Strings.get(Res.string.vm_refreshing_overview)
 
         scope.launch {
             var connection: ConnectionTest.Result? = null
             var refreshedStatus: Status.Report? = null
             var refreshedMib: PrinterMib.Reading? = null
             var counters: CounterReader.Report? = null
-            var counterReason: String? = null
+            var counterReason: UiText? = null
             try {
-                info("Refreshing overview for ${selected.device.displayName}…")
+                info(Strings.get(Res.string.vm_refreshing_overview_for, selected.device.displayName))
                 connection = withContext(io) { connectionTest(selected.device, selectedModel) }
                 if (!ownsOverviewRefresh(version, targetId)) return@launch
                 refreshedStatus = connection?.status
                 reportTest(connection!!, selected.device.link as? Link.Network)
 
                 if (connection?.opened != true) {
-                    counterReason = connection?.failure ?: "The connection could not be opened."
+                    counterReason = connection?.failure?.let { UiText.raw(it) }
+                        ?: UiText.of(Res.string.overview_reason_not_opened)
                 } else if (cancelFlag.get()) {
-                    counterReason = "Overview refresh was cancelled before counters were read."
+                    counterReason = UiText.of(Res.string.overview_reason_cancelled_before)
                 } else {
                     val model = selectedModel
                     when {
-                        model == null -> counterReason = "The printer model is not resolved, so counters were not read."
+                        model == null -> counterReason = UiText.of(Res.string.overview_reason_no_model)
                         !model.hasResettableCounters && specsFor(model).isEmpty() ->
-                            counterReason = "This model has no known counter addresses."
+                            counterReason = UiText.of(Res.string.overview_reason_no_addresses)
                         else -> counters = performRead(
                             model,
                             selectedDevice,
@@ -1505,18 +1674,21 @@ class ResetViewModel(
                     refreshedMib = try {
                         readPrinterMib(selected.device, isDry = false)
                     } catch (e: Exception) {
-                        warn("Printer-MIB information was unavailable: ${e.message ?: e::class.simpleName}.")
+                        warn(Strings.get(Res.string.vm_mib_unavailable, e.message ?: e::class.simpleName.orEmpty()))
                         null
                     }
                     printerMib = refreshedMib
                 }
                 if (cancelFlag.get() && counterReason == null && counters?.answered == 0) {
-                    counterReason = "Overview refresh was cancelled."
+                    counterReason = UiText.of(Res.string.overview_reason_cancelled)
                 }
             } catch (e: Exception) {
                 if (!ownsOverviewRefresh(version, targetId)) return@launch
-                counterReason = "Overview refresh stopped: ${e.message ?: e::class.simpleName}."
-                bad(counterReason!!)
+                counterReason = UiText.of(
+                    Res.string.overview_reason_stopped,
+                    e.message ?: e::class.simpleName.orEmpty(),
+                )
+                bad(counterReason.resolveNow())
             } finally {
                 if (ownsOverviewRefresh(version, targetId)) {
                     val model = selectedModel
@@ -1542,9 +1714,9 @@ class ResetViewModel(
                     progress = 0f
                     progressLabel = ""
                     if (cancelFlag.get()) {
-                        warn("Overview refresh cancelled; available results were kept.")
+                        warn(Strings.get(Res.string.vm_overview_cancelled))
                     } else {
-                        info("Overview refresh complete.")
+                        info(Strings.get(Res.string.vm_overview_complete))
                     }
                 }
             }
@@ -1563,7 +1735,7 @@ class ResetViewModel(
     /** Samples the model's counter addresses without writing anything. */
     fun readCounters() {
         if (busy) {
-            warn("Wait for the current printer operation to finish before reading counters.")
+            warn(Strings.get(Res.string.vm_busy_read))
             return
         }
         val model = selectedModel ?: return
@@ -1593,14 +1765,14 @@ class ResetViewModel(
             emptyMap()
         }
         progress = 0f
-        progressLabel = "Reading counters…"
+        progressLabel = Strings.get(Res.string.vm_reading_counters)
 
         val listener = object : CounterReader.Listener {
             override fun onProgress(done: Int, total: Int, address: Int) {
                 if (!publishResetProgress) return
                 onMain {
                     progress = done.toFloat() / total
-                    progressLabel = "Reading address $address ($done / $total)"
+                    progressLabel = Strings.get(Res.string.vm_reading_address, address, done, total)
                     val current = counterByteStates[address]
                     if (current != CounterByteState.READ && current != CounterByteState.FAILED) {
                         counterByteStates = counterByteStates + (address to CounterByteState.READING)
@@ -1656,7 +1828,8 @@ class ResetViewModel(
         if (!isDry) history.acceptLive(report, identifyingSerial(device, read?.serial))
         read?.let { s ->
             s.inkLevels.takeIf { it.isNotEmpty() }?.let { levels ->
-                info("Ink: " + levels.joinToString(", ") { "${it.colour} ${it.percent}%" })
+                val inks = levels.joinToString(", ") { "${StatusText.inkColour(it).resolveNow()} ${it.percent}%" }
+                info(Strings.get(Res.string.vm_ink_levels, inks))
             }
         }
 
@@ -1667,7 +1840,7 @@ class ResetViewModel(
         if (queryPrinterMibAfter) {
             printerMib = if (cancelFlag.get()) null else device?.device?.let { readPrinterMib(it, isDry) }
         }
-        printerMib?.lifeCount?.let { info("Lifetime pages: $it") }
+        printerMib?.lifeCount?.let { info(Strings.get(Res.string.vm_lifetime_pages, it)) }
 
         reading = false
         progress = 0f
@@ -1684,16 +1857,16 @@ class ResetViewModel(
 
     private fun describe(report: CounterReader.Report, isDry: Boolean) {
         when {
-            report.error != null -> bad("Read failed: ${report.error}")
+            report.error != null -> bad(Strings.get(Res.string.vm_read_failed, report.error))
             report.answered == 0 ->
-                bad("The printer did not answer any of the ${report.total} read requests.")
+                bad(Strings.get(Res.string.vm_no_answer_at_all, report.total))
             report.answered < report.total ->
-                warn("Read ${report.answered} of ${report.total} addresses; the rest did not answer.")
+                warn(Strings.get(Res.string.vm_partial_read, report.answered, report.total))
             report.allAtResetValue && !isDry ->
-                good("Read ${report.answered} addresses — all already at their reset values.")
-            else -> good("Read ${report.answered} of ${report.total} addresses.")
+                good(Strings.get(Res.string.vm_all_at_reset, report.answered))
+            else -> good(Strings.get(Res.string.vm_read_of_addresses, report.answered, report.total))
         }
-        if (isDry) info("DRY RUN — values came from a simulated EEPROM, not your printer.")
+        if (isDry) info(Strings.get(Res.string.vm_dry_run_values))
     }
 
     /**
@@ -1707,7 +1880,7 @@ class ResetViewModel(
      */
     fun run(simulate: Boolean = dryRun) {
         if (busy) {
-            warn("Wait for the current printer operation to finish before starting a reset.")
+            warn(Strings.get(Res.string.vm_busy_reset))
             return
         }
         val model = selectedModel ?: return
@@ -1729,24 +1902,23 @@ class ResetViewModel(
             completion = null
             runState = RunState.Running
             progress = 0f
-            progressLabel = "Generating sequence…"
+            progressLabel = Strings.get(Res.string.vm_generating)
 
             val sequence = SequenceGenerator.generate(model)
             counterByteStates = sequence.mapNotNull(Executor::writePacketTarget)
                 .associate { (address, _) -> address to CounterByteState.PENDING }
             info(
-                "Generated ${sequence.size} packets for ${model.name} " +
-                    "(${model.writeCount} EEPROM writes).",
+                Strings.get(Res.string.vm_generated, sequence.size, model.name, model.writeCount),
             )
             if (isDry) {
-                info("DRY RUN — nothing will be written to the printer.")
-                modelMismatch?.let { warn("$it A live run would refuse.") }
+                info(Strings.get(Res.string.vm_dry_run_nothing_written))
+                modelMismatch?.let { warn(Strings.get(Res.string.vm_live_would_refuse, it)) }
             }
 
             val listener = object : Executor.Listener {
                 override fun onPacket(index: Int, total: Int, message: String) = onMain {
                     progress = index.toFloat() / total
-                    progressLabel = "Packet $index / $total — $message"
+                    progressLabel = Strings.get(Res.string.vm_progress_packet, index, total, message)
                 }
 
                 override fun onWrite(address: Int, value: Int, state: Executor.WriteState) = onMain {
@@ -1775,7 +1947,7 @@ class ResetViewModel(
             val result = withContext(io) {
                 openTransport(device, isDry).use { transport ->
                     transport?.let {
-                        onMain { progressLabel = "Reading counters before reset…" }
+                        onMain { progressLabel = Strings.get(Res.string.vm_reading_before_reset) }
                         before = CounterReader.readAll(it, model, specsFor(model)) { cancelFlag.get() }
                         onMain {
                             beforeReport = before
@@ -1798,14 +1970,14 @@ class ResetViewModel(
                         val blocker = if (isDry) null else sampled?.writeBlocker
                         if (blocker != null) {
                             return@let Executor.Result(
-                                error = "$blocker Clear it and run again — nothing was written.",
+                                error = Strings.get(Res.string.vm_blocker_clear_it, blocker),
                             )
                         }
 
                         // Snapshot before the first write lands, not after the run finishes: a
                         // backup that only survives a clean run is useless for the partial write it
                         // exists to cover.
-                        onMain { progressLabel = "Backing up the bytes about to be written…" }
+                        onMain { progressLabel = Strings.get(Res.string.vm_backing_up) }
                         val capture = EepromBackup.capture(
                             model = model.name,
                             sequence = sequence,
@@ -1826,7 +1998,7 @@ class ResetViewModel(
                         )
 
                         if (executed.success) {
-                            onMain { progressLabel = "Verifying…" }
+                            onMain { progressLabel = Strings.get(Res.string.vm_verifying) }
                             after = CounterReader.readAll(it, model, specsFor(model)) { cancelFlag.get() }
                         }
                         executed
@@ -1853,12 +2025,12 @@ class ResetViewModel(
                 null
             } else {
                 when {
-                    after == null -> "Writes were acknowledged, but the counters could not be read back."
-                    after?.error != null -> "Writes were acknowledged, but read-back failed: ${after?.error}"
+                    after == null -> Strings.get(Res.string.vm_readback_unavailable)
+                    after?.error != null -> Strings.get(Res.string.vm_readback_failed, after?.error.toString())
                     after?.answered != after?.total ->
-                        "Writes were acknowledged, but only ${after?.answered}/${after?.total} addresses were read back."
+                        Strings.get(Res.string.vm_readback_partial, after?.answered.toString(), after?.total.toString())
                     after?.allAtResetValue != true ->
-                        "Writes were acknowledged, but read-back found values that did not reset."
+                        Strings.get(Res.string.vm_readback_not_reset)
                     else -> null
                 }
             }
@@ -1879,21 +2051,25 @@ class ResetViewModel(
             // in front of the user rather than into a log they have to scroll.
             if (!finalResult.success && backupFile != null && finalResult.writesAcknowledged > 0) {
                 warn(
-                    "${finalResult.writesAcknowledged} write(s) were acknowledged before this stopped. The pre-write " +
-                        "bytes are saved in ${backupFile?.name} — restore it to put them back.",
+                    UiText.plural(
+                        Res.plurals.vm_writes_acknowledged,
+                        finalResult.writesAcknowledged,
+                        finalResult.writesAcknowledged,
+                        backupFile?.name.toString(),
+                    ).resolveNow(),
                 )
             }
 
             when {
                 finalResult.success && isDry ->
                     good(
-                        "Dry run complete — ${finalResult.writesTotal} writes generated and verified against the fake device.",
+                        Strings.get(Res.string.vm_dry_run_complete, finalResult.writesTotal),
                     )
                 finalResult.success -> {
-                    good("Reset complete — all ${finalResult.writesTotal} EEPROM values verified by read-back.")
-                    warn("Power-cycle the printer now to finalise the change.")
+                    good(Strings.get(Res.string.vm_reset_complete, finalResult.writesTotal))
+                    warn(Strings.get(Res.string.vm_power_cycle_now))
                 }
-                else -> bad(finalResult.error.ifBlank { "The reset did not complete." })
+                else -> bad(finalResult.error.ifBlank { Strings.get(Res.string.vm_reset_incomplete) })
             }
         }
     }
@@ -1911,23 +2087,30 @@ class ResetViewModel(
     /** Saves the pre-write snapshot, or refuses the run. */
     private fun prepareBackup(capture: Capture, isDry: Boolean): BackupOutcome = when (capture) {
         is Capture.NothingToWrite ->
-            BackupOutcome.Blocked("The sequence contains no EEPROM write packets — nothing was reset.")
+            BackupOutcome.Blocked(Strings.get(Res.string.vm_no_write_packets))
 
         is Capture.Incomplete -> {
             val shown = capture.missing.take(8).joinToString(", ")
-            val more = if (capture.missing.size > 8) " +${capture.missing.size - 8} more" else ""
+            val more =
+                if (capture.missing.size > 8) Strings.get(Res.string.vm_and_more, capture.missing.size - 8) else ""
             if (isDry) {
                 onMain {
                     warn(
-                        "Dry run: ${capture.missing.size} address(es) did not answer, so a real run would stop here ($shown$more).",
+                        Strings.get(
+                            Res.string.vm_dry_run_would_stop,
+                            UiText.plural(
+                                Res.plurals.vm_dry_run_missing,
+                                capture.missing.size,
+                                capture.missing.size,
+                            ).resolveNow(),
+                            "$shown$more",
+                        ),
                     )
                 }
                 BackupOutcome.Saved(null)
             } else {
                 BackupOutcome.Blocked(
-                    "Stopped before writing anything: ${capture.missing.size} of the addresses this " +
-                        "reset would write could not be read back, so they cannot be backed up " +
-                        "($shown$more). Reads are unprivileged and safe to retry.",
+                    Strings.get(Res.string.vm_stopped_no_backup, capture.missing.size, "$shown$more"),
                 )
             }
         }
@@ -1935,7 +2118,7 @@ class ResetViewModel(
         is Capture.Ready ->
             if (isDry) {
                 onMain {
-                    info("DRY RUN — ${capture.backup.entries.size} addresses would be backed up; no file written.")
+                    info(Strings.get(Res.string.vm_dry_run_backup, capture.backup.entries.size))
                 }
                 BackupOutcome.Saved(null)
             } else {
@@ -1943,16 +2126,22 @@ class ResetViewModel(
                     onSuccess = { file ->
                         onMain {
                             good(
-                                "Backed up ${capture.backup.entries.size} addresses to ${file.name} " +
-                                    "(${capture.backup.changedByReset} will change).",
+                                Strings.get(
+                                    Res.string.vm_backed_up,
+                                    capture.backup.entries.size,
+                                    file.name,
+                                    capture.backup.changedByReset,
+                                ),
                             )
                         }
                         BackupOutcome.Saved(file)
                     },
                     onFailure = { e ->
                         BackupOutcome.Blocked(
-                            "Stopped before writing anything: the backup could not be saved " +
-                                "(${e.message ?: e::class.simpleName}).",
+                            Strings.get(
+                                Res.string.vm_backup_not_saved,
+                                e.message ?: e::class.simpleName.orEmpty(),
+                            ),
                         )
                     },
                 )
@@ -1967,7 +2156,7 @@ class ResetViewModel(
         if (after == null || after.readings.isEmpty()) return
 
         if (after.answered == 0) {
-            warn("Could not read the counters back, so the reset is unverified.")
+            warn(Strings.get(Res.string.vm_readback_unverified))
             return
         }
 
@@ -1980,25 +2169,25 @@ class ResetViewModel(
 
         if (after.allAtResetValue) {
             good(
-                "Verified by read-back: all ${after.answered} addresses now hold their reset values (${changed.size} changed).",
+                Strings.get(Res.string.vm_verified, after.answered, changed.size),
             )
         } else {
             val stuck = after.readings.filter { it.value != null && !it.isAtResetValue }
             warn(
-                "Read-back shows ${stuck.size} address(es) not at the reset value: " +
+                UiText.plural(Res.plurals.vm_stuck_addresses, stuck.size, stuck.size).resolveNow() +
                     stuck.take(6).joinToString(", ") { "${it.address}=${it.hex}" },
             )
         }
     }
 
-    private var transportError: String = "Could not open the printer."
+    private var transportError: String = Strings.get(Res.string.vm_transport_no_printer)
 
     /** Null means opening failed; [transportError] carries the reason. */
     private fun openTransport(device: MatchedPrinter?, isDry: Boolean): Transport? {
         if (isDry) return FakeTransport()
 
         val target = device?.device ?: run {
-            transportError = "No printer selected."
+            transportError = Strings.get(Res.string.vm_no_printer_selected)
             return null
         }
 

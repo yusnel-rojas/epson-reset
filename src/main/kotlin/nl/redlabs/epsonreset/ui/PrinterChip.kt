@@ -33,6 +33,15 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import nl.redlabs.epsonreset.resources.Res
+import nl.redlabs.epsonreset.resources.chip_choose_model
+import nl.redlabs.epsonreset.resources.chip_link_choose_model
+import nl.redlabs.epsonreset.resources.chip_model_only
+import nl.redlabs.epsonreset.resources.chip_no_printer
+import nl.redlabs.epsonreset.resources.chip_open_to_scan
+import nl.redlabs.epsonreset.resources.chip_printer
+import nl.redlabs.epsonreset.resources.chip_saved_not_reached
+import org.jetbrains.compose.resources.stringResource
 
 /** The application-scoped printer-and-model target, visible whichever tab is open. */
 @Composable
@@ -51,14 +60,21 @@ fun PrinterChip(vm: ResetViewModel, modifier: Modifier = Modifier) {
         targetReady -> StatusColors.good
         else -> StatusColors.warn
     }
-    val title = selected?.displayName ?: model?.name ?: "No printer"
+    val title = selected?.displayName ?: model?.name ?: stringResource(Res.string.chip_no_printer)
+    val chooseModel = stringResource(Res.string.chip_choose_model)
     val detail = when {
-        selected != null && !reachable -> "Saved · not reached · ${model?.name ?: "choose model"}"
-        vm.pendingClass != null -> "${selected?.link?.kind ?: "Printer"} · choose model"
+        selected != null && !reachable ->
+            stringResource(Res.string.chip_saved_not_reached, model?.name ?: chooseModel)
+
+        vm.pendingClass != null -> stringResource(
+            Res.string.chip_link_choose_model,
+            selected?.link?.kind ?: stringResource(Res.string.chip_printer),
+        )
+
         selected != null && model != null -> "${selected.link.kind} · ${model.name}"
-        selected != null -> "${selected.link.kind} · choose model"
-        model != null -> "Model only · no printer selected"
-        else -> "Open to scan for printers"
+        selected != null -> stringResource(Res.string.chip_link_choose_model, selected.link.kind)
+        model != null -> stringResource(Res.string.chip_model_only)
+        else -> stringResource(Res.string.chip_open_to_scan)
     }
 
     Box(modifier) {

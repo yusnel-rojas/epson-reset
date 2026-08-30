@@ -15,8 +15,33 @@ import nl.redlabs.epsonreset.db.PrinterDatabase
 import nl.redlabs.epsonreset.db.PrinterModel
 import nl.redlabs.epsonreset.device.ConnectionTest
 import nl.redlabs.epsonreset.device.MatchedPrinter
+import nl.redlabs.epsonreset.i18n.Strings
 import nl.redlabs.epsonreset.protocol.CounterReader
 import nl.redlabs.epsonreset.protocol.Status
+import nl.redlabs.epsonreset.resources.Res
+import nl.redlabs.epsonreset.resources.cal_answers_family
+import nl.redlabs.epsonreset.resources.cal_applied
+import nl.redlabs.epsonreset.resources.cal_applied_item
+import nl.redlabs.epsonreset.resources.cal_derived_from
+import nl.redlabs.epsonreset.resources.cal_issue_opened
+import nl.redlabs.epsonreset.resources.cal_name_is_family
+import nl.redlabs.epsonreset.resources.cal_name_the_model
+import nl.redlabs.epsonreset.resources.cal_name_unknown
+import nl.redlabs.epsonreset.resources.cal_no_browser
+import nl.redlabs.epsonreset.resources.cal_no_file_manager
+import nl.redlabs.epsonreset.resources.cal_no_overlay
+import nl.redlabs.epsonreset.resources.cal_overlay_removed
+import nl.redlabs.epsonreset.resources.cal_overrides_confirmed
+import nl.redlabs.epsonreset.resources.cal_overrides_strongest
+import nl.redlabs.epsonreset.resources.cal_reload_failed
+import nl.redlabs.epsonreset.resources.cal_remove_failed
+import nl.redlabs.epsonreset.resources.cal_reverted
+import nl.redlabs.epsonreset.resources.cal_too_long
+import nl.redlabs.epsonreset.resources.cal_why_dry_run
+import nl.redlabs.epsonreset.resources.cal_why_no_model
+import nl.redlabs.epsonreset.resources.cal_why_no_report
+import nl.redlabs.epsonreset.resources.cal_why_nothing_answered
+import nl.redlabs.epsonreset.resources.cal_why_nothing_decoded
 import nl.redlabs.epsonreset.update.AppVersion
 import kotlin.coroutines.CoroutineContext
 
@@ -127,36 +152,31 @@ class CalibrationState(
             val differs = identified != null && !name.equals(identified, ignoreCase = true)
 
             return when {
-                name.isEmpty() -> "Name the model this printer actually is."
+                name.isEmpty() -> Strings.get(Res.string.cal_name_the_model)
 
                 name.contains("series", ignoreCase = true) ->
-                    "'$name' names a family, not a unit. Pick the exact model — a maximum filed " +
-                        "against a family cannot later be told from one measured on any of its members."
+                    Strings.get(Res.string.cal_name_is_family, name)
 
                 database()?.let { it[name] == null } == true ->
-                    "'$name' is not in the database. Fine if it is a model nobody has added yet; " +
-                        "worth a second look otherwise."
+                    Strings.get(Res.string.cal_name_unknown, name)
 
                 id != null && id.via == ResetViewModel.Identity.Via.CONFIRMED && differs ->
-                    "You confirmed this printer as $identified — it names only " +
-                        "\"${id.reported}\", which is a family. Filing it as $name replaces your " +
-                        "own answer, so file the one you can read off the printer."
+                    Strings.get(Res.string.cal_overrides_confirmed, identified, id.reported, name)
 
                 id != null && id.namesAFamily && differs ->
-                    "This printer answers \"${id.reported}\" (${id.via.label}), which is a family " +
-                        "rather than a unit — $identified is that family's database entry, not " +
-                        "this printer's own answer. If $name is what the label says, it is the " +
-                        "better name to file."
+                    Strings.get(
+                        Res.string.cal_answers_family,
+                        id.reported,
+                        id.via.label,
+                        identified,
+                        name,
+                    )
 
                 id != null && id.namesAFamily ->
-                    "The name above was derived from \"${id.reported}\" (${id.via.label}), which " +
-                        "covers several units. Check it against the label on the printer — a " +
-                        "maximum filed against the wrong sibling cannot afterwards be told from " +
-                        "one measured on the right one."
+                    Strings.get(Res.string.cal_derived_from, id.reported, id.via.label)
 
                 differs ->
-                    "This printer names itself $identified via ${id?.via?.label}, which is the " +
-                        "strongest identification available here. Filing it as $name overrides that."
+                    Strings.get(Res.string.cal_overrides_strongest, identified, id?.via?.label.toString(), name)
 
                 else -> null
             }
@@ -174,16 +194,14 @@ class CalibrationState(
         get() {
             val report = readReport()
             return when {
-                selectedModel() == null -> "pick the model these counters belong to first"
+                selectedModel() == null -> Strings.get(Res.string.cal_why_no_model)
                 report == null ->
-                    "read the counters first — a calibration is a reading with a maximum attached"
+                    Strings.get(Res.string.cal_why_no_report)
                 readWasSimulated() ->
-                    "these values came from the simulated EEPROM of a dry run, not from a printer. " +
-                        "Switch to Live and read again"
-                report.answered == 0 -> "nothing answered the last read, so there is nothing to measure"
+                    Strings.get(Res.string.cal_why_dry_run)
+                report.answered == 0 -> Strings.get(Res.string.cal_why_nothing_answered)
                 calibratableCounters.isEmpty() ->
-                    "none of this model's counters decoded to a single non-zero number, so there is " +
-                        "nothing to put a maximum on"
+                    Strings.get(Res.string.cal_why_nothing_decoded)
                 else -> null
             }
         }
@@ -233,10 +251,18 @@ class CalibrationState(
         applied = true
 
         good(
-            "Applied to ${selected.name} for this session: " +
+            Strings.get(
+                Res.string.cal_applied,
+                selected.name,
                 measurements.joinToString("; ") {
-                    "addr ${it.addressLabel} max ${it.max} → %.2f%%".format(it.percent)
-                } + ". Save the overlay to keep it after a restart.",
+                    Strings.get(
+                        Res.string.cal_applied_item,
+                        it.addressLabel,
+                        it.max,
+                        "%.2f".format(it.percent),
+                    )
+                },
+            ),
         )
     }
 
@@ -248,10 +274,9 @@ class CalibrationState(
                 updateCounterSpecs(it)
                 applied = false
                 good(
-                    "Counter layouts back to what is on disk. Any maximum applied to this session " +
-                        "is gone; percentages are computed from the shipped figures again.",
+                    Strings.get(Res.string.cal_reverted),
                 )
-            }.onFailure { e -> warn("Could not reload the counter layouts: ${e.message}") }
+            }.onFailure { e -> warn(Strings.get(Res.string.cal_reload_failed, e.message.orEmpty())) }
         }
     }
 
@@ -266,19 +291,19 @@ class CalibrationState(
 
             removed.onSuccess { deleted ->
                 if (!deleted) {
-                    warn("No overlay file to remove at $file.")
+                    warn(Strings.get(Res.string.cal_no_overlay, file))
                     return@onSuccess
                 }
-                info("Removed $file.")
+                info(Strings.get(Res.string.cal_overlay_removed, file))
                 revertSession()
-            }.onFailure { e -> warn("Could not remove the overlay: ${e.message}") }
+            }.onFailure { e -> warn(Strings.get(Res.string.cal_remove_failed, e.message.orEmpty())) }
         }
     }
 
     /** Opens the data directory in the file manager. */
     fun openDataDirectory() {
         val dir = AppPaths.dataDir
-        if (!Browser.openDirectory(dir)) warn("Could not open a file manager. The directory is $dir")
+        if (!Browser.openDirectory(dir)) warn(Strings.get(Res.string.cal_no_file_manager, dir))
     }
 
     /** Opens the calibration issue form, prefilled. */
@@ -293,19 +318,17 @@ class CalibrationState(
 
         if (!submission.prefilled) {
             toClipboard(report())
-            warn("Too long to prefill — the report is on the clipboard, paste it into the form.")
+            warn(Strings.get(Res.string.cal_too_long))
         }
 
         if (Browser.open(submission.url)) {
             info(
-                "Opened a calibration issue for ${selectedModel()?.name}. Nothing has been sent: the " +
-                    "form is yours to read and submit.",
+                Strings.get(Res.string.cal_issue_opened, selectedModel()?.name.toString()),
             )
         } else {
             toClipboard(report())
             warn(
-                "Could not open a browser. The report is on the clipboard — file it at " +
-                    Calibration.ISSUE_BASE,
+                Strings.get(Res.string.cal_no_browser, Calibration.ISSUE_BASE),
             )
         }
     }

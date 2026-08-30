@@ -7,6 +7,7 @@ import nl.redlabs.epsonreset.protocol.Status
 import nl.redlabs.epsonreset.protocol.Transport
 import nl.redlabs.epsonreset.usb.LibUsbTransport
 import nl.redlabs.epsonreset.usb.UsbPrinterScanner
+import java.util.Locale
 
 /**
  * Hardware experiment: ask the printer for its own maintenance status, instead of computing a
@@ -21,6 +22,9 @@ object StatusProbe {
 
     @JvmStatic
     fun main(args: Array<String>) {
+        // Prints for a bug report, not for the app's user: this output stays English.
+        Locale.setDefault(Locale.ENGLISH)
+
         val scan = UsbPrinterScanner.scan()
         val device = (scan as? UsbPrinterScanner.ScanResult.Ok)?.printers?.firstOrNull() ?: run {
             println("No Epson detected ($scan)")

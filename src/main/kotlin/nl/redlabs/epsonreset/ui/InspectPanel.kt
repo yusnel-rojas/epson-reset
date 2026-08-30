@@ -28,6 +28,38 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import nl.redlabs.epsonreset.probe.SweepAnalysis
+import nl.redlabs.epsonreset.resources.Res
+import nl.redlabs.epsonreset.resources.inspect_bytes
+import nl.redlabs.epsonreset.resources.inspect_cancel
+import nl.redlabs.epsonreset.resources.inspect_copy_overlay
+import nl.redlabs.epsonreset.resources.inspect_copy_report
+import nl.redlabs.epsonreset.resources.inspect_intro
+import nl.redlabs.epsonreset.resources.inspect_like_models
+import nl.redlabs.epsonreset.resources.inspect_model_name
+import nl.redlabs.epsonreset.resources.inspect_no_known_key
+import nl.redlabs.epsonreset.resources.inspect_no_printer
+import nl.redlabs.epsonreset.resources.inspect_nothing_looked_like
+import nl.redlabs.epsonreset.resources.inspect_probe_hits
+import nl.redlabs.epsonreset.resources.inspect_run_sweep_first
+import nl.redlabs.epsonreset.resources.inspect_save_overlay
+import nl.redlabs.epsonreset.resources.inspect_several_keys
+import nl.redlabs.epsonreset.resources.inspect_step_candidates_blurb
+import nl.redlabs.epsonreset.resources.inspect_step_candidates_title
+import nl.redlabs.epsonreset.resources.inspect_step_key_blurb
+import nl.redlabs.epsonreset.resources.inspect_step_key_title
+import nl.redlabs.epsonreset.resources.inspect_step_share_blurb
+import nl.redlabs.epsonreset.resources.inspect_step_share_title
+import nl.redlabs.epsonreset.resources.inspect_step_sweep_blurb
+import nl.redlabs.epsonreset.resources.inspect_step_sweep_title
+import nl.redlabs.epsonreset.resources.inspect_sweep_answered
+import nl.redlabs.epsonreset.resources.inspect_sweep_button
+import nl.redlabs.epsonreset.resources.inspect_target_readonly
+import nl.redlabs.epsonreset.resources.inspect_target_readonly_no_pid
+import nl.redlabs.epsonreset.resources.inspect_title
+import nl.redlabs.epsonreset.resources.inspect_try_keys
+import nl.redlabs.epsonreset.resources.inspect_using_key
+import org.jetbrains.compose.resources.pluralStringResource
+import org.jetbrains.compose.resources.stringResource
 
 /** Read-only exploration of a printer the database doesn't cover. */
 @Composable
@@ -41,24 +73,26 @@ fun InspectPanel(vm: ResetViewModel, modifier: Modifier = Modifier) {
 
         StepCard(
             number = 1,
-            title = "Find a read key",
-            blurb = "Every model needs a 16-bit read key before it will report anything. Yours is " +
-                "probably one the database already knows — there are only a few hundred, and they " +
-                "run in families.",
+            title = stringResource(Res.string.inspect_step_key_title),
+            blurb = stringResource(Res.string.inspect_step_key_blurb),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Button(
                     onClick = { inspect.discoverReadKey() },
                     enabled = inspect.canInspect,
-                ) { Text("Try known keys") }
+                ) { Text(stringResource(Res.string.inspect_try_keys)) }
 
                 Spacer(Modifier.width(10.dp))
-                if (inspect.inspecting) OutlinedButton(onClick = { vm.cancel() }) { Text("Cancel") }
+                if (inspect.inspecting) {
+                    OutlinedButton(onClick = {
+                        vm.cancel()
+                    }) { Text(stringResource(Res.string.inspect_cancel)) }
+                }
 
                 Spacer(Modifier.width(16.dp))
                 inspect.key?.let {
                     Text(
-                        "Using 0x%04X".format(it),
+                        stringResource(Res.string.inspect_using_key, "0x%04X".format(it)),
                         style = MaterialTheme.typography.bodyMedium,
                         fontFamily = FontFamily.Monospace,
                         color = StatusColors.good,
@@ -72,9 +106,14 @@ fun InspectPanel(vm: ResetViewModel, modifier: Modifier = Modifier) {
                 for (result in answered.take(6)) {
                     KeyRow(
                         key = result.hex,
-                        detail = "${result.hits}/${result.probes} probes" +
-                            result.exampleModels.takeIf { it.isNotEmpty() }
-                                ?.let { " · like ${it.joinToString(", ")}" }.orEmpty(),
+                        detail = pluralStringResource(
+                            Res.plurals.inspect_probe_hits,
+                            result.probes,
+                            result.hits,
+                            result.probes,
+                        ) + result.exampleModels.takeIf { it.isNotEmpty() }
+                            ?.let { stringResource(Res.string.inspect_like_models, it.joinToString(", ")) }
+                            .orEmpty(),
                         selected = inspect.key == result.readKey,
                         onClick = { inspect.chooseKey(result.readKey) },
                     )
@@ -82,15 +121,14 @@ fun InspectPanel(vm: ResetViewModel, modifier: Modifier = Modifier) {
                 if (answered.size > 1) {
                     Spacer(Modifier.height(6.dp))
                     Note(
-                        "Several keys answered, so this printer probably doesn't check the key at " +
-                            "all. Any of them will do — the sweep is the real finding.",
+                        stringResource(Res.string.inspect_several_keys),
                         StatusColors.warn,
                     )
                 }
             } else if (inspect.keys.isNotEmpty()) {
                 Spacer(Modifier.height(8.dp))
                 Note(
-                    "No known key produced a reading. This model may use a key nobody has recorded yet.",
+                    stringResource(Res.string.inspect_no_known_key),
                     StatusColors.bad,
                 )
             }
@@ -100,16 +138,15 @@ fun InspectPanel(vm: ResetViewModel, modifier: Modifier = Modifier) {
 
         StepCard(
             number = 2,
-            title = "Sweep the EEPROM",
-            blurb = "Reads every address in range and shows what came back. Read-only: the read " +
-                "command carries no write key, so this cannot alter the printer.",
+            title = stringResource(Res.string.inspect_step_sweep_title),
+            blurb = stringResource(Res.string.inspect_step_sweep_blurb),
             enabled = inspect.key != null,
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Button(
                     onClick = { inspect.sweepAddresses() },
                     enabled = inspect.canInspect && inspect.key != null,
-                ) { Text("Sweep 0x0000–0x%04X".format(inspect.rangeEnd)) }
+                ) { Text(stringResource(Res.string.inspect_sweep_button, "0x%04X".format(inspect.rangeEnd))) }
 
                 Spacer(Modifier.width(12.dp))
                 RangeChoice("256", 0xFF, inspect)
@@ -120,7 +157,7 @@ fun InspectPanel(vm: ResetViewModel, modifier: Modifier = Modifier) {
             inspect.sweep?.let { sweep ->
                 Spacer(Modifier.height(12.dp))
                 Text(
-                    "${sweep.answered} of ${sweep.total} addresses answered",
+                    stringResource(Res.string.inspect_sweep_answered, sweep.answered, sweep.total),
                     style = MaterialTheme.typography.bodyMedium,
                     color = if (sweep.answered > 0) StatusColors.good else StatusColors.bad,
                 )
@@ -148,18 +185,16 @@ fun InspectPanel(vm: ResetViewModel, modifier: Modifier = Modifier) {
 
         StepCard(
             number = 3,
-            title = "Candidate counters",
-            blurb = "Ranked by what the guess rests on. A family match means a model sharing your " +
-                "read key uses exactly these addresses — that is a good deal stronger than a byte " +
-                "pattern that merely looks like a count.",
+            title = stringResource(Res.string.inspect_step_candidates_title),
+            blurb = stringResource(Res.string.inspect_step_candidates_blurb),
             enabled = inspect.sweep != null,
         ) {
             if (inspect.candidates.isEmpty()) {
                 Text(
                     if (inspect.sweep == null) {
-                        "Run a sweep first."
+                        stringResource(Res.string.inspect_run_sweep_first)
                     } else {
-                        "Nothing in the sweep looked like a counter."
+                        stringResource(Res.string.inspect_nothing_looked_like)
                     },
                     style = MaterialTheme.typography.bodyMedium,
                     color = StatusColors.muted,
@@ -173,16 +208,14 @@ fun InspectPanel(vm: ResetViewModel, modifier: Modifier = Modifier) {
 
         StepCard(
             number = 4,
-            title = "Share what you found",
-            blurb = "The overlay makes this app read your printer straight away. The report belongs " +
-                "upstream at reinkpy, where both bundled files come from — a model added there " +
-                "reaches every tool built on it, not just this one.",
+            title = stringResource(Res.string.inspect_step_share_title),
+            blurb = stringResource(Res.string.inspect_step_share_blurb),
             enabled = inspect.canExport,
         ) {
             OutlinedTextField(
                 value = inspect.modelName,
                 onValueChange = { inspect.modelName = it },
-                label = { Text("Model name") },
+                label = { Text(stringResource(Res.string.inspect_model_name)) },
                 placeholder = { Text(vm.selectedDevice?.device?.displayName ?: "ET-0000") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
@@ -192,18 +225,17 @@ fun InspectPanel(vm: ResetViewModel, modifier: Modifier = Modifier) {
                 Button(
                     onClick = { copy(inspect.overlay()) },
                     enabled = inspect.canExport && inspect.candidates.isNotEmpty(),
-                ) { Text("Copy overlay JSON") }
+                ) { Text(stringResource(Res.string.inspect_copy_overlay)) }
 
                 Spacer(Modifier.width(10.dp))
                 OutlinedButton(
                     onClick = { copy(inspect.report()) },
                     enabled = inspect.canExport,
-                ) { Text("Copy report") }
+                ) { Text(stringResource(Res.string.inspect_copy_report)) }
             }
             Spacer(Modifier.height(10.dp))
             Note(
-                "Save the overlay as counters-overlay.json next to the database cache " +
-                    "(${nl.redlabs.epsonreset.AppPaths.counterOverlay}) and restart.",
+                stringResource(Res.string.inspect_save_overlay, nl.redlabs.epsonreset.AppPaths.counterOverlay),
                 StatusColors.muted,
             )
         }
@@ -216,14 +248,13 @@ fun InspectPanel(vm: ResetViewModel, modifier: Modifier = Modifier) {
 private fun Header(vm: ResetViewModel) {
     Column {
         Text(
-            "Device inspector",
+            stringResource(Res.string.inspect_title),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold,
         )
         Spacer(Modifier.height(4.dp))
         Text(
-            "For a printer the database doesn't cover. Everything on this screen is read-only — " +
-                "no write is ever sent, so it is safe to run against a printer nobody has identified.",
+            stringResource(Res.string.inspect_intro),
             style = MaterialTheme.typography.bodyMedium,
             color = StatusColors.muted,
         )
@@ -243,14 +274,22 @@ private fun Target(vm: ResetViewModel) {
 
     if (device == null) {
         Note(
-            "No printer detected. Plug the printer in, click No printer above, and rescan — this " +
-                "tab works on real hardware only.",
+            stringResource(Res.string.inspect_no_printer),
             StatusColors.warn,
         )
         return
     }
 
-    Note("Target: ${device.device.displayName} (${device.device.pidHex}) — read-only.", StatusColors.muted)
+    // A network target has no product id; the empty bracket it used to leave is worse than no bracket.
+    val pid = device.device.pidHex
+    Note(
+        if (pid == null) {
+            stringResource(Res.string.inspect_target_readonly_no_pid, device.device.displayName)
+        } else {
+            stringResource(Res.string.inspect_target_readonly, device.device.displayName, pid)
+        },
+        StatusColors.muted,
+    )
 }
 
 @Composable
@@ -298,7 +337,7 @@ private fun CandidateRow(candidate: SweepAnalysis.Candidate) {
             )
             Spacer(Modifier.width(12.dp))
             Text(
-                candidate.value?.toString() ?: "bytes",
+                candidate.value?.toString() ?: stringResource(Res.string.inspect_bytes),
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.SemiBold,
             )

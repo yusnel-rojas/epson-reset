@@ -9,8 +9,20 @@ import kotlinx.coroutines.withContext
 import nl.redlabs.epsonreset.device.DetectedPrinter
 import nl.redlabs.epsonreset.device.MatchedPrinter
 import nl.redlabs.epsonreset.device.PrinterTransports
+import nl.redlabs.epsonreset.i18n.Strings
 import nl.redlabs.epsonreset.protocol.Maintenance
 import nl.redlabs.epsonreset.protocol.Status
+import nl.redlabs.epsonreset.resources.Res
+import nl.redlabs.epsonreset.resources.maint_block_no_printer
+import nl.redlabs.epsonreset.resources.maint_block_other_operation
+import nl.redlabs.epsonreset.resources.maint_block_running
+import nl.redlabs.epsonreset.resources.maint_block_usb_only
+import nl.redlabs.epsonreset.resources.maint_log_gaps
+import nl.redlabs.epsonreset.resources.maint_log_gaps_asserted
+import nl.redlabs.epsonreset.resources.maint_log_needs_check
+import nl.redlabs.epsonreset.resources.maint_log_no_gaps
+import nl.redlabs.epsonreset.resources.maint_log_sent
+import nl.redlabs.epsonreset.resources.maint_log_starting
 import kotlin.coroutines.CoroutineContext
 
 /** Guided nozzle-check and cleaning state. Cleaning is reachable only after visible evidence. */
@@ -59,14 +71,12 @@ class MaintenanceState(
     val blockedReason: String?
         get() {
             val device = selectedDevice()?.device
-                ?: return "Select a connected printer from the printer menu above first."
+                ?: return Strings.get(Res.string.maint_block_no_printer)
             if (device.isNetwork) {
-                return "Maintenance commands are ESC/P2 print data and currently run over USB only. " +
-                    "The network connection exposes the SNMP control channel, which can parse these " +
-                    "commands but does not perform them. Connect this printer over USB."
+                return Strings.get(Res.string.maint_block_usb_only)
             }
-            running?.let { return "${it.label} is being sent. Wait for this operation to finish." }
-            if (otherOperationRunning()) return "Another printer operation is already in progress."
+            running?.let { return Strings.get(Res.string.maint_block_running, Strings.get(it.title)) }
+            if (otherOperationRunning()) return Strings.get(Res.string.maint_block_other_operation)
             return Maintenance.blockedReason(status())
         }
 
@@ -82,11 +92,10 @@ class MaintenanceState(
         if (patternAssessment != PatternAssessment.AWAITING_ANSWER) return
         recordedAssessment = if (hasGaps) PatternAssessment.GAPS else PatternAssessment.NO_GAPS
         if (hasGaps) {
-            warn("The nozzle pattern has gaps. Cleaning is now available; it will send ink into the waste pad.")
+            warn(Strings.get(Res.string.maint_log_gaps))
         } else {
             good(
-                "The nozzle pattern has no gaps. Nothing needs cleaning; an unnecessary cycle " +
-                    "would only fill the pad.",
+                Strings.get(Res.string.maint_log_no_gaps),
             )
         }
     }
@@ -101,12 +110,12 @@ class MaintenanceState(
      */
     fun assumeGaps() {
         val device = selectedDevice()?.device ?: run {
-            bad("Select a connected printer from the printer menu above first.")
+            bad(Strings.get(Res.string.maint_block_no_printer))
             return
         }
         assessmentDeviceId = device.id
         recordedAssessment = PatternAssessment.GAPS
-        warn("Recorded as gaps without printing a check. Cleaning is now available on your word for it.")
+        warn(Strings.get(Res.string.maint_log_gaps_asserted))
     }
 
     /** Back to the beginning, for a second opinion or a different printer's pattern. */
@@ -119,7 +128,7 @@ class MaintenanceState(
     /** Runs one confirmed operation, using a fresh USB transport for every protocol phase. */
     fun run(operation: Maintenance.Operation) {
         val target = selectedDevice()?.device ?: run {
-            bad("Select a connected printer from the printer menu above first.")
+            bad(Strings.get(Res.string.maint_block_no_printer))
             return
         }
 
@@ -128,13 +137,19 @@ class MaintenanceState(
             return
         }
         if (operation != Maintenance.Operation.NOZZLE_CHECK && !cleaningEnabled) {
-            bad("Run a nozzle check and confirm that its pattern has gaps before cleaning.")
+            bad(Strings.get(Res.string.maint_log_needs_check))
             return
         }
 
         running = operation
         lastResult = null
-        info("Starting ${operation.label.lowercase()} on ${target.displayName} over USB.")
+        info(
+            Strings.get(
+                Res.string.maint_log_starting,
+                Strings.get(operation.title).lowercase(),
+                target.displayName,
+            ),
+        )
 
         scope.launch {
             var openError: String? = null
@@ -163,7 +178,7 @@ class MaintenanceState(
                 return@launch
             }
 
-            good("${operation.label} sent to ${target.displayName}. Verify the result at the printer.")
+            good(Strings.get(Res.string.maint_log_sent, Strings.get(operation.title), target.displayName))
             when (operation) {
                 Maintenance.Operation.NOZZLE_CHECK -> {
                     assessmentDeviceId = target.id

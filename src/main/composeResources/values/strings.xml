@@ -1,0 +1,1053 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    * Apostrophes and quotes go in bare - backslash escaping is NOT applied to them. \n IS
+      honored. XML escaping still applies: &amp;, &lt;.
+    * Placeholders are positional only: %1$s. No bare %s and no %,d - every argument is
+      stringified first, so pass "%,d".format(n), not n.
+    * A literal percent is a single %, not %%.
+    * Keys are screen_element_detail, grouped by the file that uses them.
+-->
+<resources>
+
+    <!-- ===== App shell: Main.kt, App.kt ===== -->
+    <string name="app_name">Epson Reset</string>
+
+    <string name="tab_overview">Overview</string>
+    <string name="tab_maintenance">Maintenance</string>
+    <string name="tab_snapshots">Snapshots</string>
+    <string name="tab_inspect">Inspect</string>
+    <string name="tab_models">Models</string>
+
+    <!-- ===== Language, SettingsDialog.kt ===== -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_close">Close</string>
+    <string name="settings_language_section">Language</string>
+    <string name="settings_language_system">System</string>
+    <string name="settings_language_en">English</string>
+    <string name="settings_language_es">Español</string>
+
+
+    <!-- ===== Safety gates: EepromWriteConfirmation.kt ===== -->
+    <string name="confirm_back">Back</string>
+    <string name="confirm_write_eeprom">Yes, write EEPROM</string>
+    <string name="confirm_restore_eeprom">Yes, restore EEPROM</string>
+
+    <!-- ===== The reset gate: MaintenanceResetControls.kt ===== -->
+    <string name="reset_confirm_title">Reset counters — %1$s</string>
+    <string name="reset_confirm_headline">Write %1$s's key to %2$s on %3$s.</string>
+    <string name="reset_confirm_metadata">rkey %1$s · %2$s writes</string>
+    <string name="reset_confirm_the_printer">the printer</string>
+    <string name="reset_confirm_family_warning">This printer reports only "%1$s". %2$s is the model you confirmed it to be — a near neighbour's key is not the same key, so check the printer label.</string>
+    <string name="reset_confirm_absorbed_ink">This clears the printer's record of the ink it has absorbed, which is what unblocks it. It does not empty anything. The waste ink pad — or the maintenance box, if this printer uses one — is a physical part holding real ink; it will hold exactly as much after this run as before, and only replacing or cleaning it changes that. A full one left in place overflows.</string>
+    <string name="reset_confirm_snapshot_first">The bytes about to be overwritten are saved to a snapshot first, and the run stops rather than proceeding if that cannot be done.</string>
+    <string name="reset_confirm_no_warranty">Whether to do this is your decision, and what follows from it is yours to carry: this software comes with no warranty, and its authors are not accountable for what happens to your printer.</string>
+
+    <plurals name="reset_confirm_addresses">
+        <item quantity="one">%1$s address</item>
+        <item quantity="other">%1$s addresses</item>
+    </plurals>
+
+    <!-- ===== Run outcome: RunCompletionDialog.kt ===== -->
+    <string name="run_title_restore_failed">Restore failed</string>
+    <string name="run_title_reset_failed">Reset failed</string>
+    <string name="run_title_restore_simulated">Restore simulated</string>
+    <string name="run_title_dry_run_passed">Dry run passed</string>
+    <string name="run_title_snapshot_restored">Snapshot restored</string>
+    <string name="run_title_counters_reset">Counters reset</string>
+    <string name="run_metadata">%1$s of %2$s writes acknowledged · %3$s packets sent</string>
+    <string name="run_power_cycle_title">Turn the printer off and on again</string>
+    <string name="run_power_cycle_body">The new values are in EEPROM, but the printer is still running on what it read at startup. Power it off with its own button, wait for it to finish parking, then switch it back on.</string>
+    <string name="run_waste_unchanged_title">The waste ink has not gone anywhere</string>
+    <string name="run_waste_unchanged_body">The counter is clear, so the printer will print again — but the waste ink pad, or the maintenance box if this printer uses one, still holds every drop it held a minute ago. It is a physical part, and only replacing or cleaning it changes that. One left in place after it is genuinely full overflows, and the ink goes somewhere neither you nor the printer chose.</string>
+    <string name="run_stranded_body">Some writes landed before this stopped, so the printer is in a partly changed state — neither where it was nor where this run was taking it. Putting a snapshot back is how that is settled.</string>
+    <string name="run_stranded_backup">The bytes this run was about to overwrite were saved to %1$s beforehand.</string>
+    <string name="run_dry_run_body">Nothing reached a printer. This was generated and checked against the simulated device.</string>
+    <string name="run_choose_snapshot">Choose a snapshot…</string>
+    <string name="run_restore_this_backup">Restore this backup…</string>
+    <string name="run_ok">OK</string>
+    <string name="run_backup_unreadable">Could not read %1$s — it is missing or not a valid backup.</string>
+    <string name="recovery_confirm_title">Restore EEPROM — %1$s</string>
+    <string name="recovery_confirm_headline">Write %1$s saved EEPROM bytes into %2$s.</string>
+    <string name="recovery_confirm_metadata">%1$s · taken %2$s</string>
+    <string name="recovery_confirm_warning">These are the bytes the run that just failed was about to overwrite.</string>
+    <string name="recovery_confirm_recovery_point">This puts the counters back where they were before that run started, waste levels included. It is the recovery point for exactly this situation.</string>
+    <string name="recovery_confirm_snapshot_first">What the printer holds now is read and saved as its own snapshot first, over the same connection. If those bytes cannot all be read, nothing is written.</string>
+
+    <!-- ===== Model choice: ModelPicker.kt ===== -->
+    <string name="model_picker_title">Printer model</string>
+    <string name="model_picker_back">Back</string>
+    <string name="model_picker_search">Search %1$s models</string>
+    <string name="model_picker_no_matches">no matches</string>
+    <string name="model_picker_rkey">rkey %1$s · %2$s writes</string>
+    <string name="model_picker_reported">This printer reports "%1$s" — choose the model on its label.</string>
+    <string name="model_picker_choose_label">Choose the model printed on this printer.</string>
+    <string name="model_picker_confirmed_as">You confirmed this printer as %1$s. It reports only "%2$s".</string>
+    <string name="model_picker_reports_itself">This printer reports itself as %1$s.</string>
+    <string name="model_picker_done">Done</string>
+    <string name="model_picker_back_to">Back to %1$s</string>
+
+    <plurals name="model_picker_matches">
+        <item quantity="one">%1$s match</item>
+        <item quantity="other">%1$s matches</item>
+    </plurals>
+
+    <!-- One entry for the whole sentence: the verb agrees with the count. -->
+    <plurals name="model_picker_series_scope">
+        <item quantity="one">Only the %1$s model in the identified series is shown. The choice is remembered.</item>
+        <item quantity="other">Only the %1$s models in the identified series are shown. The choice is remembered.</item>
+    </plurals>
+
+    <!-- ===== Reset controls: MaintenanceResetControls.kt ===== -->
+    <string name="reset_controls_title">Reset controls</string>
+    <string name="reset_controls_metadata">rkey %1$s · wlen %2$s · mem_high %3$s</string>
+    <string name="reset_controls_subtitle">%1$s · Simulating writes nothing; resetting writes EEPROM after confirmation.</string>
+    <string name="reset_controls_none_title">No resettable counters</string>
+    <string name="reset_controls_none_body">This entry has no EEPROM addresses, so there is nothing to write.</string>
+    <string name="reset_controls_platen_title">Platen pad only</string>
+    <string name="reset_controls_platen_body">This model keeps only the platen pad counter in EEPROM. The main waste box counter lives on a chip and is not reset here — the box itself still needs servicing when it fills.</string>
+    <string name="reset_controls_preview_heading">Simulated reset preview</string>
+    <string name="reset_controls_progress_heading">Reset read/write progress</string>
+    <string name="reset_controls_cancel">Cancel</string>
+    <string name="reset_controls_save_then_reset">Save current, then reset</string>
+    <string name="reset_controls_simulate">Simulate reset — writes nothing</string>
+    <string name="reset_controls_pad_caveat">Resetting clears the counter, which is what unblocks the printer. It does not empty or replace the waste ink pad — or the maintenance box, if this printer uses one. That is a physical part, and it still holds whatever it held a moment ago. Have it replaced or cleaned, or the ink it can no longer absorb has to go somewhere.</string>
+    <string name="reset_controls_no_printer">Select a connected printer to reset one. Simulating needs no printer.</string>
+    <string name="reset_controls_simulation_only">Simulation only — %1$s</string>
+    <string name="reset_controls_recovery_title">Recovery available</string>
+    <string name="reset_controls_recovery_confirm">This writes the original bytes back, returning the counters to where they were before the run — including the waste levels. What the printer holds now is saved as its own snapshot first. Continue?</string>
+    <string name="reset_controls_recovery_saved">The bytes overwritten by this run were saved to %1$s beforehand.</string>
+    <string name="reset_controls_write_back">Write the old bytes back</string>
+    <string name="reset_controls_restore_from_backup">Restore from backup</string>
+
+    <!-- ===== Printer status words: StatusText.kt (codes from protocol/Status.kt) =====
+         Status.kt keeps its own English spellings for the calibration report and the CLI probes. -->
+    <string name="ink_black">Black</string>
+    <string name="ink_cyan">Cyan</string>
+    <string name="ink_magenta">Magenta</string>
+    <string name="ink_yellow">Yellow</string>
+    <string name="ink_unknown">colour %1$s</string>
+
+    <string name="printer_error_fatal">fatal error</string>
+    <string name="printer_error_other_interface">another interface is selected</string>
+    <string name="printer_error_cover_open">cover open</string>
+    <string name="printer_error_paper_jam">paper jam</string>
+    <string name="printer_error_ink_out">ink out</string>
+    <string name="printer_error_paper_out">paper out</string>
+    <string name="printer_error_maintenance">maintenance request</string>
+    <string name="printer_error_unknown">error code %1$s</string>
+
+    <string name="printer_state_error">reporting an error</string>
+    <string name="printer_state_self_test">printing a self-test page</string>
+    <string name="printer_state_cleaning">cleaning the print head</string>
+    <string name="printer_state_factory">in its factory-shipment state</string>
+    <string name="printer_state_shutting_down">shutting down</string>
+    <string name="printer_state_unknown">in state %1$s</string>
+    <string name="printer_state_sentence">The printer reports it is %1$s.</string>
+    <string name="printer_state_sentence_detail">The printer reports it is %1$s (%2$s).</string>
+
+    <!-- ===== Overview alerts and coverage: OverviewReading.kt ===== -->
+    <string name="overview_section_connection">Connection</string>
+    <string name="overview_section_status">Status</string>
+    <string name="overview_section_supplies">Supplies</string>
+    <string name="overview_section_lifetime">Lifetime usage</string>
+    <string name="overview_section_counters">Counters</string>
+
+    <string name="overview_coverage_connection_untested">Connection was not tested.</string>
+    <string name="overview_coverage_status_yes">Printer status reported.</string>
+    <string name="overview_coverage_status_no">Status was not reported.</string>
+    <string name="overview_coverage_supplies_yes">Supply information reported.</string>
+    <string name="overview_coverage_supplies_no">Supplies were not reported.</string>
+    <string name="overview_coverage_lifetime_yes">Lifetime page count reported.</string>
+    <string name="overview_coverage_lifetime_no">Lifetime page count was not reported.</string>
+    <string name="overview_coverage_counters_none">No counter address answered.</string>
+    <string name="overview_coverage_counters_unread">Counters were not read.</string>
+
+    <string name="overview_alert_error_title">Printer error reported</string>
+    <string name="overview_alert_error_detail">The printer reports %1$s.</string>
+    <string name="overview_alert_not_idle">Printer is not idle</string>
+    <string name="overview_alert_ink_low_title">%1$s ink is low</string>
+    <string name="overview_alert_ink_low_detail">The printer reports %1$s% remaining.</string>
+    <string name="overview_alert_supply_unnamed">Supply %1$s</string>
+    <string name="overview_alert_supply_warn_level">a warning level</string>
+    <string name="overview_alert_supply_filling">%1$s is filling up</string>
+    <string name="overview_alert_supply_low">%1$s is low</string>
+    <string name="overview_alert_supply_detail">The printer reports %1$s.</string>
+    <string name="overview_alert_counter_maxed_title">%1$s is at its maximum</string>
+    <string name="overview_alert_counter_maxed_detail">%1$s of %2$s — the printer may refuse to print until this is reset, and the pad or maintenance box itself needs replacing.</string>
+    <string name="overview_alert_counter_nearly_title">%1$s is nearly full</string>
+    <string name="overview_alert_counter_nearly_detail">%1$s of %2$s (%3$s).</string>
+
+    <string name="overview_action_maintenance">Open Maintenance</string>
+
+    <plurals name="overview_coverage_counters_answered">
+        <item quantity="one">%1$s counter address answered.</item>
+        <item quantity="other">%1$s counter addresses answered.</item>
+    </plurals>
+
+    <!-- ===== Connection result: device/ConnectionTest.kt ===== -->
+    <string name="connection_failed">Could not connect.</string>
+    <string name="connection_usb_ok">Connected over USB — counter access is available.</string>
+    <string name="connection_usb_no_counters">Printer identified over USB, but counter access is unavailable on this connection.</string>
+    <string name="connection_usb_no_answer">USB connection opened, but the printer did not answer the counter request.</string>
+    <string name="connection_net_counters">Connected — this printer allows counter access over the network.</string>
+    <string name="connection_net_refused">Connected. Identity and ink levels work; the printer refuses counter access here.</string>
+    <string name="connection_net_status_only">Connected. Identity and ink levels work; counter access was not tested.</string>
+    <string name="connection_no_answer">Connected, but the printer did not answer.</string>
+    <string name="connection_advice_net">Identity works but counters were not readable over this connection.</string>
+    <string name="connection_advice_usb">The printer is reachable, but counter reads and resets are unavailable. Reconnect it directly over USB and try again.</string>
+    <string name="connection_advice_nothing">Nothing came back. Check this address is the printer and not another device on the network.</string>
+
+    <!-- ===== Overview refresh: ResetViewModel.kt ===== -->
+    <string name="overview_reason_not_opened">The connection could not be opened.</string>
+    <string name="overview_reason_cancelled_before">Overview refresh was cancelled before counters were read.</string>
+    <string name="overview_reason_no_model">The printer model is not resolved, so counters were not read.</string>
+    <string name="overview_reason_no_addresses">This model has no known counter addresses.</string>
+    <string name="overview_reason_cancelled">Overview refresh was cancelled.</string>
+    <string name="overview_reason_stopped">Overview refresh stopped: %1$s.</string>
+
+    <!-- ===== Overview screen: OverviewPanel.kt ===== -->
+    <string name="overview_view_counters">Counters</string>
+    <string name="overview_view_history">History</string>
+    <string name="overview_refreshed">Refreshed %1$s</string>
+    <string name="overview_empty_scanning">Looking for printers…</string>
+    <string name="overview_empty_choose">Choose a printer to see its overview</string>
+    <string name="overview_empty_scanning_body">Scanning USB and the local network. The discovered printer will become the live target.</string>
+    <string name="overview_empty_needs_printer">Overview needs a live printer for connection status, supplies, lifetime pages and counters.</string>
+    <string name="overview_empty_model_kept">%1$s remains selected for a simulated reset under Maintenance.</string>
+    <string name="overview_stop_scanning">Stop scanning</string>
+    <string name="overview_scan">Scan for printers</string>
+    <string name="overview_choose_printer">Choose printer</string>
+    <string name="overview_open_maintenance">Open Maintenance</string>
+    <string name="overview_per_address_detail">Per-address detail</string>
+    <string name="overview_select_live_printer">Select a live printer to collect overview information.</string>
+    <string name="overview_firmware">firmware %1$s</string>
+    <string name="overview_cancel_refresh">Cancel refresh</string>
+    <string name="overview_refresh">Refresh overview</string>
+    <string name="overview_age_just_now">just now</string>
+    <string name="overview_age_minutes">%1$s min ago</string>
+    <string name="overview_age_hours">%1$s h ago</string>
+    <string name="overview_not_refreshed">Overview not refreshed yet</string>
+    <string name="overview_not_refreshed_body">Refresh reads connection details, status, supplies and counters. Missing sources stay listed as unavailable instead of being treated as good news.</string>
+    <string name="overview_no_warnings">No reported warnings</string>
+    <string name="overview_sections_missing">%1$s of %2$s sections did not report</string>
+    <string name="overview_hide_detail">Hide detail</string>
+    <string name="overview_show_detail">Show detail</string>
+    <string name="overview_no_model">No model selected</string>
+    <string name="overview_no_model_scan">Open the target above to scan for a printer or choose a model for a dry run.</string>
+    <string name="overview_no_model_choose">Open the target above to choose a printer and resolve its model.</string>
+
+    <plurals name="overview_printers_found">
+        <item quantity="one">%1$s printer was found. Choose the one whose status, supplies and counters you want to read.</item>
+        <item quantity="other">%1$s printers were found. Choose the one whose status, supplies and counters you want to read.</item>
+    </plurals>
+
+    <plurals name="overview_attention_count">
+        <item quantity="one">%1$s thing needs attention</item>
+        <item quantity="other">%1$s things need attention</item>
+    </plurals>
+
+    <plurals name="overview_sections_all">
+        <item quantity="one">The %1$s section reported</item>
+        <item quantity="other">All %1$s sections reported</item>
+    </plurals>
+
+    <!-- ===== Printer discovery: DevicePanel.kt ===== -->
+    <string name="devices_title">Printers</string>
+    <string name="devices_test">Test</string>
+    <string name="devices_testing">Testing…</string>
+    <string name="device_stop_scanning">Stop scanning</string>
+    <string name="device_scan_both">Scan USB and network</string>
+    <string name="device_rescan">Rescan</string>
+    <string name="device_add_by_ip">Add printer by IP address…</string>
+    <string name="device_scanning_title">Scanning…</string>
+    <string name="device_scanning_body">You can stop the scan or add a printer by address from the scan menu.</string>
+    <string name="device_nothing_found_title">Nothing found</string>
+    <string name="device_nothing_found_body">libusb is missing, so USB detection is off, and nothing answered on the network. Dry runs work regardless — or add the printer by address.</string>
+    <string name="device_scan_failed_title">Scan failed</string>
+    <string name="device_none_found_title">No Epson printers found</string>
+    <string name="device_none_found_body">Connect the printer over USB or put it on this network, switch it on, then rescan. A printer that doesn't advertise itself can be added by address.</string>
+    <string name="device_scan_stopped_title">Scan stopped</string>
+    <string name="device_scan_stopped_body">Scan again, or add a printer by address from the scan menu.</string>
+    <string name="device_not_scanned_title">Not scanned yet</string>
+    <string name="device_not_scanned_body">Scan to find Epson printers on USB and on this network.</string>
+    <string name="device_network_note">Network discovery: %1$s</string>
+    <string name="device_add_by_address">Add by address</string>
+    <string name="device_back">Back</string>
+    <string name="device_add">Add</string>
+    <string name="device_address_hint">The printer's IP, from its network status sheet or its web page. Saved for next time.</string>
+    <string name="device_saved_not_reached">Saved · not reached</string>
+    <string name="device_usb_not_answering">USB · not answering</string>
+    <string name="device_meta_pid">PID</string>
+    <string name="device_meta_bus">Bus</string>
+    <string name="device_meta_interface">Interface</string>
+    <string name="device_interface_printer_class">%1$s (printer class)</string>
+    <string name="device_interface_vendor_specific">%1$s (vendor specific)</string>
+    <string name="device_meta_address">Address</string>
+    <string name="device_meta_snmp_port">SNMP port</string>
+    <string name="device_meta_port">Port</string>
+    <string name="device_meta_queue">Queue</string>
+    <string name="device_meta_serial">Serial</string>
+    <string name="device_meta_model_from">Model from</string>
+    <string name="device_model_from_value">%1$s · SNMP at %2$s</string>
+    <string name="device_match_exact">✓ %1$s</string>
+    <string name="device_match_likely">≈ %1$s — confirm</string>
+    <string name="device_match_class_only">≈ one of %1$s — pick the model</string>
+    <string name="device_match_none">No database match — pick manually</string>
+    <string name="device_forget">Forget</string>
+    <string name="device_change_model">Change model…</string>
+
+    <!-- ===== Snapshot comparison: backup/SnapshotComparison.kt ===== -->
+    <string name="comparison_layout_uncertain">%1$s  (layout uncertain)</string>
+    <string name="comparison_delta_changed">changed</string>
+    <string name="comparison_delta_none">—</string>
+    <string name="comparison_nothing_comparable">Nothing can be compared — no address holds a byte on both sides. If one of these is a live reading, it answered nothing.</string>
+    <string name="comparison_nothing_moved">Nothing moved — every address holds the same byte on both sides.</string>
+    <string name="comparison_summary_moved">%1$s · %2$s</string>
+    <string name="comparison_note_models">These samples are different models (%1$s and %2$s). The same address is not the same counter on both, so the differences below mean nothing.</string>
+    <string name="comparison_note_serials">Different printers: serial %1$s and serial %2$s. A difference here is two machines being unalike, not one machine changing.</string>
+
+    <plurals name="comparison_changed_no_counter">
+        <item quantity="one">%1$s address changed, none of them inside a known counter.</item>
+        <item quantity="other">%1$s addresses changed, none of them inside a known counter.</item>
+    </plurals>
+
+    <plurals name="comparison_changed_count">
+        <item quantity="one">%1$s address changed</item>
+        <item quantity="other">%1$s addresses changed</item>
+    </plurals>
+
+    <plurals name="comparison_note_missing">
+        <item quantity="one">%1$s address appears on only one side, or was never answered there. That row shows a dash and is not counted as changed.</item>
+        <item quantity="other">%1$s addresses appear on only one side, or were never answered there. Those rows show a dash and are not counted as changed.</item>
+    </plurals>
+
+    <!-- ===== Counter projection: history/CounterProjection.kt ===== -->
+    <string name="projection_no_maximum">No measured maximum</string>
+    <string name="projection_no_reading">No complete reading</string>
+    <string name="projection_needs_another_read">Needs another live read</string>
+    <string name="projection_needs_a_day">Needs readings at least a day apart</string>
+    <string name="projection_no_increase">No increase in this period</string>
+    <string name="projection_out_of_range">Projection is outside the supported date range</string>
+
+    <string name="projection_at_maximum">The counter is at or above its measured maximum.</string>
+    <string name="projection_arrives_around">At this rate, the measured maximum arrives around %1$s.</string>
+    <string name="projection_none_yet">No projection yet.</string>
+
+    <!-- ===== Standard printer MIB: net/PrinterMib.kt ===== -->
+    <string name="mdns_no_multicast">No multicast socket could be opened.</string>
+    <string name="mdns_no_multicast_hint">Add the printer by IP address instead — discovery is a convenience, not a requirement.</string>
+    <string name="supply_type_other">other</string>
+    <string name="supply_type_unknown">unknown</string>
+    <string name="supply_type_toner">toner</string>
+    <string name="supply_type_waste_toner">waste toner</string>
+    <string name="supply_type_ink">ink</string>
+    <string name="supply_type_ink_cartridge">ink cartridge</string>
+    <string name="supply_type_ink_ribbon">ink ribbon</string>
+    <string name="supply_type_waste_ink">waste ink</string>
+    <string name="supply_type_photo_conductor">photo conductor</string>
+    <string name="supply_type_developer">developer</string>
+    <string name="supply_type_waste_wax">waste wax</string>
+    <string name="supply_type_cleaner_unit">cleaner unit</string>
+    <string name="supply_type_transfer_unit">transfer unit</string>
+    <string name="supply_type_toner_cartridge">toner cartridge</string>
+    <string name="supply_type_raw">type %1$s</string>
+    <string name="supply_unnamed">Supply %1$s</string>
+    <string name="supply_level_none">—</string>
+    <string name="vm_ink_levels">Ink: %1$s</string>
+    <string name="supply_percent_full">%1$s full</string>
+    <string name="supply_level_unspecified">unspecified</string>
+    <string name="supply_level_unknown">unknown</string>
+    <string name="supply_level_some_remaining">some remaining</string>
+
+    <!-- ===== Settings sections: SettingsDialog.kt ===== -->
+    <string name="settings_model_reports">reports "%1$s"</string>
+    <string name="settings_history_section">Counter history</string>
+    <string name="settings_history_toggle">Keep counter history on this computer</string>
+    <string name="settings_history_body">Appends successful live counter reads to a local journal. Dry runs and reads from snapshot files are never recorded. Turning this off pauses collection without deleting what is already here.</string>
+    <string name="settings_history_stats">%1$s · %2$s · %3$s</string>
+    <string name="settings_history_confirm_delete">Delete every printer's counter history? This cannot be undone.</string>
+    <string name="settings_history_delete">Delete history</string>
+    <string name="settings_cancel">Cancel</string>
+    <string name="settings_history_delete_prompt">Delete counter history…</string>
+
+    <string name="settings_identification_section">Identification</string>
+    <string name="settings_identification_toggle">Resolve the exact model over SNMP</string>
+    <string name="settings_identification_body">A USB descriptor names a family — "ET-2820 Series" covers eight units that are not all the same printer. The same machine on the network answers SNMP with the unit. When both links show the same serial, the unit is used. Costs no extra traffic: the network entry has already been asked by the time the two are compared.</string>
+
+    <string name="settings_database_section">Printer database</string>
+    <string name="settings_database_loaded">%1$s models · %2$s</string>
+    <string name="settings_database_error">could not be loaded — %1$s</string>
+    <string name="settings_database_loading">loading…</string>
+    <string name="settings_database_body">The copy in the jar is used until a download replaces it. A download that does not parse is discarded rather than cached, so a failed update keeps the working copy.</string>
+    <string name="settings_database_update">Update database</string>
+    <string name="settings_result_see_log">The log, at the bottom of the main window, has the detail.</string>
+
+    <string name="settings_updates_section">App updates</string>
+    <string name="settings_updates_version">Version %1$s</string>
+    <string name="settings_updates_toggle">Check automatically</string>
+    <string name="settings_updates_body">Once a day at most, and never for a development build. A check that cannot reach GitHub does not count against the day's allowance.</string>
+    <string name="settings_updates_checking">Checking…</string>
+    <string name="settings_updates_check_now">Check now</string>
+
+    <string name="settings_maxima_section">Counter maxima</string>
+    <string name="settings_maxima_body">Percentages need a maximum, and most counters ship without one. A calibration supplies it. "Use this maximum now" on the calibration form applies one to this session only — it is gone at the next launch. Saving counters-overlay.json into the data directory applies it permanently, and nothing but removing that file undoes it.</string>
+    <string name="settings_maxima_overlay">An overlay file is in force. Counters it names read from it, not from the shipped figures.</string>
+    <string name="settings_maxima_session">A calibration is applied to this session only.</string>
+    <string name="settings_maxima_shipped">No overlay and no session calibration — the shipped figures are in use.</string>
+    <string name="settings_maxima_undo_session">Undo for this session</string>
+    <string name="settings_maxima_delete_overlay">Delete the overlay file</string>
+
+    <string name="settings_data_dir_section">Data directory</string>
+    <string name="settings_data_dir_body">The database cache, saved snapshots, counter history, the overlay, remembered choices and preferences. Every one of them is a plain file you can read, edit or delete.</string>
+    <string name="settings_data_dir_open">Open data directory</string>
+
+    <string name="settings_choices_section">Remembered model choices</string>
+    <string name="settings_choices_none">None. One is filed whenever a printer names a family whose members do not share a reset recipe, and you say which of them it is.</string>
+    <string name="settings_choices_forget">Forget</string>
+    <string name="settings_choices_forget_all">Forget all</string>
+
+    <string name="settings_developer_section">Developer</string>
+    <string name="settings_developer_toggle">Developer mode (verbose logging)</string>
+    <string name="settings_developer_body">Adds low-level diagnostics to the log: which printers the Windows spooler enumerates and on which ports, and every WritePrinter/ReadPrinter result with its Windows error code. When something like a USB read fails, turn this on, reproduce it, and use Copy in the log panel — the extra lines are included and make the cause visible.</string>
+
+    <string name="settings_about_section">About</string>
+    <string name="settings_about_name">Epson Reset %1$s</string>
+    <string name="settings_about_author">by Yusnel Rojas</string>
+    <string name="settings_about_licence">Licensed under the GNU Affero General Public License v3.0</string>
+
+    <plurals name="settings_history_samples">
+        <item quantity="one">%1$s sample</item>
+        <item quantity="other">%1$s samples</item>
+    </plurals>
+
+    <plurals name="settings_history_printers">
+        <item quantity="one">%1$s printer</item>
+        <item quantity="other">%1$s printers</item>
+    </plurals>
+
+    <!-- ===== Maintenance operations: protocol/Maintenance.kt =====
+         Operation.label stays English in the source, for the [OUT] traces; `title` is for the screen. -->
+    <string name="maint_ink_none">none</string>
+    <string name="maint_ink_small">a little</string>
+    <string name="maint_ink_moderate">a noticeable amount</string>
+    <string name="maint_ink_heavy">a lot</string>
+
+    <string name="maint_op_nozzle_check">Nozzle check</string>
+    <string name="maint_op_nozzle_check_blurb">Prints the test pattern, so you can see which nozzles are actually blocked before spending a cleaning cycle on them.</string>
+    <string name="maint_op_head_cleaning">Head cleaning</string>
+    <string name="maint_op_head_cleaning_blurb">Runs one ordinary cleaning cycle on all colours. The ink it flushes goes into the waste pad.</string>
+    <string name="maint_op_power_cleaning">Power cleaning</string>
+    <string name="maint_op_power_cleaning_blurb">A deep cleaning cycle. It spends several ordinary cleanings' worth of ink in one go and fills the pad accordingly — a last resort, not a routine.</string>
+
+    <string name="maint_state_unknown">The printer answered, but did not report whether it is idle. Nothing will be sent until its state can be established.</string>
+    <string name="maint_busy_wait">%1$s Wait for it to finish, then try again.</string>
+    <string name="maint_credit_failed">Transport failure while granting credit.</string>
+    <string name="maint_not_accepted">The printer did not accept the %1$s command.</string>
+    <string name="maint_refused">The printer refused the %1$s command (:NA;). Its firmware does not accept it over this connection.</string>
+    <string name="maint_started">%1$s started — the printer reports it is working.</string>
+    <string name="maint_echo_empty">The printer echoed '%1$s:;' — it parsed the command but did not act on it, and its state did not move.</string>
+    <string name="maint_echo_value">The printer answered '%1$s:%2$s;' but its state did not move.</string>
+    <string name="maint_no_answer">%1$s was sent and nothing refused it, but the printer said nothing and its state did not move.</string>
+    <string name="maint_remote_failed">Could not send the %1$s sequence.</string>
+    <string name="maint_remote_sent">Sent as remote-mode print data. No status poll will be made while the printer may still be processing it; verify the result at the printer.</string>
+
+    <!-- ===== Maintenance screen: MaintenancePanel.kt, MaintenanceState.kt ===== -->
+    <string name="maint_target">Target: %1$s on %2$s (%3$s).</string>
+    <string name="maint_title">Printer maintenance</string>
+    <string name="maint_intro">Routine maintenance actions live here. Counter reset has a safe simulation mode and automatic backup; print maintenance starts with evidence before spending ink.</string>
+    <string name="maint_counter_section">Counter maintenance</string>
+    <string name="maint_counter_no_model">Select a printer model to preview or reset its counters.</string>
+    <string name="maint_print_section">Print maintenance</string>
+    <string name="maint_print_intro">Start with a nozzle check. Cleaning flushes ink into the waste pad and raises its counter.</string>
+    <string name="maint_last_failed">The last operation was not sent — %1$s</string>
+    <string name="maint_the_printer">the printer</string>
+    <string name="maint_check_again_title">Check whether the cleaning worked</string>
+    <string name="maint_check_title">Print a nozzle check</string>
+    <string name="maint_run_confirmation_check">Run a confirmation check</string>
+    <string name="maint_print_nozzle_check">Print nozzle check</string>
+    <string name="maint_waiting_answer">Waiting for your answer in the pattern dialog.</string>
+    <string name="maint_seen_gaps">I have already seen the pattern — it has gaps</string>
+    <string name="maint_no_gaps_note">The pattern has no gaps — nothing needs cleaning.</string>
+    <string name="maint_gaps_note">The pattern has gaps.</string>
+    <string name="maint_clean_title">Clean the head</string>
+    <string name="maint_clean_blurb">Both cycles flush ink into the waste pad and raise its counter. Run the ordinary one first; power cleaning is a last resort, not a stronger default. What each costs is on its confirmation.</string>
+    <string name="maint_start_over">Start over</string>
+    <string name="maint_pattern_dialog_title">Check the nozzle pattern — %1$s</string>
+    <string name="maint_pattern_question">Do you see gaps or missing lines?</string>
+    <string name="maint_pattern_body">Compare the printed lines carefully. Cleaning is enabled only when the page shows that it is needed.</string>
+    <string name="maint_pattern_no_gaps">No gaps</string>
+    <string name="maint_pattern_yes_gaps">Yes, there are gaps</string>
+    <string name="maint_confirm_title">%1$s — %2$s</string>
+    <string name="maint_confirm_question">Send %1$s to %2$s over USB?</string>
+    <string name="maint_confirm_one_sheet">This prints one sheet and uses %1$s ink.</string>
+    <string name="maint_confirm_ink_cost">Ink cost: %1$s. That ink is flushed into the waste pad and raises the counter this app otherwise exists to lower.</string>
+    <string name="maint_confirm_unproven">This is the only operation in the app that has not been run on a printer in this project. Its command bytes are independently corroborated, but nobody here has watched one execute.</string>
+    <string name="maint_confirm_no_poll">The app checks that the printer is idle, sends the job, and then deliberately does not poll while it may still be active. Watch the printer to verify the result.</string>
+    <string name="maint_confirm_run">Run %1$s</string>
+
+    <string name="maint_block_no_printer">Select a connected printer from the printer menu above first.</string>
+    <string name="maint_block_usb_only">Maintenance commands are ESC/P2 print data and currently run over USB only. The network connection exposes the SNMP control channel, which can parse these commands but does not perform them. Connect this printer over USB.</string>
+    <string name="maint_block_running">%1$s is being sent. Wait for this operation to finish.</string>
+    <string name="maint_block_other_operation">Another printer operation is already in progress.</string>
+    <string name="maint_log_gaps">The nozzle pattern has gaps. Cleaning is now available; it will send ink into the waste pad.</string>
+    <string name="maint_log_no_gaps">The nozzle pattern has no gaps. Nothing needs cleaning; an unnecessary cycle would only fill the pad.</string>
+    <string name="maint_log_gaps_asserted">Recorded as gaps without printing a check. Cleaning is now available on your word for it.</string>
+    <string name="maint_log_needs_check">Run a nozzle check and confirm that its pattern has gaps before cleaning.</string>
+    <string name="maint_log_starting">Starting %1$s on %2$s over USB.</string>
+    <string name="maint_log_sent">%1$s sent to %2$s. Verify the result at the printer.</string>
+    <string name="maint_status_sending">Sending %1$s…</string>
+
+    <!-- ===== Model capability matrix: CapabilityMatrix.kt ===== -->
+    <string name="matrix_loading">Loading the database…</string>
+    <string name="matrix_no_match">No models match.</string>
+    <string name="matrix_title">Model capabilities</string>
+    <string name="matrix_summary">%1$s of %2$s models can be reset · %3$s decode to real values, %4$s partly · %5$s are platen-only · %6$s know a limit</string>
+    <string name="matrix_search">Search models</string>
+    <string name="matrix_shown">%1$s shown</string>
+    <string name="matrix_head_reset">The database has write keys and EEPROM addresses for this model, so the waste counters can be zeroed.</string>
+    <string name="matrix_head_read">The counters can be sampled. The read command carries no write key, so this is safe even if the model were mismatched.</string>
+    <string name="matrix_head_values">Whether a reading can be shown as a number. Needs a layout saying which addresses group into one little-endian counter.</string>
+    <string name="matrix_head_limit">A maximum is known, so the counter can be shown as a percentage. The bundled data has one for almost no model; measured ones live in calibrations.json.</string>
+    <string name="matrix_head_scope">Reset scope</string>
+    <string name="matrix_head_scope_help">Whether a reset clears the main waste box counter too, or only the platen pad.</string>
+    <string name="matrix_head_writes">Writes</string>
+    <string name="matrix_head_writes_help">EEPROM writes a reset performs.</string>
+    <string name="matrix_col_model">Model</string>
+    <string name="matrix_col_reset">Reset</string>
+    <string name="matrix_col_read">Read</string>
+    <string name="matrix_col_values">Values</string>
+    <string name="matrix_col_limit">Limit</string>
+    <string name="matrix_value_decoded">decoded</string>
+    <string name="matrix_value_partly">partly</string>
+    <string name="matrix_value_bytes_only">bytes only</string>
+    <string name="matrix_scope_full">platen + main</string>
+    <string name="matrix_none">—</string>
+    <string name="matrix_filter_all">All</string>
+    <string name="matrix_filter_resettable">Resettable</string>
+    <string name="matrix_filter_platen_only">Platen only</string>
+    <string name="matrix_filter_decoded">Decoded values</string>
+    <string name="matrix_filter_with_limit">Has a limit</string>
+    <string name="matrix_scope_platen_only">platen only</string>
+    <string name="matrix_legend_values">Values: “decoded” means every counter is a certain group of at most 4 bytes; “partly” means part of the layout is marked a guess, or a group is too wide to be one number, so those show as bytes. Platen-only models keep the main waste box counter on a chip — resetting them does not empty the box.</string>
+    <string name="matrix_legend_layout_only"> %1$s further models have counter layouts but no entry in the reset database, so they can't be selected here.</string>
+
+    <!-- ===== Counter history: CounterHistoryPanel.kt, CounterHistoryState.kt ===== -->
+    <string name="history_title">Counter history</string>
+    <string name="history_recording">Recording locally</string>
+    <string name="history_paused">Recording paused</string>
+    <string name="history_summary">%1$s for %2$s · serial %3$s</string>
+    <string name="history_none_recording">The next successful live read starts this printer's history.</string>
+    <string name="history_none_paused">No saved history for this printer. Enable recording in Settings to start one.</string>
+    <string name="history_no_layout">The reads are recorded, but this model has no decoded counter layout to trend.</string>
+    <string name="history_reset_note">A detected counter drop starts a new trend, so an earlier reset cannot turn the fill rate negative.</string>
+    <string name="history_one_sample">One usable sample — another live read establishes movement.</string>
+    <string name="history_no_span">The samples have no measurable time between them.</string>
+    <string name="history_too_early">%1$s in less than a day — too early for a stable rate.</string>
+    <string name="history_no_rate">No usable fill rate.</string>
+    <string name="history_rate_relative"> · %1$s% of max/day</string>
+    <string name="history_rate">%1$s over %2$s days · %3$s per day%4$s</string>
+    <string name="history_no_serial">This printer supplied no serial, so its readings cannot be joined safely.</string>
+    <string name="history_sample_not_recorded">New counter sample was not recorded: %1$s.</string>
+    <string name="history_not_inspected">History could not be inspected: %1$s.</string>
+    <string name="history_deleted">Counter history deleted.</string>
+    <string name="history_deleted_log">Deleted the local counter history.</string>
+    <string name="history_delete_failed">Counter history could not be deleted.</string>
+    <string name="history_delete_failed_detail">Counter history could not be deleted: %1$s.</string>
+    <string name="history_read_failed">Counter history could not be read: %1$s.</string>
+
+    <plurals name="history_live_samples">
+        <item quantity="one">%1$s live sample</item>
+        <item quantity="other">%1$s live samples</item>
+    </plurals>
+
+    <!-- ===== Update checks: AppUpdates.kt ===== -->
+    <string name="update_available">Version %1$s is available.</string>
+    <string name="update_available_log">Version %1$s is available — you have %2$s.</string>
+    <string name="update_up_to_date">Up to date — %1$s.</string>
+    <string name="update_inconclusive">Could not confirm the latest version.</string>
+    <string name="update_inconclusive_log">Update check inconclusive — %1$s.</string>
+    <string name="update_failed">Could not check for updates.</string>
+    <string name="update_failed_log">Update check failed — %1$s.</string>
+    <string name="update_no_browser">Could not open a browser. The release page is %1$s</string>
+
+    <!-- ===== Target chip: PrinterChip.kt ===== -->
+    <string name="chip_no_printer">No printer</string>
+    <string name="chip_choose_model">choose model</string>
+    <string name="chip_printer">Printer</string>
+    <string name="chip_saved_not_reached">Saved · not reached · %1$s</string>
+    <string name="chip_link_choose_model">%1$s · choose model</string>
+    <string name="chip_model_only">Model only · no printer selected</string>
+    <string name="chip_open_to_scan">Open to scan for printers</string>
+
+    <!-- ===== Counter details: CounterDetailsPanel.kt ===== -->
+    <string name="legend_target">  %1$s, red where it differs from the byte on the left</string>
+    <string name="plan_target_reset">reset target</string>
+    <string name="plan_target_snapshot">saved value</string>
+
+    <string name="details_intro">Current values and EEPROM bytes. This view is read-only; reset actions remain under Maintenance.</string>
+    <string name="details_no_layout">No counter layout selected</string>
+    <string name="details_open_snapshots">Open Snapshots to capture the current bytes or inspect other models.</string>
+    <string name="details_open_model_snapshots">Open the snapshots for this model to compare or restore saved bytes.</string>
+    <string name="details_view_snapshots">View snapshots →</string>
+
+    <plurals name="details_saved_snapshots">
+        <item quantity="one">%1$s saved snapshot for %2$s</item>
+        <item quantity="other">%1$s saved snapshots for %2$s</item>
+    </plurals>
+
+    <!-- ===== Counter table: CounterTable.kt ===== -->
+    <string name="table_eeprom_bytes">EEPROM bytes</string>
+    <string name="table_other_eeprom_bytes">Other EEPROM bytes</string>
+    <string name="legend_main">Main</string>
+    <string name="legend_platen">Platen</string>
+    <string name="legend_unclassified">Unclassified</string>
+    <string name="counters_title">Counters</string>
+    <string name="counters_coverage">%1$s/%2$s addresses reported</string>
+    <string name="counters_answered">%1$s/%2$s answered</string>
+    <string name="counters_detail_bytes_only">Current bytes; the complete counter value was not available.</string>
+    <string name="counters_detail_percent">%1$s% of measured maximum</string>
+    <string name="counters_detail_no_maximum">Maximum not measured</string>
+    <string name="counters_other_bytes">Other counter bytes</string>
+    <string name="counters_other_bytes_detail">Reported addresses without a decoded counter layout.</string>
+    <string name="counters_measure_maximum">Measure a maximum…</string>
+    <string name="counters_check_maximums">Check the maximums…</string>
+    <string name="counters_simulated">Simulated values</string>
+    <string name="counters_not_read">Current values not read</string>
+    <string name="counters_endianness">Multi-byte counters are little-endian. A percentage appears only where the layout data declares a maximum.</string>
+    <string name="counters_layout_uncertain">%1$s  (layout uncertain)</string>
+    <string name="legend_before_current">7F → 00  before → current  ·  </string>
+    <string name="legend_changed_highlighted">changed values highlighted</string>
+    <string name="ink_title">Ink</string>
+    <string name="status_title">Printer status</string>
+    <string name="status_standard_mib">standard MIB</string>
+    <string name="status_lifetime_pages">Lifetime pages</string>
+
+    <!-- ===== Inspector: InspectState.kt ===== -->
+    <string name="inspect_sweeping_progress">Sweeping…</string>
+
+    <plurals name="inspect_keys_answered">
+        <item quantity="one">%1$s key answered. Using %2$s.</item>
+        <item quantity="other">%1$s keys answered. Using %2$s.</item>
+    </plurals>
+    <string name="inspect_other_operation">Another printer operation is already in progress.</string>
+    <string name="inspect_trying_keys">Trying read keys…</string>
+    <string name="inspect_trying_keys_log">Trying %1$s known read keys — read-only, nothing is written.</string>
+    <string name="inspect_no_reply">No reply at all — the printer never opened a D4 channel. %1$s</string>
+    <string name="inspect_no_key_answered">None of the known read keys produced a reading.</string>
+    <string name="inspect_many_keys">More than one key answered, so this firmware probably doesn't check the read key. The sweep is the useful result, not the key.</string>
+    <string name="inspect_sweeping">Sweeping 0x0000–%1$s with key %2$s — read-only.</string>
+    <string name="inspect_sweep_failed">Sweep failed: %1$s</string>
+    <string name="inspect_no_address">No address answered. The key is probably wrong.</string>
+    <string name="inspect_nothing_swept">Nothing has been swept yet.</string>
+
+    <plurals name="inspect_sweep_read">
+        <item quantity="one">Read %1$s of %2$s addresses; %3$s candidate counter.</item>
+        <item quantity="other">Read %1$s of %2$s addresses; %3$s candidate counters.</item>
+    </plurals>
+
+    <!-- ===== Device inspector: InspectPanel.kt ===== -->
+    <string name="inspect_using_key">Using %1$s</string>
+    <string name="inspect_like_models"> · like %1$s</string>
+    <string name="inspect_target_readonly">Target: %1$s (%2$s) — read-only.</string>
+    <string name="inspect_target_readonly_no_pid">Target: %1$s — read-only.</string>
+    <string name="inspect_bytes">bytes</string>
+
+    <plurals name="inspect_probe_hits">
+        <item quantity="one">%1$s/%2$s probe</item>
+        <item quantity="other">%1$s/%2$s probes</item>
+    </plurals>
+    <string name="inspect_title">Device inspector</string>
+    <string name="inspect_intro">For a printer the database doesn't cover. Everything on this screen is read-only — no write is ever sent, so it is safe to run against a printer nobody has identified.</string>
+    <string name="inspect_no_printer">No printer detected. Plug the printer in, click No printer above, and rescan — this tab works on real hardware only.</string>
+    <string name="inspect_step_key_title">Find a read key</string>
+    <string name="inspect_step_key_blurb">Every model needs a 16-bit read key before it will report anything. Yours is probably one the database already knows — there are only a few hundred, and they run in families.</string>
+    <string name="inspect_try_keys">Try known keys</string>
+    <string name="inspect_cancel">Cancel</string>
+    <string name="inspect_several_keys">Several keys answered, so this printer probably doesn't check the key at all. Any of them will do — the sweep is the real finding.</string>
+    <string name="inspect_no_known_key">No known key produced a reading. This model may use a key nobody has recorded yet.</string>
+    <string name="inspect_step_sweep_title">Sweep the EEPROM</string>
+    <string name="inspect_step_sweep_blurb">Reads every address in range and shows what came back. Read-only: the read command carries no write key, so this cannot alter the printer.</string>
+    <string name="inspect_sweep_button">Sweep 0x0000–%1$s</string>
+    <string name="inspect_sweep_answered">%1$s of %2$s addresses answered</string>
+    <string name="inspect_step_candidates_title">Candidate counters</string>
+    <string name="inspect_step_candidates_blurb">Ranked by what the guess rests on. A family match means a model sharing your read key uses exactly these addresses — that is a good deal stronger than a byte pattern that merely looks like a count.</string>
+    <string name="inspect_run_sweep_first">Run a sweep first.</string>
+    <string name="inspect_nothing_looked_like">Nothing in the sweep looked like a counter.</string>
+    <string name="inspect_step_share_title">Share what you found</string>
+    <string name="inspect_step_share_blurb">The overlay makes this app read your printer straight away. The report belongs upstream at reinkpy, where both bundled files come from — a model added there reaches every tool built on it, not just this one.</string>
+    <string name="inspect_model_name">Model name</string>
+    <string name="inspect_copy_overlay">Copy overlay JSON</string>
+    <string name="inspect_copy_report">Copy report</string>
+    <string name="inspect_save_overlay">Save the overlay as counters-overlay.json next to the database cache (%1$s) and restart.</string>
+
+    <!-- ===== Snapshots, the state machine: SnapshotState.kt ===== -->
+    <string name="snap_other_operation">Another printer operation is already in progress.</string>
+    <string name="snap_pick_model_first">Pick the model first — a restore needs its write key.</string>
+    <string name="snap_generating">Generating restore sequence…</string>
+    <string name="snap_restoring">Restoring %1$s addresses to %2$s from the backup taken %3$s.</string>
+    <string name="snap_dry_run_note">DRY RUN — a live restore would read and save the current bytes before writing.</string>
+    <string name="snap_saving_overwritten">Saving the bytes about to be overwritten…</string>
+    <string name="snap_restore_complete">Restore complete — %1$s/%2$s writes acknowledged.</string>
+    <string name="snap_power_cycle">Power-cycle the printer to finalise the change.</string>
+    <string name="snap_restore_incomplete">The restore did not complete.</string>
+    <string name="snap_read_failed">Nothing was written — the bytes this restore would overwrite could not be read first (%1$s). Reads are unprivileged and safe to retry.</string>
+    <string name="snap_nothing_to_write">This snapshot writes nothing, so nothing was sent.</string>
+    <string name="snap_stopped_before_writing">Stopped before writing anything: %1$s of the addresses this restore would write did not answer the read, so they could not be saved first (%2$s). Reads are unprivileged and safe to retry.</string>
+    <string name="snap_saved_current">Saved the current bytes to %1$s — %2$s addresses, taken just before this restore.</string>
+    <string name="snap_could_not_save_first">Nothing was written — the current bytes could not be saved first %1$s</string>
+    <string name="snap_model_mismatch_warn">This backup is for %1$s but %2$s is selected. A live run would refuse.</string>
+    <string name="snap_select_target_printer">Select the printer to restore to first.</string>
+    <string name="snap_refusing_cross_model">That backup is for %1$s, but the selected printer is %2$s. Refusing to write one model's bytes to another.</string>
+    <string name="snap_refusing_cross_unit">That backup came from %1$s; this printer reports %2$s. Refusing to write.</string>
+    <string name="snap_ambiguous_units">%1$s %2$s units match and none can be told apart by serial.</string>
+    <string name="snap_untied_unit">This backup can't be tied to this exact unit — %1$s. Check you're pointed at the right printer.</string>
+    <string name="snap_select_printer_above">Select a printer from the target above.</string>
+    <string name="snap_choose_model_above">Choose the printer's model in the target above.</string>
+    <string name="snap_nothing_saved_busy">Nothing saved — another printer operation is already in progress.</string>
+    <string name="snap_nothing_saved">Nothing saved — %1$s</string>
+    <string name="snap_nothing_saved_detail">Nothing saved — %1$s.</string>
+    <string name="snap_target_changed">Nothing saved — the target printer changed while it was being read.</string>
+    <string name="snap_model_changed">Nothing saved — the target model changed while the printer was being read.</string>
+    <string name="snap_no_reading">Nothing saved — the printer produced no reading.</string>
+    <string name="snap_why_no_model">pick the model these counters belong to first</string>
+    <string name="snap_why_no_report">read the counters first — a snapshot stores bytes that were actually read</string>
+    <string name="snap_why_wrong_model">the last reading belongs to %1$s, not %2$s; read again</string>
+    <string name="snap_why_dry_run">these values came from the simulated EEPROM of a dry run, not from a printer. Switch to Live and read again</string>
+    <string name="snap_why_nothing_answered">nothing answered the last read, so there is nothing to save</string>
+    <string name="snap_why_no_addresses">%1$s has no resettable addresses to save</string>
+    <string name="snap_no_resettable">%1$s has no resettable addresses, so a snapshot would have nothing to put back.</string>
+    <string name="snap_not_saved_missing">Nothing saved: %1$s of the addresses a reset would write did not answer the read (%2$s), so a restore could not put them back. Reads are unprivileged and safe to retry.</string>
+    <string name="snap_saved">Snapshot saved as %1$s — %2$s addresses, %3$s differ from their reset value.</string>
+    <string name="snap_not_saved_error">Snapshot not saved: %1$s.</string>
+    <string name="snap_read_from_disk">Read %1$s from disk — %2$s, taken %3$s, %4$s addresses (%5$s differ from their reset value). No printer was involved.</string>
+    <string name="snap_read_printer_first">Read the printer first — what a restore would change is measured against it.</string>
+    <string name="snap_select_snapshot_first">Select a snapshot first.</string>
+    <string name="snap_choose_model_to_read">Choose %1$s in the target above so there is a model to read.</string>
+    <string name="snap_compare_model_mismatch">This snapshot is a %1$s but %2$s is selected. The same address is a different counter on each, so there is nothing to compare.</string>
+    <string name="snap_no_printer_selected">No printer is selected — choose one from the printer menu above.</string>
+    <string name="snap_compare_dry_run">Dry run invents a byte for every address, so comparing against it would show differences that are not real. Switch to Live to read this printer.</string>
+    <string name="snap_no_current_reading">There is no current reading to compare against — read the counters first.</string>
+    <string name="snap_compare_from_dry_run">That reading came from a dry run's simulated EEPROM, not from a printer. Switch to Live and read again before comparing.</string>
+    <string name="snap_compare_busy">Cannot read for comparison — another printer operation is already in progress.</string>
+    <string name="snap_compare_blocked">Cannot read for comparison — %1$s</string>
+    <string name="snap_compare_nothing_answered">Nothing answered the read, so there is nothing to compare against.</string>
+    <string name="snap_current_reading">Current reading</string>
+    <string name="snap_read_just_now">read just now</string>
+    <string name="snap_select_snapshot">Select a snapshot.</string>
+    <string name="snap_choose_model_for_key">Choose %1$s in the target above — a restore needs its write key.</string>
+    <string name="snap_restore_model_mismatch">This snapshot is a %1$s; %2$s is selected. Switch the selection before writing one model's bytes into another.</string>
+    <string name="snap_model_not_in_database">'%1$s' is not in the database, so its write key is unavailable.</string>
+    <string name="snap_selected_model">Selected %1$s — the model this snapshot was taken from.</string>
+
+    <plurals name="snap_missing_reset_addresses">
+        <item quantity="one">%1$s reset address did not answer the read, so the snapshot would be incomplete</item>
+        <item quantity="other">%1$s reset addresses did not answer the read, so the snapshot would be incomplete</item>
+    </plurals>
+
+    <!-- ===== Snapshots screen: SnapshotPanel.kt ===== -->
+    <string name="snap_title">Snapshots</string>
+    <string name="snap_saved_count">%1$s saved · %2$s</string>
+    <string name="snap_saved_count_filtered">%1$s for %2$s · %3$s total · %4$s</string>
+    <string name="snap_looking">Looking…</string>
+    <string name="snap_read_and_save">Read &amp; save</string>
+    <string name="snap_addr_count">%1$s addr</string>
+    <string name="snap_comparing">Comparing ▾</string>
+    <string name="snap_compare">Compare ▾</string>
+    <string name="snap_restore_title">Restore EEPROM — %1$s</string>
+    <string name="snap_restore_metadata">%1$s · snapshot %2$s</string>
+    <string name="snap_restore_confirm">Yes, restore EEPROM</string>
+
+    <plurals name="snap_address_count">
+        <item quantity="one">%1$s address</item>
+        <item quantity="other">%1$s addresses</item>
+    </plurals>
+    <string name="snap_refresh">Refresh</string>
+    <string name="snap_showing_filter">Showing %1$s only</string>
+    <string name="snap_show_all">Show all</string>
+    <string name="snap_none_for_model">No snapshots saved for %1$s. Use Read &amp; save above to capture one.</string>
+    <string name="snap_none_yet">Nothing saved yet. Use Read &amp; save above — or run a live reset, which takes one for itself before it writes anything.</string>
+    <string name="snap_create_title">Create snapshot</string>
+    <string name="snap_no_target">No target selected</string>
+    <string name="snap_create_blurb">Takes a fresh read from the printer and saves the reset/recovery addresses. Nothing is written.</string>
+    <string name="snap_would_be_saved_as">%1$s The snapshot would be saved as %2$s.</string>
+    <string name="snap_unreadable">unreadable — malformed, or a byte outside 0..255</string>
+    <string name="snap_none_selected">No snapshot selected</string>
+    <string name="snap_file_unreadable">This file could not be read</string>
+    <string name="snap_pick_one">Pick one on the left to read it back. The bytes are in the file, so nothing is asked of a printer — this works with nothing plugged in.</string>
+    <string name="snap_invalid_file">%1$s is not a valid snapshot. Loading rejects any byte outside 0..255, so a corrupt file fails here rather than at the printer.</string>
+    <string name="snap_no_layout_known">No counter layout is known for %1$s, so the saved bytes are shown as bytes. The table above is complete either way — the layout only decides which of them are one number.</string>
+    <string name="snap_restore_explainer">Restoring puts these bytes back at the addresses they came from — waste levels included. It is recovery from a half-finished run, not an undo for a successful one. What the printer holds now is read and saved as its own snapshot first, so the restore is itself undoable.\n\nComparing two snapshots taken either side of a known amount of printing shows which addresses actually move, and by how much. Comparing against the printer as it is now says whether a reset held.</string>
+    <string name="snap_simulating_write">Simulating the write — nothing reaches the printer</string>
+    <string name="snap_writing_back">Writing the saved bytes back</string>
+    <string name="snap_what_would_change">What restoring would change</string>
+    <string name="snap_not_read_yet">The printer has not been read, so what it holds now is unknown — only the saved byte each address would be given is shown. Read the printer to fill the left side.</string>
+    <string name="snap_nothing_would_change">Nothing would change: all %1$s addresses already hold the byte this snapshot saved.</string>
+    <string name="snap_differing">%1$s of %2$s addresses hold something other than the saved byte, and are the ones this would change — shown in red.</string>
+    <string name="snap_cancel">Cancel</string>
+    <string name="snap_save_then_restore">Save current, then restore</string>
+    <string name="snap_restore_without_saving">Restore without saving first</string>
+    <string name="snap_simulate_restore">Simulate restore — writes nothing</string>
+    <string name="snap_showing_the_write">Showing the write ▾</string>
+    <string name="snap_reading">Reading…</string>
+    <string name="snap_printer_now">The printer as it is now</string>
+    <string name="snap_back_to_saved">Back to the saved bytes</string>
+    <string name="snap_stop_comparing">Stop comparing</string>
+    <string name="snap_all_at_reset_value">Every address on the later side holds its reset value — if a reset ran between these two samples, it held.</string>
+    <string name="snap_unexplained_note">The printer maintains something here that this model's counter layout does not describe. Worth reporting with both snapshots — what it counts cannot be told from two readings, so nothing is assumed about it.</string>
+    <string name="snap_serial">serial %1$s</string>
+    <string name="snap_serial_not_recorded">not recorded</string>
+    <string name="snap_not_at_reset_value">%1$s not at their reset value</string>
+    <string name="snap_selected_model_label">Selected model: %1$s</string>
+    <string name="snap_none">none</string>
+    <string name="snap_select_model">Select %1$s</string>
+    <string name="snap_restore_headline">Write %1$s saved EEPROM bytes into %2$s.</string>
+    <string name="snap_restore_warning">These are historical values. They can increase counters and replace newer printer data.</string>
+    <string name="snap_restore_only_recovery">Use this only to recover from an interrupted reset or restore. It is not an undo for a successful reset.</string>
+    <string name="snap_restore_saves_first">The bytes now in the printer are read and saved as a new snapshot first, over the same connection. If they cannot all be read, nothing is written.</string>
+    <string name="snap_restore_no_save">The values currently in the printer are not saved first, so this write cannot be undone. Continue only if this snapshot is the recovery point you intend to apply.</string>
+
+    <plurals name="snap_unexplained_moved">
+        <item quantity="one">%1$s address moved that no counter claims</item>
+        <item quantity="other">%1$s addresses moved that no counter claims</item>
+    </plurals>
+
+    <!-- ===== Calibration form: CalibrationState.kt ===== -->
+    <string name="cal_overlay_removed">Removed %1$s.</string>
+    <string name="cal_name_the_model">Name the model this printer actually is.</string>
+    <string name="cal_name_is_family">'%1$s' names a family, not a unit. Pick the exact model — a maximum filed against a family cannot later be told from one measured on any of its members.</string>
+    <string name="cal_name_unknown">'%1$s' is not in the database. Fine if it is a model nobody has added yet; worth a second look otherwise.</string>
+    <string name="cal_overrides_confirmed">You confirmed this printer as %1$s — it names only "%2$s", which is a family. Filing it as %3$s replaces your own answer, so file the one you can read off the printer.</string>
+    <string name="cal_answers_family">This printer answers "%1$s" (%2$s), which is a family rather than a unit — %3$s is that family's database entry, not this printer's own answer. If %4$s is what the label says, it is the better name to file.</string>
+    <string name="cal_derived_from">The name above was derived from "%1$s" (%2$s), which covers several units. Check it against the label on the printer — a maximum filed against the wrong sibling cannot afterwards be told from one measured on the right one.</string>
+    <string name="cal_overrides_strongest">This printer names itself %1$s via %2$s, which is the strongest identification available here. Filing it as %3$s overrides that.</string>
+    <string name="cal_why_no_model">pick the model these counters belong to first</string>
+    <string name="cal_why_no_report">read the counters first — a calibration is a reading with a maximum attached</string>
+    <string name="cal_why_dry_run">these values came from the simulated EEPROM of a dry run, not from a printer. Switch to Live and read again</string>
+    <string name="cal_why_nothing_answered">nothing answered the last read, so there is nothing to measure</string>
+    <string name="cal_why_nothing_decoded">none of this model's counters decoded to a single non-zero number, so there is nothing to put a maximum on</string>
+    <string name="cal_applied">Applied to %1$s for this session: %2$s. Save the overlay to keep it after a restart.</string>
+    <string name="cal_applied_item">addr %1$s max %2$s → %3$s%</string>
+    <string name="cal_reverted">Counter layouts back to what is on disk. Any maximum applied to this session is gone; percentages are computed from the shipped figures again.</string>
+    <string name="cal_reload_failed">Could not reload the counter layouts: %1$s</string>
+    <string name="cal_no_overlay">No overlay file to remove at %1$s.</string>
+    <string name="cal_remove_failed">Could not remove the overlay: %1$s</string>
+    <string name="cal_no_file_manager">Could not open a file manager. The directory is %1$s</string>
+    <string name="cal_too_long">Too long to prefill — the report is on the clipboard, paste it into the form.</string>
+    <string name="cal_issue_opened">Opened a calibration issue for %1$s. Nothing has been sent: the form is yours to read and submit.</string>
+    <string name="cal_no_browser">Could not open a browser. The report is on the clipboard — file it at %1$s</string>
+
+    <!-- ===== Calibration screen: CalibrationPanel.kt ===== -->
+    <string name="cal_dialog_title">Contribute a calibration — %1$s</string>
+    <string name="cal_no_model">no model</string>
+    <string name="cal_nothing_yet">Nothing to calibrate yet — %1$s.</string>
+    <string name="cal_close">Close</string>
+    <string name="cal_note_label">Note (optional)</string>
+    <string name="cal_note_placeholder">Which tool reported the percentage, what the printer's panel said…</string>
+    <string name="cal_measure_title">Measure a counter maximum</string>
+    <string name="cal_models_with_limit">%1$s of %2$s models can show a percentage</string>
+    <string name="cal_intro">A percentage needs a maximum, and Epson publishes none — every one this app knows was measured off a printer. Yours can supply one: say what a counter reads at a moment its true percentage is known, and the maximum follows.</string>
+    <string name="cal_model_label">The model this printer actually is</string>
+    <string name="cal_model_placeholder">ET-2825</string>
+    <string name="cal_no_candidates">No candidates</string>
+    <string name="cal_pick">Pick…</string>
+    <string name="cal_siblings">%1$s models share this counter layout. The entry claims only the one named above — a shared layout is not proof of a shared pad capacity, and if a sibling ever measures differently, these names are what let the group be split.</string>
+    <string name="cal_source_reported">reported by the printer</string>
+    <string name="cal_source_confirmed">confirmed by you</string>
+    <string name="cal_source_selected">selected in the target</string>
+    <string name="cal_no_maximum">This app has no maximum for this counter, so it shows no percentage. That is what is missing.</string>
+    <string name="cal_has_maximum">This app has max %1$s, so it shows %2$s%. Measuring it again is still worth doing — that figure came from one printer.</string>
+    <string name="cal_percent_label">Percentage another tool shows</string>
+    <string name="cal_percent_placeholder">60.90</string>
+    <string name="cal_count_label">…and the count it shows</string>
+    <string name="cal_service_required">…or the printer is saying service required right now</string>
+    <string name="cal_not_measured">Not measured — leave it blank if you have nothing to say about this counter.</string>
+    <string name="cal_cannot_calibrate">Cannot calibrate this counter — %1$s.</string>
+    <string name="cal_result">max %1$s  ·  shows %2$s%3$s</string>
+    <string name="cal_result_range">  ·  consistent with %1$s–%2$s</string>
+    <string name="cal_fills_a_gap">New — this model had no maximum for this counter.</string>
+    <string name="cal_confirms">Confirms the %1$s already on file. Worth filing anyway: that figure rests on one printer, and this is a second.</string>
+    <string name="cal_disagrees">Disagrees with the %1$s already on file, which would show %2$s%. Both came from one printer each, so this is a finding — file it rather than assuming either is wrong.</string>
+    <string name="cal_limit_marker">This byte reads 94 (0x5E), which is Epson's limit marker rather than a count — those read 94 always. Worth checking it really is a counter before filing this.</string>
+    <string name="cal_loose_decimals">That percentage was given to few decimals, so it brackets the maximum loosely. Type every digit the other tool shows.</string>
+    <string name="cal_report_contains">What the report contains</string>
+    <string name="cal_report_body">Model, firmware and connection; the counters above with their values and what this app currently believes about each; %1$sand the printer's raw status block, undecoded.</string>
+    <string name="cal_report_no_ink">no ink levels (this printer reported none); </string>
+    <string name="cal_report_ink">ink levels (%1$s); </string>
+    <string name="cal_no_serial">Not the serial number. A pad capacity is a model constant, so the serial would identify your printer in a public issue while adding nothing. Nothing is sent on its own either: "Open an issue" fills in a form in your browser for you to read and submit.</string>
+    <string name="cal_open_issue">Open an issue</string>
+    <string name="cal_applied_label">Applied</string>
+    <string name="cal_use_maximum">Use this maximum now</string>
+    <string name="cal_undo">Undo</string>
+    <string name="cal_copy_entry">Copy entry</string>
+    <string name="cal_copy_overlay">Copy overlay</string>
+    <string name="cal_copy_report">Copy report</string>
+    <string name="cal_session_note">Every percentage for this model is now divided by the maximum above, for this session only — Undo puts it back, and so does restarting. To keep it, save the overlay as counters-overlay.json in the data directory (%1$s); that one survives a restart and is undone only by deleting the file, which Settings can do. And file the issue, so nobody with this model has to measure it again.</string>
+
+    <!-- ===== View model: ResetViewModel.kt =====
+         The log-copy header (# libusb:, # database: …) is absent on purpose and stays English. -->
+    <string name="vm_progress_packet">Packet %1$s / %2$s — %3$s</string>
+    <string name="vm_verifying">Verifying…</string>
+    <string name="vm_and_more"> +%1$s more</string>
+    <string name="vm_downloading">Downloading…</string>
+    <string name="vm_database_updated_status">Updated — %1$s models.</string>
+    <string name="vm_forgot">Forgot %1$s.</string>
+    <string name="vm_testing_device">Testing %1$s on %2$s…</string>
+    <string name="vm_serial">Serial: %1$s</string>
+    <string name="vm_read_of_addresses">Read %1$s of %2$s addresses.</string>
+    <string name="via_usb_descriptor">its USB descriptor</string>
+    <string name="via_usb_ejl">an EJL query over USB</string>
+    <string name="via_network_advert">its network advertisement</string>
+    <string name="via_snmp">SNMP</string>
+    <string name="via_snmp_cross_link">SNMP on its network address</string>
+    <string name="via_confirmed">you</string>
+
+    <string name="vm_busy_remembered_models">Wait for the current printer operation to finish before changing remembered models.</string>
+    <string name="vm_busy_target">Wait for the current printer operation to finish before changing the target.</string>
+    <string name="vm_busy_scan">Wait for the current printer operation to finish before scanning again.</string>
+    <string name="vm_busy_printers">Wait for the current printer operation to finish before changing printers.</string>
+    <string name="vm_busy_add">Wait for the current printer operation to finish before adding a printer.</string>
+    <string name="vm_busy_forget">Wait for the current printer operation to finish before forgetting a printer.</string>
+    <string name="vm_busy_test">Wait for the current printer operation to finish before testing the connection.</string>
+    <string name="vm_busy_models">Wait for the current printer operation to finish before changing models.</string>
+    <string name="vm_busy_overview">Wait for the current printer operation to finish before refreshing overview.</string>
+    <string name="vm_busy_read">Wait for the current printer operation to finish before reading counters.</string>
+    <string name="vm_busy_reset">Wait for the current printer operation to finish before starting a reset.</string>
+
+    <string name="vm_forgot_model">Forgot the remembered model for %1$s.</string>
+    <string name="vm_model_mismatch">This printer identifies itself as %1$s, but %2$s is selected. A live run would write %3$s's write key and addresses into a %4$s.</string>
+    <string name="vm_family_blocked">This printer reports itself as "%1$s", which names a family of %2$s models that do not share a reset recipe. Choose the model printed on the printer.</string>
+    <string name="vm_not_reached">The selected printer was not reached. Rescan or test its connection before using live mode.</string>
+    <string name="vm_network_refused">This printer answered identity and status over the network but refused counter access. Connect it over USB to reset.</string>
+    <string name="vm_models_loaded">Loaded %1$s printer models (%2$s).</string>
+    <string name="vm_layouts_loaded">Counter layouts for %1$s models.</string>
+    <string name="vm_overlay_applied">User overlay applied from %1$s.</string>
+    <string name="vm_overlay_ignored">Overlay ignored — %1$s</string>
+    <string name="vm_layouts_unavailable">Counter layouts unavailable: %1$s</string>
+    <string name="vm_database_failed">Could not load the printer database: %1$s</string>
+    <string name="vm_downloading_database">Downloading the latest printer database…</string>
+    <string name="vm_database_updated">Database updated — %1$s models.</string>
+    <string name="vm_database_download_failed">Could not download the database. Keeping the current copy.</string>
+    <string name="vm_database_update_failed">Database update failed: %1$s. Keeping the current copy.</string>
+    <string name="vm_scan_stopped">Printer scan stopped.</string>
+    <string name="vm_libusb_missing">libusb is not installed — %1$s</string>
+    <string name="vm_usb_scan_failed">USB scan failed — %1$s</string>
+    <string name="vm_dry_runs_still_work">%1$s Dry runs still work.</string>
+    <string name="vm_network_unavailable">Network discovery unavailable — %1$s</string>
+    <string name="vm_no_printers_found">No Epson printers found on USB or the network.</string>
+    <string name="vm_match_exact">matched exactly</string>
+    <string name="vm_match_likely">matched (likely — please confirm)</string>
+    <string name="vm_match_family">matched to a family, not to a unit</string>
+    <string name="vm_match_none">unmatched</string>
+    <string name="vm_matched_log">%1$s on %2$s → %3$s (%4$s).</string>
+    <string name="vm_no_database_entry">%1$s did not match any database entry — pick the model manually.</string>
+    <string name="vm_cross_link_conflict">This printer's descriptor matches %1$s, but the same serial answers SNMP at %2$s as %3$s — and the two do not write the same bytes (rkey %4$s against %5$s). Pick the one on the label before running live.</string>
+    <string name="vm_cross_link_used">The same serial answers SNMP at %1$s as %2$s. Using that: the descriptor says only "%3$s", which names a family.</string>
+    <string name="vm_family_remembered">"%1$s" names a family; this printer was confirmed as %2$s before.</string>
+    <string name="vm_family_pick">This printer reports "%1$s", which covers %2$s models that do not share a reset recipe. Pick the model printed on the printer itself — another member's key would be written to this one otherwise.</string>
+    <string name="vm_bad_address">'%1$s' is not an address or hostname.</string>
+    <string name="vm_added_address">Added %1$s. Asking what is there…</string>
+    <string name="vm_saved_no_answer">Saved address did not answer the connection test.</string>
+    <string name="vm_reports_itself_as">Reports itself as: %1$s</string>
+    <string name="vm_firmware">Firmware: %1$s</string>
+    <string name="vm_matched_from_report">Matched to %1$s from what the printer reported.</string>
+    <string name="vm_mismatch_dry_ok">%1$s Dry runs still work; a live run will refuse.</string>
+    <string name="vm_session_only_model">Using %1$s for this printer, for this session — nothing identifies it well enough to remember the choice.</string>
+    <string name="vm_remembered_choice">Remembered: the printer at %1$s reporting "%2$s" is a %3$s.</string>
+    <string name="vm_forgot_choice">Forgot the choice for this printer.</string>
+    <string name="vm_forgot_choice_reports">Forgot the choice for this printer. It reports "%1$s" — pick again.</string>
+    <string name="vm_back_to_model">Back to %1$s, which is what this printer reports itself as.</string>
+    <string name="vm_cancelling">Cancelling after the current packet…</string>
+    <string name="vm_select_printer_overview">Select a printer before refreshing overview.</string>
+    <string name="vm_refreshing_overview">Refreshing printer overview…</string>
+    <string name="vm_refreshing_overview_for">Refreshing overview for %1$s…</string>
+    <string name="vm_mib_unavailable">Printer-MIB information was unavailable: %1$s.</string>
+    <string name="vm_overview_cancelled">Overview refresh cancelled; available results were kept.</string>
+    <string name="vm_overview_complete">Overview refresh complete.</string>
+    <string name="vm_reading_counters">Reading counters…</string>
+    <string name="vm_reading_address">Reading address %1$s (%2$s / %3$s)</string>
+    <string name="vm_lifetime_pages">Lifetime pages: %1$s</string>
+    <string name="vm_read_failed">Read failed: %1$s</string>
+    <string name="vm_no_answer_at_all">The printer did not answer any of the %1$s read requests.</string>
+    <string name="vm_partial_read">Read %1$s of %2$s addresses; the rest did not answer.</string>
+    <string name="vm_all_at_reset">Read %1$s addresses — all already at their reset values.</string>
+    <string name="vm_dry_run_values">DRY RUN — values came from a simulated EEPROM, not your printer.</string>
+    <string name="vm_generating">Generating sequence…</string>
+    <string name="vm_generated">Generated %1$s packets for %2$s (%3$s EEPROM writes).</string>
+    <string name="vm_dry_run_nothing_written">DRY RUN — nothing will be written to the printer.</string>
+    <string name="vm_live_would_refuse">%1$s A live run would refuse.</string>
+    <string name="vm_reading_before_reset">Reading counters before reset…</string>
+    <string name="vm_blocker_clear_it">%1$s Clear it and run again — nothing was written.</string>
+    <string name="vm_backing_up">Backing up the bytes about to be written…</string>
+    <string name="vm_readback_unavailable">Writes were acknowledged, but the counters could not be read back.</string>
+    <string name="vm_readback_failed">Writes were acknowledged, but read-back failed: %1$s</string>
+    <string name="vm_readback_partial">Writes were acknowledged, but only %1$s/%2$s addresses were read back.</string>
+    <string name="vm_readback_not_reset">Writes were acknowledged, but read-back found values that did not reset.</string>
+    <string name="vm_dry_run_complete">Dry run complete — %1$s writes generated and verified against the fake device.</string>
+    <string name="vm_reset_complete">Reset complete — all %1$s EEPROM values verified by read-back.</string>
+    <string name="vm_power_cycle_now">Power-cycle the printer now to finalise the change.</string>
+    <string name="vm_reset_incomplete">The reset did not complete.</string>
+    <string name="vm_no_write_packets">The sequence contains no EEPROM write packets — nothing was reset.</string>
+    <string name="vm_dry_run_would_stop">Dry run: %1$s did not answer, so a real run would stop here (%2$s).</string>
+    <string name="vm_stopped_no_backup">Stopped before writing anything: %1$s of the addresses this reset would write could not be read back, so they cannot be backed up (%2$s). Reads are unprivileged and safe to retry.</string>
+    <string name="vm_dry_run_backup">DRY RUN — %1$s addresses would be backed up; no file written.</string>
+    <string name="vm_backed_up">Backed up %1$s addresses to %2$s (%3$s will change).</string>
+    <string name="vm_readback_unverified">Could not read the counters back, so the reset is unverified.</string>
+    <string name="vm_verified">Verified by read-back: all %1$s addresses now hold their reset values (%2$s changed).</string>
+    <string name="vm_backup_not_saved">Stopped before writing anything: the backup could not be saved (%1$s).</string>
+    <string name="vm_transport_no_printer">Could not open the printer.</string>
+    <string name="vm_no_printer_selected">No printer selected.</string>
+
+    <plurals name="vm_forgot_choices">
+        <item quantity="one">Forgot %1$s remembered model choice.</item>
+        <item quantity="other">Forgot %1$s remembered model choices.</item>
+    </plurals>
+
+    <plurals name="vm_devices_found">
+        <item quantity="one">Found %1$s Epson device — %2$s on USB, %3$s on the network.</item>
+        <item quantity="other">Found %1$s Epson devices — %2$s on USB, %3$s on the network.</item>
+    </plurals>
+
+    <plurals name="vm_writes_acknowledged">
+        <item quantity="one">%1$s write was acknowledged before this stopped. The pre-write bytes are saved in %2$s — restore it to put them back.</item>
+        <item quantity="other">%1$s writes were acknowledged before this stopped. The pre-write bytes are saved in %2$s — restore it to put them back.</item>
+    </plurals>
+
+    <plurals name="vm_dry_run_missing">
+        <item quantity="one">%1$s address</item>
+        <item quantity="other">%1$s addresses</item>
+    </plurals>
+
+    <plurals name="vm_stuck_addresses">
+        <item quantity="one">Read-back shows %1$s address not at the reset value: </item>
+        <item quantity="other">Read-back shows %1$s addresses not at the reset value: </item>
+    </plurals>
+
+    <!-- ===== Top bar: App.kt ===== -->
+    <string name="topbar_database">%1$s models · %2$s</string>
+    <string name="topbar_database_error">database error</string>
+    <string name="topbar_database_loading">loading database…</string>
+    <string name="topbar_update_available">Update available — %1$s</string>
+
+    <!-- ===== Sweep candidates: probe/SweepAnalysis.kt, probe/DeviceInspector.kt =====
+         The markdown probe report is filed upstream and stays English. -->
+    <string name="sweep_waste_counter">Waste counter</string>
+    <string name="sweep_why_limit_byte">adjacent little-endian pair bordered by a 0x5E limit byte</string>
+    <string name="sweep_why_plausible">adjacent little-endian pair holding a plausible count</string>
+    <string name="sweep_channel_never_opened">The D4 channel never opened — the printer answered nothing.</string>
+    <string name="sweep_trying_key">Trying key %1$s</string>
+    <string name="sweep_key_answered">Key %1$s answered %2$s/%3$s probes%4$s</string>
+    <string name="sweep_key_used_by"> (used by %1$s)</string>
+    <string name="sweep_no_channel">The D4 channel never opened.</string>
+    <string name="sweep_cancelled">Cancelled after %1$s of %2$s reads.</string>
+    <string name="sweep_reading">Reading %1$s</string>
+
+    <!-- ===== Log panel: LogPanel.kt ===== -->
+    <string name="log_title">Log</string>
+    <string name="log_show">Show</string>
+    <string name="log_hide">Hide</string>
+    <string name="log_hide_trace">Hide packet trace</string>
+    <string name="log_show_trace">Show packet trace</string>
+    <string name="log_copy">Copy</string>
+    <string name="log_clear">Clear</string>
+
+</resources>

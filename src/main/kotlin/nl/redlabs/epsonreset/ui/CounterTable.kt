@@ -40,9 +40,44 @@ import androidx.compose.ui.unit.dp
 import nl.redlabs.epsonreset.db.CounterSpec
 import nl.redlabs.epsonreset.db.PadGroup
 import nl.redlabs.epsonreset.db.PadKind
+import nl.redlabs.epsonreset.i18n.StatusText
+import nl.redlabs.epsonreset.i18n.Strings
+import nl.redlabs.epsonreset.i18n.resolve
 import nl.redlabs.epsonreset.net.PrinterMib
 import nl.redlabs.epsonreset.protocol.CounterReader
 import nl.redlabs.epsonreset.protocol.Status
+import nl.redlabs.epsonreset.resources.Res
+import nl.redlabs.epsonreset.resources.counters_answered
+import nl.redlabs.epsonreset.resources.counters_check_maximums
+import nl.redlabs.epsonreset.resources.counters_coverage
+import nl.redlabs.epsonreset.resources.counters_detail_bytes_only
+import nl.redlabs.epsonreset.resources.counters_detail_no_maximum
+import nl.redlabs.epsonreset.resources.counters_detail_percent
+import nl.redlabs.epsonreset.resources.counters_endianness
+import nl.redlabs.epsonreset.resources.counters_layout_uncertain
+import nl.redlabs.epsonreset.resources.counters_measure_maximum
+import nl.redlabs.epsonreset.resources.counters_not_read
+import nl.redlabs.epsonreset.resources.counters_other_bytes
+import nl.redlabs.epsonreset.resources.counters_other_bytes_detail
+import nl.redlabs.epsonreset.resources.counters_simulated
+import nl.redlabs.epsonreset.resources.counters_title
+import nl.redlabs.epsonreset.resources.ink_title
+import nl.redlabs.epsonreset.resources.legend_before_current
+import nl.redlabs.epsonreset.resources.legend_changed_highlighted
+import nl.redlabs.epsonreset.resources.legend_main
+import nl.redlabs.epsonreset.resources.legend_platen
+import nl.redlabs.epsonreset.resources.legend_target
+import nl.redlabs.epsonreset.resources.legend_unclassified
+import nl.redlabs.epsonreset.resources.status_lifetime_pages
+import nl.redlabs.epsonreset.resources.status_standard_mib
+import nl.redlabs.epsonreset.resources.status_title
+import nl.redlabs.epsonreset.resources.supply_level_none
+import nl.redlabs.epsonreset.resources.supply_percent_full
+import nl.redlabs.epsonreset.resources.supply_unnamed
+import nl.redlabs.epsonreset.resources.table_eeprom_bytes
+import nl.redlabs.epsonreset.resources.table_other_eeprom_bytes
+import org.jetbrains.compose.resources.StringResource
+import org.jetbrains.compose.resources.stringResource
 
 internal data class OverviewCounterRow(
     val description: String,
@@ -62,8 +97,11 @@ internal fun overviewCounterLevel(percent: Double): OverviewCounterLevel = when 
     else -> OverviewCounterLevel.LOW
 }
 
-internal fun overviewCounterCoverageLabel(report: CounterReader.Report): String? =
-    if (report.answered < report.total) "${report.answered}/${report.total} addresses reported" else null
+internal fun overviewCounterCoverageLabel(report: CounterReader.Report): String? = if (report.answered < report.total) {
+    Strings.get(Res.string.counters_coverage, report.answered, report.total)
+} else {
+    null
+}
 
 /** Whether the percentage/value summary has at least one decoded, reported counter to show. */
 internal fun overviewCounterSummaryAvailable(report: CounterReader.Report?, specs: List<CounterSpec>): Boolean =
@@ -87,9 +125,11 @@ internal fun overviewCounterRows(report: CounterReader.Report, specs: List<Count
             maximum = maximum,
             percent = counter.percent,
             detail = when {
-                counter.value == null -> "Current bytes; the complete counter value was not available."
-                maximum != null -> "%.1f%% of measured maximum".format(counter.percent)
-                else -> "Maximum not measured"
+                counter.value == null -> Strings.get(Res.string.counters_detail_bytes_only)
+                maximum != null ->
+                    Strings.get(Res.string.counters_detail_percent, "%.1f".format(counter.percent))
+
+                else -> Strings.get(Res.string.counters_detail_no_maximum)
             },
             uncertain = counter.spec.isUncertain,
         )
@@ -99,12 +139,12 @@ internal fun overviewCounterRows(report: CounterReader.Report, specs: List<Count
     val other = report.readings.filter { it.value != null && it.address !in describedAddresses }
     if (other.isNotEmpty()) {
         rows += OverviewCounterRow(
-            description = "Other counter bytes",
+            description = Strings.get(Res.string.counters_other_bytes),
             current = other.joinToString("  ") { "${it.address}=%02X".format(it.value) },
             value = null,
             maximum = null,
             percent = null,
-            detail = "Reported addresses without a decoded counter layout.",
+            detail = Strings.get(Res.string.counters_other_bytes_detail),
             uncertain = true,
         )
     }
@@ -131,7 +171,11 @@ fun OverviewCountersCard(
             .padding(14.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Counters", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            Text(
+                stringResource(Res.string.counters_title),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+            )
             Spacer(Modifier.weight(1f))
             overviewCounterCoverageLabel(report)?.let { coverage ->
                 Text(coverage, style = MaterialTheme.typography.labelSmall, color = StatusColors.warn)
@@ -139,7 +183,7 @@ fun OverviewCountersCard(
             if (onCalibrate != null && rows.any { it.value != null && it.maximum == null }) {
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    "Measure a maximum…",
+                    stringResource(Res.string.counters_measure_maximum),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.clickable(onClick = onCalibrate).padding(horizontal = 8.dp, vertical = 2.dp),
@@ -269,15 +313,16 @@ fun CounterOverview(
     ) {
         Row(Modifier.height(24.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(
-                "Counters",
+                stringResource(Res.string.counters_title),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
             )
             Spacer(Modifier.weight(1f))
             val coverageLabel = when {
-                simulated -> "Simulated values"
-                layoutOnly -> "Current values not read"
-                report.answered < report.total -> "${report.answered}/${report.total} answered"
+                simulated -> stringResource(Res.string.counters_simulated)
+                layoutOnly -> stringResource(Res.string.counters_not_read)
+                report.answered < report.total ->
+                    stringResource(Res.string.counters_answered, report.answered, report.total)
                 else -> null
             }
             coverageLabel?.let {
@@ -298,9 +343,9 @@ fun CounterOverview(
                 Spacer(Modifier.width(8.dp))
                 Text(
                     if (counters.any { c -> c.percent == null }) {
-                        "Measure a maximum…"
+                        stringResource(Res.string.counters_measure_maximum)
                     } else {
-                        "Check the maximums…"
+                        stringResource(Res.string.counters_check_maximums)
                     },
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.primary,
@@ -340,7 +385,11 @@ fun CounterOverview(
             if (counters.isNotEmpty()) HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
             Column(Modifier.padding(vertical = 5.dp)) {
                 Text(
-                    if (counters.isEmpty()) "EEPROM bytes" else "Other EEPROM bytes",
+                    if (counters.isEmpty()) {
+                        stringResource(Res.string.table_eeprom_bytes)
+                    } else {
+                        stringResource(Res.string.table_other_eeprom_bytes)
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -367,8 +416,7 @@ fun CounterOverview(
         ByteLegend(showBefore, plan.targetLabel)
         Spacer(Modifier.height(6.dp))
         Text(
-            "Multi-byte counters are little-endian. A percentage appears only where the layout " +
-                "data declares a maximum.",
+            stringResource(Res.string.counters_endianness),
             style = MaterialTheme.typography.labelSmall,
             color = StatusColors.muted,
         )
@@ -400,7 +448,11 @@ private fun CounterByteRow(
     Column(Modifier.padding(vertical = 5.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                counter.spec.description + if (counter.spec.isUncertain) "  (layout uncertain)" else "",
+                if (counter.spec.isUncertain) {
+                    stringResource(Res.string.counters_layout_uncertain, counter.spec.description)
+                } else {
+                    counter.spec.description
+                },
                 style = MaterialTheme.typography.bodySmall,
                 color = if (counter.spec.isUncertain) StatusColors.warn else MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.weight(1f),
@@ -616,24 +668,24 @@ private fun ByteChip(cell: ByteCell, showBefore: Boolean) {
 private fun byteHex(value: Int?): String = value?.let { "%02X".format(it) } ?: "--"
 
 @Composable
-private fun ByteLegend(showBefore: Boolean, targetLabel: String) {
+private fun ByteLegend(showBefore: Boolean, targetLabel: StringResource) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        LegendItem("M", "Main", MaterialTheme.colorScheme.primary)
+        LegendItem("M", stringResource(Res.string.legend_main), MaterialTheme.colorScheme.primary)
         Spacer(Modifier.width(12.dp))
-        LegendItem("P", "Platen", StatusColors.warn)
+        LegendItem("P", stringResource(Res.string.legend_platen), StatusColors.warn)
         Spacer(Modifier.width(12.dp))
-        LegendItem("?", "Unclassified", StatusColors.muted)
+        LegendItem("?", stringResource(Res.string.legend_unclassified), StatusColors.muted)
         Spacer(Modifier.weight(1f))
         if (showBefore) {
             Row {
                 Text(
-                    "7F → 00  before → current  ·  ",
+                    stringResource(Res.string.legend_before_current),
                     style = MaterialTheme.typography.labelSmall,
                     fontFamily = FontFamily.Monospace,
                     color = StatusColors.muted,
                 )
                 Text(
-                    "changed values highlighted",
+                    stringResource(Res.string.legend_changed_highlighted),
                     style = MaterialTheme.typography.labelSmall,
                     fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.SemiBold,
@@ -656,7 +708,7 @@ private fun ByteLegend(showBefore: Boolean, targetLabel: String) {
                     color = StatusColors.bad,
                 )
                 Text(
-                    "  $targetLabel, red where it differs from the byte on the left",
+                    stringResource(Res.string.legend_target, stringResource(targetLabel)),
                     style = MaterialTheme.typography.labelSmall,
                     fontFamily = FontFamily.Monospace,
                     color = StatusColors.muted,
@@ -719,7 +771,7 @@ fun SuppliesCard(status: Status.Report?, mib: PrinterMib.Reading?, modifier: Mod
                     color = MaterialTheme.colorScheme.surfaceVariant,
                 )
             }
-            if (statusShown) StatusColumn(mib?.lifeCount, supplies, Modifier.weight(1f))
+            if (statusShown) StatusColumn(mib.lifeCount, supplies, Modifier.weight(1f))
         }
     }
 }
@@ -729,7 +781,11 @@ fun SuppliesCard(status: Status.Report?, mib: PrinterMib.Reading?, modifier: Mod
 private fun InkColumn(levels: List<Status.InkLevel>, serial: String?, modifier: Modifier = Modifier) {
     Column(modifier) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Ink", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            Text(
+                stringResource(Res.string.ink_title),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+            )
             Spacer(Modifier.weight(1f))
             serial?.let {
                 Text(
@@ -746,7 +802,7 @@ private fun InkColumn(levels: List<Status.InkLevel>, serial: String?, modifier: 
         for (ink in levels) {
             Row(Modifier.padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    ink.colour,
+                    StatusText.inkColour(ink).resolve(),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.width(96.dp),
@@ -786,16 +842,24 @@ private fun InkColumn(levels: List<Status.InkLevel>, serial: String?, modifier: 
 private fun StatusColumn(lifeCount: Long?, supplies: List<PrinterMib.Supply>, modifier: Modifier = Modifier) {
     Column(modifier) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Printer status", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            Text(
+                stringResource(Res.string.status_title),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+            )
             Spacer(Modifier.weight(1f))
-            Text("standard MIB", style = MaterialTheme.typography.labelSmall, color = StatusColors.muted)
+            Text(
+                stringResource(Res.string.status_standard_mib),
+                style = MaterialTheme.typography.labelSmall,
+                color = StatusColors.muted,
+            )
         }
 
         lifeCount?.let { pages ->
             Spacer(Modifier.height(10.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    "Lifetime pages",
+                    stringResource(Res.string.status_lifetime_pages),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.weight(1f),
@@ -832,9 +896,10 @@ private fun inkColour(name: String, isLow: Boolean): Color = when {
 
 @Composable
 private fun SupplyRow(supply: PrinterMib.Supply) {
-    val name = supply.description.ifBlank {
-        supply.colour ?: supply.typeLabel ?: "Supply ${supply.index}"
-    }
+    val name = supply.description.takeIf { it.isNotBlank() }
+        ?: supply.colour
+        ?: supply.typeLabel?.resolve()
+        ?: stringResource(Res.string.supply_unnamed, supply.index)
 
     Row(Modifier.padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(
@@ -865,7 +930,11 @@ private fun SupplyRow(supply: PrinterMib.Supply) {
             }
             Text(
                 // A receptacle's level is how full it is; a consumable's, how much is left.
-                if (supply.isWaste) "%3d%% full".format(percent) else "%3d%%".format(percent),
+                if (supply.isWaste) {
+                    stringResource(Res.string.supply_percent_full, "%3d%%".format(percent))
+                } else {
+                    "%3d%%".format(percent)
+                },
                 style = MaterialTheme.typography.labelMedium,
                 fontFamily = FontFamily.Monospace,
                 fontWeight = if (supply.isWarn) FontWeight.Bold else FontWeight.Normal,
@@ -874,7 +943,7 @@ private fun SupplyRow(supply: PrinterMib.Supply) {
             )
         } else {
             Text(
-                supply.levelNote ?: "—",
+                supply.levelNote?.resolve() ?: stringResource(Res.string.supply_level_none),
                 style = MaterialTheme.typography.labelMedium,
                 color = StatusColors.muted,
                 modifier = Modifier.weight(1f),

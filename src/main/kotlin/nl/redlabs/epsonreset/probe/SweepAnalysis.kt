@@ -3,6 +3,11 @@ package nl.redlabs.epsonreset.probe
 import nl.redlabs.epsonreset.db.CounterSpec
 import nl.redlabs.epsonreset.db.PrinterModel
 import nl.redlabs.epsonreset.device.DetectedPrinter
+import nl.redlabs.epsonreset.i18n.Strings
+import nl.redlabs.epsonreset.resources.Res
+import nl.redlabs.epsonreset.resources.sweep_waste_counter
+import nl.redlabs.epsonreset.resources.sweep_why_limit_byte
+import nl.redlabs.epsonreset.resources.sweep_why_plausible
 
 /** Turns a raw address sweep into something a person can act on. */
 object SweepAnalysis {
@@ -14,7 +19,7 @@ object SweepAnalysis {
         val value: Long?,
         val confidence: Confidence,
         val why: String,
-        val description: String = "Waste counter",
+        val description: String = Strings.get(Res.string.sweep_waste_counter),
     ) {
         val label: String get() = addresses.joinToString(", ") { "0x%02X".format(it) }
     }
@@ -80,9 +85,9 @@ object SweepAnalysis {
                 value = value,
                 confidence = if (nearLimit) Confidence.LIKELY else Confidence.WEAK,
                 why = if (nearLimit) {
-                    "adjacent little-endian pair bordered by a 0x5E limit byte"
+                    Strings.get(Res.string.sweep_why_limit_byte)
                 } else {
-                    "adjacent little-endian pair holding a plausible count"
+                    Strings.get(Res.string.sweep_why_plausible)
                 },
             )
         }

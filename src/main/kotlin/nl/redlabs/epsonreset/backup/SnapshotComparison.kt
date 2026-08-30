@@ -1,7 +1,21 @@
 package nl.redlabs.epsonreset.backup
 
 import nl.redlabs.epsonreset.db.CounterSpec
+import nl.redlabs.epsonreset.i18n.UiText
+import nl.redlabs.epsonreset.i18n.resolveNow
 import nl.redlabs.epsonreset.protocol.CounterReader
+import nl.redlabs.epsonreset.resources.Res
+import nl.redlabs.epsonreset.resources.comparison_changed_count
+import nl.redlabs.epsonreset.resources.comparison_changed_no_counter
+import nl.redlabs.epsonreset.resources.comparison_delta_changed
+import nl.redlabs.epsonreset.resources.comparison_delta_none
+import nl.redlabs.epsonreset.resources.comparison_layout_uncertain
+import nl.redlabs.epsonreset.resources.comparison_note_missing
+import nl.redlabs.epsonreset.resources.comparison_note_models
+import nl.redlabs.epsonreset.resources.comparison_note_serials
+import nl.redlabs.epsonreset.resources.comparison_nothing_comparable
+import nl.redlabs.epsonreset.resources.comparison_nothing_moved
+import nl.redlabs.epsonreset.resources.comparison_summary_moved
 
 /** Two samples of the same printer's counters, and what moved between them. */
 object SnapshotComparison {
@@ -34,8 +48,12 @@ object SnapshotComparison {
         /** True when any constituent byte differs. */
         val moved: Boolean get() = beforeBytes != afterBytes
 
-        val label: String
-            get() = spec.description + if (spec.isUncertain) "  (layout uncertain)" else ""
+        val label: UiText
+            get() = if (spec.isUncertain) {
+                UiText.of(Res.string.comparison_layout_uncertain, spec.description)
+            } else {
+                UiText.raw(spec.description)
+            }
 
         /** `3865 → 3901`, or the bytes when the group isn't one number. */
         val display: String
@@ -44,8 +62,13 @@ object SnapshotComparison {
                 else -> "${hex(beforeBytes)} → ${hex(afterBytes)}"
             }
 
-        val deltaLabel: String
-            get() = delta?.let { if (it > 0) "+$it" else it.toString() } ?: if (moved) "changed" else "—"
+        val deltaLabel: UiText
+            get() = delta?.let { UiText.raw(if (it > 0) "+$it" else it.toString()) }
+                ?: if (moved) {
+                    UiText.of(Res.string.comparison_delta_changed)
+                } else {
+                    UiText.of(Res.string.comparison_delta_none)
+                }
 
         private fun hex(bytes: List<Int?>): String =
             bytes.joinToString(" ") { b -> b?.let { "%02X".format(it) } ?: "--" }
@@ -74,7 +97,7 @@ object SnapshotComparison {
         /** Addresses that moved but belong to no counter in the layout. */
         val unexplained: List<ByteDelta>,
         /** What makes this comparison less than it looks. See [compare]. */
-        val notes: List<String>,
+        val notes: List<UiText>,
     ) {
         val movedCounters: List<CounterDelta> get() = counters.filter { it.moved }
 
@@ -90,17 +113,23 @@ object SnapshotComparison {
         val afterIsAtResetValue: Boolean
             get() = bytes.any { it.after != null } && bytes.all { it.after == null || it.after == it.resetValue }
 
-        val summary: String
+        val summary: UiText
             get() = when {
-                comparable == 0 ->
-                    "Nothing can be compared — no address holds a byte on both sides. If one of " +
-                        "these is a live reading, it answered nothing."
-                identical -> "Nothing moved — every address holds the same byte on both sides."
+                comparable == 0 -> UiText.of(Res.string.comparison_nothing_comparable)
+                identical -> UiText.of(Res.string.comparison_nothing_moved)
                 movedCounters.isEmpty() ->
-                    "$changedBytes address(es) changed, none of them inside a known counter."
+                    UiText.plural(Res.plurals.comparison_changed_no_counter, changedBytes, changedBytes)
+
                 else -> {
-                    val moved = movedCounters.joinToString("; ") { "${it.spec.description} ${it.deltaLabel}" }
-                    "$changedBytes address(es) changed · $moved"
+                    // Counter names come from the upstream database and are not ours to translate.
+                    val moved = movedCounters.joinToString("; ") {
+                        "${it.spec.description} ${it.deltaLabel.resolveNow()}"
+                    }
+                    UiText.of(
+                        Res.string.comparison_summary_moved,
+                        UiText.plural(Res.plurals.comparison_changed_count, changedBytes, changedBytes),
+                        moved,
+                    )
                 }
             }
     }
@@ -157,12 +186,9 @@ object SnapshotComparison {
     }
 
     /** Everything that makes the numbers above mean less than they appear to. */
-    private fun notes(before: Side, after: Side, bytes: List<ByteDelta>): List<String> = buildList {
+    private fun notes(before: Side, after: Side, bytes: List<ByteDelta>): List<UiText> = buildList {
         if (!before.model.equals(after.model, ignoreCase = true)) {
-            add(
-                "These samples are different models (${before.model} and ${after.model}). The same " +
-                    "address is not the same counter on both, so the differences below mean nothing.",
-            )
+            add(UiText.of(Res.string.comparison_note_models, before.model, after.model))
         }
 
         // Only when both are known. A snapshot predating serial capture has null here, and warning
@@ -170,18 +196,12 @@ object SnapshotComparison {
         val one = before.serial
         val other = after.serial
         if (one != null && other != null && one != other) {
-            add(
-                "Different printers: serial $one and serial $other. A difference here is two " +
-                    "machines being unalike, not one machine changing.",
-            )
+            add(UiText.of(Res.string.comparison_note_serials, one, other))
         }
 
         val missing = bytes.count { it.before == null || it.after == null }
         if (missing > 0) {
-            add(
-                "$missing address(es) appear on only one side, or were never answered there. Those " +
-                    "rows show a dash and are not counted as changed.",
-            )
+            add(UiText.plural(Res.plurals.comparison_note_missing, missing, missing))
         }
     }
 }

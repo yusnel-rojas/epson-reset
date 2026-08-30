@@ -13,12 +13,16 @@ import nl.redlabs.epsonreset.protocol.Executor
 import nl.redlabs.epsonreset.protocol.FakeTransport
 import nl.redlabs.epsonreset.protocol.SequenceGenerator
 import java.io.File
+import java.util.Locale
 
 /** Writes a saved backup back to the printer. */
 object RestoreTool {
 
     @JvmStatic
     fun main(args: Array<String>) {
+        // Prints for a bug report, not for the app's user: this output stays English.
+        Locale.setDefault(Locale.ENGLISH)
+
         val live = args.any { it == "--live" }
         val path = args.firstOrNull { !it.startsWith("--") }
 

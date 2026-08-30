@@ -40,7 +40,70 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import nl.redlabs.epsonreset.backup.EepromBackup
 import nl.redlabs.epsonreset.backup.SnapshotComparison
+import nl.redlabs.epsonreset.i18n.resolve
 import nl.redlabs.epsonreset.protocol.CounterReader
+import nl.redlabs.epsonreset.resources.Res
+import nl.redlabs.epsonreset.resources.reset_confirm_no_warranty
+import nl.redlabs.epsonreset.resources.reset_confirm_the_printer
+import nl.redlabs.epsonreset.resources.snap_addr_count
+import nl.redlabs.epsonreset.resources.snap_address_count
+import nl.redlabs.epsonreset.resources.snap_all_at_reset_value
+import nl.redlabs.epsonreset.resources.snap_back_to_saved
+import nl.redlabs.epsonreset.resources.snap_cancel
+import nl.redlabs.epsonreset.resources.snap_compare
+import nl.redlabs.epsonreset.resources.snap_comparing
+import nl.redlabs.epsonreset.resources.snap_create_blurb
+import nl.redlabs.epsonreset.resources.snap_create_title
+import nl.redlabs.epsonreset.resources.snap_differing
+import nl.redlabs.epsonreset.resources.snap_file_unreadable
+import nl.redlabs.epsonreset.resources.snap_invalid_file
+import nl.redlabs.epsonreset.resources.snap_looking
+import nl.redlabs.epsonreset.resources.snap_no_layout_known
+import nl.redlabs.epsonreset.resources.snap_no_target
+import nl.redlabs.epsonreset.resources.snap_none
+import nl.redlabs.epsonreset.resources.snap_none_for_model
+import nl.redlabs.epsonreset.resources.snap_none_selected
+import nl.redlabs.epsonreset.resources.snap_none_yet
+import nl.redlabs.epsonreset.resources.snap_not_at_reset_value
+import nl.redlabs.epsonreset.resources.snap_not_read_yet
+import nl.redlabs.epsonreset.resources.snap_nothing_would_change
+import nl.redlabs.epsonreset.resources.snap_pick_one
+import nl.redlabs.epsonreset.resources.snap_printer_now
+import nl.redlabs.epsonreset.resources.snap_read_and_save
+import nl.redlabs.epsonreset.resources.snap_reading
+import nl.redlabs.epsonreset.resources.snap_refresh
+import nl.redlabs.epsonreset.resources.snap_restore_confirm
+import nl.redlabs.epsonreset.resources.snap_restore_explainer
+import nl.redlabs.epsonreset.resources.snap_restore_headline
+import nl.redlabs.epsonreset.resources.snap_restore_metadata
+import nl.redlabs.epsonreset.resources.snap_restore_no_save
+import nl.redlabs.epsonreset.resources.snap_restore_only_recovery
+import nl.redlabs.epsonreset.resources.snap_restore_saves_first
+import nl.redlabs.epsonreset.resources.snap_restore_title
+import nl.redlabs.epsonreset.resources.snap_restore_warning
+import nl.redlabs.epsonreset.resources.snap_restore_without_saving
+import nl.redlabs.epsonreset.resources.snap_save_then_restore
+import nl.redlabs.epsonreset.resources.snap_saved_count
+import nl.redlabs.epsonreset.resources.snap_saved_count_filtered
+import nl.redlabs.epsonreset.resources.snap_select_model
+import nl.redlabs.epsonreset.resources.snap_selected_model_label
+import nl.redlabs.epsonreset.resources.snap_serial
+import nl.redlabs.epsonreset.resources.snap_serial_not_recorded
+import nl.redlabs.epsonreset.resources.snap_show_all
+import nl.redlabs.epsonreset.resources.snap_showing_filter
+import nl.redlabs.epsonreset.resources.snap_showing_the_write
+import nl.redlabs.epsonreset.resources.snap_simulate_restore
+import nl.redlabs.epsonreset.resources.snap_simulating_write
+import nl.redlabs.epsonreset.resources.snap_stop_comparing
+import nl.redlabs.epsonreset.resources.snap_title
+import nl.redlabs.epsonreset.resources.snap_unexplained_moved
+import nl.redlabs.epsonreset.resources.snap_unexplained_note
+import nl.redlabs.epsonreset.resources.snap_unreadable
+import nl.redlabs.epsonreset.resources.snap_what_would_change
+import nl.redlabs.epsonreset.resources.snap_would_be_saved_as
+import nl.redlabs.epsonreset.resources.snap_writing_back
+import org.jetbrains.compose.resources.pluralStringResource
+import org.jetbrains.compose.resources.stringResource
 
 /** Every snapshot on disk, and what each one holds. */
 @Composable
@@ -63,7 +126,7 @@ private fun SnapshotList(vm: ResetViewModel, modifier: Modifier = Modifier) {
     Column(modifier.padding(16.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                "Snapshots",
+                stringResource(Res.string.snap_title),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
             )
@@ -71,7 +134,7 @@ private fun SnapshotList(vm: ResetViewModel, modifier: Modifier = Modifier) {
             TextButton(
                 onClick = { vm.snapshot.refreshSnapshots() },
                 enabled = !vm.snapshot.loadingSnapshots,
-            ) { Text("Refresh") }
+            ) { Text(stringResource(Res.string.snap_refresh)) }
         }
 
         Spacer(Modifier.height(10.dp))
@@ -82,22 +145,30 @@ private fun SnapshotList(vm: ResetViewModel, modifier: Modifier = Modifier) {
         if (filter != null) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    "Showing $filter only",
+                    stringResource(Res.string.snap_showing_filter, filter),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.primary,
                     fontWeight = FontWeight.SemiBold,
                 )
                 Spacer(Modifier.weight(1f))
-                TextButton(onClick = { vm.snapshot.showAllSnapshots() }) { Text("Show all") }
+                TextButton(onClick = {
+                    vm.snapshot.showAllSnapshots()
+                }) { Text(stringResource(Res.string.snap_show_all)) }
             }
             Spacer(Modifier.height(4.dp))
         }
 
         Text(
             if (filter == null) {
-                "${vm.snapshot.snapshots.size} saved · ${vm.snapshot.snapshotDir}"
+                stringResource(Res.string.snap_saved_count, vm.snapshot.snapshots.size, vm.snapshot.snapshotDir)
             } else {
-                "${visible.size} for $filter · ${vm.snapshot.snapshots.size} total · ${vm.snapshot.snapshotDir}"
+                stringResource(
+                    Res.string.snap_saved_count_filtered,
+                    visible.size,
+                    filter,
+                    vm.snapshot.snapshots.size,
+                    vm.snapshot.snapshotDir,
+                )
             },
             style = MaterialTheme.typography.labelSmall,
             color = StatusColors.muted,
@@ -108,12 +179,11 @@ private fun SnapshotList(vm: ResetViewModel, modifier: Modifier = Modifier) {
         if (visible.isEmpty()) {
             Text(
                 if (vm.snapshot.loadingSnapshots) {
-                    "Looking…"
+                    stringResource(Res.string.snap_looking)
                 } else if (filter != null) {
-                    "No snapshots saved for $filter. Use Read & save above to capture one."
+                    stringResource(Res.string.snap_none_for_model, filter)
                 } else {
-                    "Nothing saved yet. Use Read & save above — or run a live reset, which " +
-                        "takes one for itself before it writes anything."
+                    stringResource(Res.string.snap_none_yet)
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = StatusColors.muted,
@@ -151,13 +221,13 @@ private fun CreateSnapshotControl(vm: ResetViewModel) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text(
-                    "Create snapshot",
+                    stringResource(Res.string.snap_create_title),
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.SemiBold,
                 )
                 Text(
                     listOfNotNull(device?.displayName, model?.name).joinToString(" · ")
-                        .ifBlank { "No target selected" },
+                        .ifBlank { stringResource(Res.string.snap_no_target) },
                     style = MaterialTheme.typography.labelSmall,
                     color = if (blocked == null && vm.modelMismatch == null) {
                         StatusColors.good
@@ -170,13 +240,14 @@ private fun CreateSnapshotControl(vm: ResetViewModel) {
             Button(
                 onClick = { vm.snapshot.readAndSaveSnapshot() },
                 enabled = vm.snapshot.canCreateSnapshot,
-            ) { Text(if (vm.reading) "Reading…" else "Read & save") }
+            ) {
+                Text(stringResource(if (vm.reading) Res.string.snap_reading else Res.string.snap_read_and_save))
+            }
         }
 
         Spacer(Modifier.height(6.dp))
         Text(
-            blocked ?: "Takes a fresh read from the printer and saves the reset/recovery " +
-                "addresses. Nothing is written.",
+            blocked ?: stringResource(Res.string.snap_create_blurb),
             style = MaterialTheme.typography.labelSmall,
             color = if (blocked == null) StatusColors.muted else StatusColors.warn,
         )
@@ -188,7 +259,7 @@ private fun CreateSnapshotControl(vm: ResetViewModel) {
             vm.modelMismatch?.let {
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    "$it The snapshot would be saved as ${model?.name}.",
+                    stringResource(Res.string.snap_would_be_saved_as, it, model?.name.toString()),
                     style = MaterialTheme.typography.labelSmall,
                     color = StatusColors.warn,
                 )
@@ -226,7 +297,7 @@ private fun SnapshotRow(snapshot: SnapshotState.SavedSnapshot, selected: Boolean
             Spacer(Modifier.weight(1f))
             backup?.let {
                 Text(
-                    "${it.entries.size} addr",
+                    stringResource(Res.string.snap_addr_count, it.entries.size),
                     style = MaterialTheme.typography.labelSmall,
                     fontFamily = FontFamily.Monospace,
                     color = StatusColors.muted,
@@ -235,7 +306,7 @@ private fun SnapshotRow(snapshot: SnapshotState.SavedSnapshot, selected: Boolean
         }
 
         Text(
-            backup?.takenAt ?: "unreadable — malformed, or a byte outside 0..255",
+            backup?.takenAt ?: stringResource(Res.string.snap_unreadable),
             style = MaterialTheme.typography.labelSmall,
             color = if (backup == null) StatusColors.bad else StatusColors.muted,
         )
@@ -254,7 +325,11 @@ private fun SnapshotDetail(vm: ResetViewModel, modifier: Modifier = Modifier) {
                 modifier = Modifier.width(440.dp),
             ) {
                 Text(
-                    if (snapshot == null) "No snapshot selected" else "This file could not be read",
+                    if (snapshot == null) {
+                        stringResource(Res.string.snap_none_selected)
+                    } else {
+                        stringResource(Res.string.snap_file_unreadable)
+                    },
                     style = MaterialTheme.typography.titleMedium,
                     color = if (snapshot == null) {
                         MaterialTheme.colorScheme.onSurfaceVariant
@@ -265,11 +340,9 @@ private fun SnapshotDetail(vm: ResetViewModel, modifier: Modifier = Modifier) {
                 Spacer(Modifier.height(8.dp))
                 Text(
                     if (snapshot == null) {
-                        "Pick one on the left to read it back. The bytes are in the file, so " +
-                            "nothing is asked of a printer — this works with nothing plugged in."
+                        stringResource(Res.string.snap_pick_one)
                     } else {
-                        "${snapshot.file.name} is not a valid snapshot. Loading rejects any byte " +
-                            "outside 0..255, so a corrupt file fails here rather than at the printer."
+                        stringResource(Res.string.snap_invalid_file, snapshot.file.name)
                     },
                     style = MaterialTheme.typography.bodySmall,
                     color = StatusColors.muted,
@@ -305,9 +378,7 @@ private fun SnapshotDetail(vm: ResetViewModel, modifier: Modifier = Modifier) {
                 if (counters.isEmpty()) {
                     Spacer(Modifier.height(10.dp))
                     Text(
-                        "No counter layout is known for ${backup.model}, so the saved bytes are " +
-                            "shown as bytes. The table above is complete either way — the layout " +
-                            "only decides which of them are one number.",
+                        stringResource(Res.string.snap_no_layout_known, backup.model),
                         style = MaterialTheme.typography.labelSmall,
                         color = StatusColors.muted,
                     )
@@ -319,12 +390,7 @@ private fun SnapshotDetail(vm: ResetViewModel, modifier: Modifier = Modifier) {
         // of it. Neither action is reached by reading down to it — both are in the header.
         Spacer(Modifier.height(16.dp))
         Text(
-            "Restoring puts these bytes back at the addresses they came from — waste levels " +
-                "included. It is recovery from a half-finished run, not an undo for a successful " +
-                "one. What the printer holds now is read and saved as its own snapshot first, so " +
-                "the restore is itself undoable.\n\nComparing two snapshots taken either side of a " +
-                "known amount of printing shows which addresses actually move, and by how much. " +
-                "Comparing against the printer as it is now says whether a reset held.",
+            stringResource(Res.string.snap_restore_explainer),
             style = MaterialTheme.typography.labelSmall,
             color = StatusColors.muted,
         )
@@ -341,9 +407,9 @@ private fun RestoreWrite(restore: SnapshotState.LiveRestore, dryRun: Boolean) {
     Column {
         Text(
             when {
-                restore.running && dryRun -> "Simulating the write — nothing reaches the printer"
-                restore.running -> "Writing the saved bytes back"
-                else -> "What restoring would change"
+                restore.running && dryRun -> stringResource(Res.string.snap_simulating_write)
+                restore.running -> stringResource(Res.string.snap_writing_back)
+                else -> stringResource(Res.string.snap_what_would_change)
             },
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.SemiBold,
@@ -353,17 +419,13 @@ private fun RestoreWrite(restore: SnapshotState.LiveRestore, dryRun: Boolean) {
         Text(
             when {
                 !restore.haveCurrent ->
-                    "The printer has not been read, so what it holds now is unknown — only the " +
-                        "saved byte each address would be given is shown. Read the printer to " +
-                        "fill the left side."
+                    stringResource(Res.string.snap_not_read_yet)
 
                 restore.differing == 0 ->
-                    "Nothing would change: all ${restore.comparable} addresses already hold the " +
-                        "byte this snapshot saved."
+                    stringResource(Res.string.snap_nothing_would_change, restore.comparable)
 
                 else ->
-                    "${restore.differing} of ${restore.comparable} addresses hold something other " +
-                        "than the saved byte, and are the ones this would change — shown in red."
+                    stringResource(Res.string.snap_differing, restore.differing, restore.comparable)
             },
             style = MaterialTheme.typography.labelSmall,
             color = when {
@@ -401,7 +463,7 @@ private fun SnapshotActions(vm: ResetViewModel, backup: EepromBackup) {
     Column {
         Row(verticalAlignment = Alignment.CenterVertically) {
             when {
-                running -> OutlinedButton(onClick = { vm.cancel() }) { Text("Cancel") }
+                running -> OutlinedButton(onClick = { vm.cancel() }) { Text(stringResource(Res.string.snap_cancel)) }
 
                 // This tab decides for itself whether a restore is real, rather than inheriting the
                 // Maintenance tab's Dry run switch. That switch is about resetting counters, it is
@@ -412,16 +474,16 @@ private fun SnapshotActions(vm: ResetViewModel, backup: EepromBackup) {
                 // Saving first stays the primary action because it is the one that leaves a way
                 // back. Skipping it is named for what it skips.
                 else -> SplitButton(
-                    label = "Save current, then restore",
+                    label = stringResource(Res.string.snap_save_then_restore),
                     primaryEnabled = restoreBlocked == null,
                     onPrimary = { confirming = true },
                     actions = listOf(
                         SplitAction(
-                            "Restore without saving first",
+                            stringResource(Res.string.snap_restore_without_saving),
                             enabled = restoreBlocked == null,
                         ) { confirming = false },
                         SplitAction(
-                            "Simulate restore — writes nothing",
+                            stringResource(Res.string.snap_simulate_restore),
                             enabled = restoreBlocked == null,
                         ) { vm.snapshot.restoreSelectedSnapshot(saveFirst = false, simulate = true) },
                     ),
@@ -439,9 +501,9 @@ private fun SnapshotActions(vm: ResetViewModel, backup: EepromBackup) {
                 ) {
                     Text(
                         when {
-                            previewing -> "Showing the write ▾"
-                            comparing -> "Comparing ▾"
-                            else -> "Compare ▾"
+                            previewing -> stringResource(Res.string.snap_showing_the_write)
+                            comparing -> stringResource(Res.string.snap_comparing)
+                            else -> stringResource(Res.string.snap_compare)
                         },
                     )
                 }
@@ -450,7 +512,11 @@ private fun SnapshotActions(vm: ResetViewModel, backup: EepromBackup) {
                     DropdownMenuItem(
                         text = {
                             Text(
-                                if (vm.reading) "Reading…" else "The printer as it is now",
+                                if (vm.reading) {
+                                    stringResource(Res.string.snap_reading)
+                                } else {
+                                    stringResource(Res.string.snap_printer_now)
+                                },
                                 style = MaterialTheme.typography.bodySmall,
                             )
                         },
@@ -490,7 +556,7 @@ private fun SnapshotActions(vm: ResetViewModel, backup: EepromBackup) {
                     DropdownMenuItem(
                         text = {
                             Text(
-                                "What restoring would change",
+                                stringResource(Res.string.snap_what_would_change),
                                 style = MaterialTheme.typography.bodySmall,
                             )
                         },
@@ -505,7 +571,11 @@ private fun SnapshotActions(vm: ResetViewModel, backup: EepromBackup) {
                         DropdownMenuItem(
                             text = {
                                 Text(
-                                    if (previewing) "Back to the saved bytes" else "Stop comparing",
+                                    if (previewing) {
+                                        stringResource(Res.string.snap_back_to_saved)
+                                    } else {
+                                        stringResource(Res.string.snap_stop_comparing)
+                                    },
                                     style = MaterialTheme.typography.bodySmall,
                                 )
                             },
@@ -571,7 +641,7 @@ private fun ComparisonResult(result: SnapshotComparison.Result) {
 
             Spacer(Modifier.height(10.dp))
             Text(
-                result.summary,
+                result.summary.resolve(),
                 style = MaterialTheme.typography.bodySmall,
                 color = if (result.identical) {
                     StatusColors.muted
@@ -583,8 +653,7 @@ private fun ComparisonResult(result: SnapshotComparison.Result) {
             if (result.afterIsAtResetValue) {
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    "Every address on the later side holds its reset value — if a reset ran between " +
-                        "these two samples, it held.",
+                    stringResource(Res.string.snap_all_at_reset_value),
                     style = MaterialTheme.typography.labelSmall,
                     color = StatusColors.good,
                 )
@@ -592,7 +661,7 @@ private fun ComparisonResult(result: SnapshotComparison.Result) {
 
             for (note in result.notes) {
                 Spacer(Modifier.height(8.dp))
-                Text(note, style = MaterialTheme.typography.labelSmall, color = StatusColors.warn)
+                Text(note.resolve(), style = MaterialTheme.typography.labelSmall, color = StatusColors.warn)
             }
         }
 
@@ -624,7 +693,7 @@ private fun UnexplainedChanges(changes: List<SnapshotComparison.ByteDelta>) {
             .padding(14.dp),
     ) {
         Text(
-            "${changes.size} address(es) moved that no counter claims",
+            pluralStringResource(Res.plurals.snap_unexplained_moved, changes.size, changes.size),
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.SemiBold,
             color = StatusColors.warn,
@@ -643,9 +712,7 @@ private fun UnexplainedChanges(changes: List<SnapshotComparison.ByteDelta>) {
 
         Spacer(Modifier.height(8.dp))
         Text(
-            "The printer maintains something here that this model's counter layout does not " +
-                "describe. Worth reporting with both snapshots — what it counts cannot be " +
-                "told from two readings, so nothing is assumed about it.",
+            stringResource(Res.string.snap_unexplained_note),
             style = MaterialTheme.typography.labelSmall,
             color = StatusColors.muted,
         )
@@ -684,9 +751,12 @@ private fun SnapshotHeader(vm: ResetViewModel, fileName: String, backup: EepromB
         Text(
             listOf(
                 backup.takenAt,
-                "serial ${backup.printerSerial ?: "not recorded"}",
-                "${backup.entries.size} addresses",
-                "${backup.changedByReset} not at their reset value",
+                stringResource(
+                    Res.string.snap_serial,
+                    backup.printerSerial ?: stringResource(Res.string.snap_serial_not_recorded),
+                ),
+                pluralStringResource(Res.plurals.snap_address_count, backup.entries.size, backup.entries.size),
+                stringResource(Res.string.snap_not_at_reset_value, backup.changedByReset),
             ).joinToString(" · "),
             style = MaterialTheme.typography.bodySmall,
             color = StatusColors.muted,
@@ -699,13 +769,16 @@ private fun SnapshotHeader(vm: ResetViewModel, fileName: String, backup: EepromB
             Spacer(Modifier.height(10.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    "Selected model: ${selected?.name ?: "none"}",
+                    stringResource(
+                        Res.string.snap_selected_model_label,
+                        selected?.name ?: stringResource(Res.string.snap_none),
+                    ),
                     style = MaterialTheme.typography.labelSmall,
                     color = StatusColors.warn,
                 )
                 Spacer(Modifier.width(10.dp))
                 OutlinedButton(onClick = { vm.snapshot.useSnapshotModel() }) {
-                    Text("Select ${backup.model}")
+                    Text(stringResource(Res.string.snap_select_model, backup.model))
                 }
             }
         }
@@ -723,28 +796,23 @@ private fun RestoreConfirmation(
     onDismiss: () -> Unit,
     onConfirm: () -> Unit,
 ) {
-    val printer = vm.selectedDevice?.device?.displayName ?: "the printer"
+    val printer = vm.selectedDevice?.device?.displayName ?: stringResource(Res.string.reset_confirm_the_printer)
     EepromWriteConfirmation(
-        title = "Restore EEPROM — ${backup.model}",
-        headline = "Write ${backup.entries.size} saved EEPROM bytes into $printer.",
-        metadata = "${backup.model} · snapshot ${backup.takenAt}",
-        warning = "These are historical values. They can increase counters and replace newer printer data.",
+        title = stringResource(Res.string.snap_restore_title, backup.model),
+        headline = stringResource(Res.string.snap_restore_headline, backup.entries.size, printer),
+        metadata = stringResource(Res.string.snap_restore_metadata, backup.model, backup.takenAt),
+        warning = stringResource(Res.string.snap_restore_warning),
         paragraphs = listOf(
-            "Use this only to recover from an interrupted reset or restore. It is not an undo for " +
-                "a successful reset.",
+            stringResource(Res.string.snap_restore_only_recovery),
             if (saveFirst) {
-                "The bytes now in the printer are read and saved as a new snapshot first, over the " +
-                    "same connection. If they cannot all be read, nothing is written."
+                stringResource(Res.string.snap_restore_saves_first)
             } else {
-                "The values currently in the printer are not saved first, so this write cannot be " +
-                    "undone. Continue only if this snapshot is the recovery point you intend to apply."
+                stringResource(Res.string.snap_restore_no_save)
             },
-            "Whether to do this is your decision, and what follows from it is yours to carry: this " +
-                "software comes with no warranty, and its authors are not accountable for what " +
-                "happens to your printer.",
+            stringResource(Res.string.reset_confirm_no_warranty),
         ),
         onDismiss = onDismiss,
         onConfirm = onConfirm,
-        confirmLabel = "Yes, restore EEPROM",
+        confirmLabel = stringResource(Res.string.snap_restore_confirm),
     )
 }

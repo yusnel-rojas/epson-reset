@@ -33,6 +33,36 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogWindow
 import androidx.compose.ui.window.rememberDialogState
+import nl.redlabs.epsonreset.i18n.Strings
+import nl.redlabs.epsonreset.resources.Res
+import nl.redlabs.epsonreset.resources.confirm_restore_eeprom
+import nl.redlabs.epsonreset.resources.recovery_confirm_headline
+import nl.redlabs.epsonreset.resources.recovery_confirm_metadata
+import nl.redlabs.epsonreset.resources.recovery_confirm_recovery_point
+import nl.redlabs.epsonreset.resources.recovery_confirm_snapshot_first
+import nl.redlabs.epsonreset.resources.recovery_confirm_title
+import nl.redlabs.epsonreset.resources.recovery_confirm_warning
+import nl.redlabs.epsonreset.resources.reset_confirm_no_warranty
+import nl.redlabs.epsonreset.resources.reset_confirm_the_printer
+import nl.redlabs.epsonreset.resources.run_backup_unreadable
+import nl.redlabs.epsonreset.resources.run_choose_snapshot
+import nl.redlabs.epsonreset.resources.run_dry_run_body
+import nl.redlabs.epsonreset.resources.run_metadata
+import nl.redlabs.epsonreset.resources.run_ok
+import nl.redlabs.epsonreset.resources.run_power_cycle_body
+import nl.redlabs.epsonreset.resources.run_power_cycle_title
+import nl.redlabs.epsonreset.resources.run_restore_this_backup
+import nl.redlabs.epsonreset.resources.run_stranded_backup
+import nl.redlabs.epsonreset.resources.run_stranded_body
+import nl.redlabs.epsonreset.resources.run_title_counters_reset
+import nl.redlabs.epsonreset.resources.run_title_dry_run_passed
+import nl.redlabs.epsonreset.resources.run_title_reset_failed
+import nl.redlabs.epsonreset.resources.run_title_restore_failed
+import nl.redlabs.epsonreset.resources.run_title_restore_simulated
+import nl.redlabs.epsonreset.resources.run_title_snapshot_restored
+import nl.redlabs.epsonreset.resources.run_waste_unchanged_body
+import nl.redlabs.epsonreset.resources.run_waste_unchanged_title
+import org.jetbrains.compose.resources.stringResource
 import java.io.File
 
 /**
@@ -47,12 +77,12 @@ internal fun RunCompletionDialog(vm: ResetViewModel) {
     val restore = completion.kind == ResetViewModel.RunKind.RESTORE
 
     val title = when {
-        !result.success && restore -> "Restore failed"
-        !result.success -> "Reset failed"
-        completion.wasDryRun && restore -> "Restore simulated"
-        completion.wasDryRun -> "Dry run passed"
-        restore -> "Snapshot restored"
-        else -> "Counters reset"
+        !result.success && restore -> stringResource(Res.string.run_title_restore_failed)
+        !result.success -> stringResource(Res.string.run_title_reset_failed)
+        completion.wasDryRun && restore -> stringResource(Res.string.run_title_restore_simulated)
+        completion.wasDryRun -> stringResource(Res.string.run_title_dry_run_passed)
+        restore -> stringResource(Res.string.run_title_snapshot_restored)
+        else -> stringResource(Res.string.run_title_counters_reset)
     }
     val tone = if (result.success) StatusColors.good else StatusColors.bad
 
@@ -85,8 +115,12 @@ internal fun RunCompletionDialog(vm: ResetViewModel) {
                 )
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    "${result.writesAcknowledged} of ${result.writesTotal} writes acknowledged · " +
-                        "${result.packetsSent} packets sent",
+                    stringResource(
+                        Res.string.run_metadata,
+                        result.writesAcknowledged,
+                        result.writesTotal,
+                        result.packetsSent,
+                    ),
                     style = MaterialTheme.typography.labelSmall,
                     fontFamily = FontFamily.Monospace,
                     color = StatusColors.muted,
@@ -113,16 +147,14 @@ internal fun RunCompletionDialog(vm: ResetViewModel) {
                                 .padding(12.dp),
                         ) {
                             Text(
-                                "Turn the printer off and on again",
+                                stringResource(Res.string.run_power_cycle_title),
                                 style = MaterialTheme.typography.bodyMedium,
                                 fontWeight = FontWeight.SemiBold,
                                 color = StatusColors.warn,
                             )
                             Spacer(Modifier.height(4.dp))
                             Text(
-                                "The new values are in EEPROM, but the printer is still running on " +
-                                    "what it read at startup. Power it off with its own button, wait " +
-                                    "for it to finish parking, then switch it back on.",
+                                stringResource(Res.string.run_power_cycle_body),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -143,19 +175,14 @@ internal fun RunCompletionDialog(vm: ResetViewModel) {
                                 .padding(12.dp),
                         ) {
                             Text(
-                                "The waste ink has not gone anywhere",
+                                stringResource(Res.string.run_waste_unchanged_title),
                                 style = MaterialTheme.typography.bodyMedium,
                                 fontWeight = FontWeight.SemiBold,
                                 color = StatusColors.warn,
                             )
                             Spacer(Modifier.height(4.dp))
                             Text(
-                                "The counter is clear, so the printer will print again — but the " +
-                                    "waste ink pad, or the maintenance box if this printer uses " +
-                                    "one, still holds every drop it held a minute ago. It is a " +
-                                    "physical part, and only replacing or cleaning it changes that. " +
-                                    "One left in place after it is genuinely full overflows, and " +
-                                    "the ink goes somewhere neither you nor the printer chose.",
+                                stringResource(Res.string.run_waste_unchanged_body),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -165,17 +192,14 @@ internal fun RunCompletionDialog(vm: ResetViewModel) {
                     if (stranded) {
                         Spacer(Modifier.height(14.dp))
                         Text(
-                            "Some writes landed before this stopped, so the printer is in a partly " +
-                                "changed state — neither where it was nor where this run was taking " +
-                                "it. Putting a snapshot back is how that is settled.",
+                            stringResource(Res.string.run_stranded_body),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                         recovery?.let {
                             Spacer(Modifier.height(8.dp))
                             Text(
-                                "The bytes this run was about to overwrite were saved to " +
-                                    "${it.name} beforehand.",
+                                stringResource(Res.string.run_stranded_backup, it.name),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = StatusColors.muted,
                             )
@@ -185,8 +209,7 @@ internal fun RunCompletionDialog(vm: ResetViewModel) {
                     if (completion.wasDryRun) {
                         Spacer(Modifier.height(14.dp))
                         Text(
-                            "Nothing reached a printer. This was generated and checked against the " +
-                                "simulated device.",
+                            stringResource(Res.string.run_dry_run_body),
                             style = MaterialTheme.typography.bodySmall,
                             color = StatusColors.muted,
                         )
@@ -205,16 +228,18 @@ internal fun RunCompletionDialog(vm: ResetViewModel) {
                                 vm.tab = ResetViewModel.Tab.SNAPSHOTS
                                 vm.dismissCompletion()
                             },
-                        ) { Text("Choose a snapshot…") }
+                        ) { Text(stringResource(Res.string.run_choose_snapshot)) }
                         Spacer(Modifier.width(8.dp))
                     }
 
                     recovery?.let {
-                        OutlinedButton(onClick = { confirming = true }) { Text("Restore this backup…") }
+                        OutlinedButton(onClick = {
+                            confirming = true
+                        }) { Text(stringResource(Res.string.run_restore_this_backup)) }
                         Spacer(Modifier.width(8.dp))
                     }
 
-                    Button(onClick = vm::dismissCompletion) { Text("OK") }
+                    Button(onClick = vm::dismissCompletion) { Text(stringResource(Res.string.run_ok)) }
                 }
             }
         }
@@ -234,26 +259,22 @@ private fun RecoveryConfirmation(vm: ResetViewModel, file: File, onDismiss: () -
     if (backup == null) {
         // Nothing to confirm against, so say why here rather than failing at the write.
         LaunchedEffect(file) {
-            vm.bad("Could not read ${file.name} — it is missing or not a valid backup.")
+            vm.bad(Strings.get(Res.string.run_backup_unreadable, file.name))
             onDismiss()
         }
         return
     }
 
-    val printer = vm.selectedDevice?.device?.displayName ?: "the printer"
+    val printer = vm.selectedDevice?.device?.displayName ?: stringResource(Res.string.reset_confirm_the_printer)
     EepromWriteConfirmation(
-        title = "Restore EEPROM — ${backup.model}",
-        headline = "Write ${backup.entries.size} saved EEPROM bytes into $printer.",
-        metadata = "${file.name} · taken ${backup.takenAt}",
-        warning = "These are the bytes the run that just failed was about to overwrite.",
+        title = stringResource(Res.string.recovery_confirm_title, backup.model),
+        headline = stringResource(Res.string.recovery_confirm_headline, backup.entries.size, printer),
+        metadata = stringResource(Res.string.recovery_confirm_metadata, file.name, backup.takenAt),
+        warning = stringResource(Res.string.recovery_confirm_warning),
         paragraphs = listOf(
-            "This puts the counters back where they were before that run started, waste levels " +
-                "included. It is the recovery point for exactly this situation.",
-            "What the printer holds now is read and saved as its own snapshot first, over the same " +
-                "connection. If those bytes cannot all be read, nothing is written.",
-            "Whether to do this is your decision, and what follows from it is yours to carry: this " +
-                "software comes with no warranty, and its authors are not accountable for what " +
-                "happens to your printer.",
+            stringResource(Res.string.recovery_confirm_recovery_point),
+            stringResource(Res.string.recovery_confirm_snapshot_first),
+            stringResource(Res.string.reset_confirm_no_warranty),
         ),
         onDismiss = onDismiss,
         onConfirm = {
@@ -261,6 +282,6 @@ private fun RecoveryConfirmation(vm: ResetViewModel, file: File, onDismiss: () -
             vm.dismissCompletion()
             vm.snapshot.restore(backup, file)
         },
-        confirmLabel = "Yes, restore EEPROM",
+        confirmLabel = stringResource(Res.string.confirm_restore_eeprom),
     )
 }

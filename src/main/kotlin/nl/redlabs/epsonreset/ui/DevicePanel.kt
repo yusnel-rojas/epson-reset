@@ -34,6 +34,52 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import nl.redlabs.epsonreset.device.Link
 import nl.redlabs.epsonreset.device.MatchedPrinter
+import nl.redlabs.epsonreset.i18n.resolve
+import nl.redlabs.epsonreset.resources.Res
+import nl.redlabs.epsonreset.resources.device_add
+import nl.redlabs.epsonreset.resources.device_add_by_address
+import nl.redlabs.epsonreset.resources.device_add_by_ip
+import nl.redlabs.epsonreset.resources.device_address_hint
+import nl.redlabs.epsonreset.resources.device_back
+import nl.redlabs.epsonreset.resources.device_change_model
+import nl.redlabs.epsonreset.resources.device_forget
+import nl.redlabs.epsonreset.resources.device_interface_printer_class
+import nl.redlabs.epsonreset.resources.device_interface_vendor_specific
+import nl.redlabs.epsonreset.resources.device_match_class_only
+import nl.redlabs.epsonreset.resources.device_match_exact
+import nl.redlabs.epsonreset.resources.device_match_likely
+import nl.redlabs.epsonreset.resources.device_match_none
+import nl.redlabs.epsonreset.resources.device_meta_address
+import nl.redlabs.epsonreset.resources.device_meta_bus
+import nl.redlabs.epsonreset.resources.device_meta_interface
+import nl.redlabs.epsonreset.resources.device_meta_model_from
+import nl.redlabs.epsonreset.resources.device_meta_pid
+import nl.redlabs.epsonreset.resources.device_meta_port
+import nl.redlabs.epsonreset.resources.device_meta_queue
+import nl.redlabs.epsonreset.resources.device_meta_serial
+import nl.redlabs.epsonreset.resources.device_meta_snmp_port
+import nl.redlabs.epsonreset.resources.device_model_from_value
+import nl.redlabs.epsonreset.resources.device_network_note
+import nl.redlabs.epsonreset.resources.device_none_found_body
+import nl.redlabs.epsonreset.resources.device_none_found_title
+import nl.redlabs.epsonreset.resources.device_not_scanned_body
+import nl.redlabs.epsonreset.resources.device_not_scanned_title
+import nl.redlabs.epsonreset.resources.device_nothing_found_body
+import nl.redlabs.epsonreset.resources.device_nothing_found_title
+import nl.redlabs.epsonreset.resources.device_rescan
+import nl.redlabs.epsonreset.resources.device_saved_not_reached
+import nl.redlabs.epsonreset.resources.device_scan_both
+import nl.redlabs.epsonreset.resources.device_scan_failed_title
+import nl.redlabs.epsonreset.resources.device_scan_stopped_body
+import nl.redlabs.epsonreset.resources.device_scan_stopped_title
+import nl.redlabs.epsonreset.resources.device_scanning_body
+import nl.redlabs.epsonreset.resources.device_scanning_title
+import nl.redlabs.epsonreset.resources.device_stop_scanning
+import nl.redlabs.epsonreset.resources.device_usb_not_answering
+import nl.redlabs.epsonreset.resources.devices_test
+import nl.redlabs.epsonreset.resources.devices_testing
+import nl.redlabs.epsonreset.resources.devices_title
+import org.jetbrains.compose.resources.stringResource
 
 /** Contents of the top-bar printer menu. */
 @Composable
@@ -58,7 +104,7 @@ fun PrinterSelectorContent(vm: ResetViewModel, modifier: Modifier = Modifier, on
 
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                "Printers",
+                stringResource(Res.string.devices_title),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
             )
@@ -73,14 +119,16 @@ fun PrinterSelectorContent(vm: ResetViewModel, modifier: Modifier = Modifier, on
         // Scanning both buses is the path; manual network entry hangs off the chevron.
         SplitButton(
             label = when {
-                vm.scanState is ResetViewModel.ScanState.Scanning -> "Stop scanning"
-                vm.devices.isEmpty() -> "Scan USB and network"
-                else -> "Rescan"
+                vm.scanState is ResetViewModel.ScanState.Scanning ->
+                    stringResource(Res.string.device_stop_scanning)
+
+                vm.devices.isEmpty() -> stringResource(Res.string.device_scan_both)
+                else -> stringResource(Res.string.device_rescan)
             },
             primaryEnabled = vm.canScan,
             onPrimary = { vm.scan() },
             actions = listOf(
-                SplitAction("Add printer by IP address…") { vm.addByAddressRequested = true },
+                SplitAction(stringResource(Res.string.device_add_by_ip)) { vm.addByAddressRequested = true },
             ),
             modifier = Modifier.fillMaxWidth(),
         )
@@ -90,8 +138,8 @@ fun PrinterSelectorContent(vm: ResetViewModel, modifier: Modifier = Modifier, on
         when (val state = vm.scanState) {
             is ResetViewModel.ScanState.Scanning -> if (vm.devices.isEmpty()) {
                 Notice(
-                    title = "Scanning…",
-                    body = "You can stop the scan or add a printer by address from the scan menu.",
+                    title = stringResource(Res.string.device_scanning_title),
+                    body = stringResource(Res.string.device_scanning_body),
                     tone = StatusColors.muted,
                 )
             } else {
@@ -99,25 +147,22 @@ fun PrinterSelectorContent(vm: ResetViewModel, modifier: Modifier = Modifier, on
             }
 
             is ResetViewModel.ScanState.LibraryMissing -> Notice(
-                title = "Nothing found",
-                body = "libusb is missing, so USB detection is off, and nothing answered on the " +
-                    "network. Dry runs work regardless — or add the printer by address.",
+                title = stringResource(Res.string.device_nothing_found_title),
+                body = stringResource(Res.string.device_nothing_found_body),
                 mono = state.hint,
                 tone = StatusColors.warn,
             )
 
             is ResetViewModel.ScanState.Failed -> Notice(
-                title = "Scan failed",
+                title = stringResource(Res.string.device_scan_failed_title),
                 body = state.message,
                 tone = StatusColors.bad,
             )
 
             is ResetViewModel.ScanState.Done -> if (vm.devices.isEmpty()) {
                 Notice(
-                    title = "No Epson printers found",
-                    body = "Connect the printer over USB or put it on this network, switch it on, " +
-                        "then rescan. A printer that doesn't advertise itself can be added by " +
-                        "address.",
+                    title = stringResource(Res.string.device_none_found_title),
+                    body = stringResource(Res.string.device_none_found_body),
                     tone = StatusColors.muted,
                 )
             } else {
@@ -126,8 +171,8 @@ fun PrinterSelectorContent(vm: ResetViewModel, modifier: Modifier = Modifier, on
 
             is ResetViewModel.ScanState.Stopped -> if (vm.devices.isEmpty()) {
                 Notice(
-                    title = "Scan stopped",
-                    body = "Scan again, or add a printer by address from the scan menu.",
+                    title = stringResource(Res.string.device_scan_stopped_title),
+                    body = stringResource(Res.string.device_scan_stopped_body),
                     tone = StatusColors.muted,
                 )
             } else {
@@ -135,8 +180,8 @@ fun PrinterSelectorContent(vm: ResetViewModel, modifier: Modifier = Modifier, on
             }
 
             else -> Notice(
-                title = "Not scanned yet",
-                body = "Scan to find Epson printers on USB and on this network.",
+                title = stringResource(Res.string.device_not_scanned_title),
+                body = stringResource(Res.string.device_not_scanned_body),
                 tone = StatusColors.muted,
             )
         }
@@ -150,7 +195,7 @@ fun PrinterSelectorContent(vm: ResetViewModel, modifier: Modifier = Modifier, on
             }
             vm.networkNote?.let {
                 Spacer(Modifier.height(8.dp))
-                FootNote("Network discovery: $it")
+                FootNote(stringResource(Res.string.device_network_note, it))
             }
         }
     }
@@ -162,12 +207,12 @@ private fun AddByAddress(vm: ResetViewModel) {
     Column {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                "Add by address",
+                stringResource(Res.string.device_add_by_address),
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Spacer(Modifier.weight(1f))
-            TextButton(onClick = { vm.addByAddressRequested = false }) { Text("Back") }
+            TextButton(onClick = { vm.addByAddressRequested = false }) { Text(stringResource(Res.string.device_back)) }
         }
         Spacer(Modifier.height(6.dp))
 
@@ -197,13 +242,13 @@ private fun AddByAddress(vm: ResetViewModel) {
                 },
                 enabled = vm.canAddNetworkPrinter,
             ) {
-                Text("Add")
+                Text(stringResource(Res.string.device_add))
             }
         }
 
         Spacer(Modifier.height(4.dp))
         Text(
-            "The printer's IP, from its network status sheet or its web page. Saved for next time.",
+            stringResource(Res.string.device_address_hint),
             style = MaterialTheme.typography.labelSmall,
             color = StatusColors.muted,
         )
@@ -276,8 +321,8 @@ private fun DeviceCard(
                     entry.device.reachable -> entry.device.link.kind
                     // Only network entries are remembered; an unreachable USB one is live-scanned
                     // from its queue, so "saved" would be the wrong word for it.
-                    entry.device.link is Link.Network -> "Saved · not reached"
-                    else -> "USB · not answering"
+                    entry.device.link is Link.Network -> stringResource(Res.string.device_saved_not_reached)
+                    else -> stringResource(Res.string.device_usb_not_answering)
                 },
                 style = MaterialTheme.typography.labelSmall,
                 color = presenceTone,
@@ -288,56 +333,69 @@ private fun DeviceCard(
 
         when (val link = entry.device.link) {
             is Link.Usb -> {
-                entry.device.pidHex?.let { Meta("PID", it) }
-                Meta("Bus", "${link.busNumber}.${link.deviceAddress}")
+                entry.device.pidHex?.let { Meta(stringResource(Res.string.device_meta_pid), it) }
+                Meta(stringResource(Res.string.device_meta_bus), "${link.busNumber}.${link.deviceAddress}")
                 Meta(
-                    "Interface",
-                    "${link.interfaceNumber} " +
-                        if (link.isPrinterClass) "(printer class)" else "(vendor specific)",
+                    stringResource(Res.string.device_meta_interface),
+                    if (link.isPrinterClass) {
+                        stringResource(Res.string.device_interface_printer_class, link.interfaceNumber)
+                    } else {
+                        stringResource(Res.string.device_interface_vendor_specific, link.interfaceNumber)
+                    },
                 )
             }
 
             is Link.Network -> {
-                Meta("Address", link.host)
+                Meta(stringResource(Res.string.device_meta_address), link.host)
                 // No port at the default. "Network" in the corner already says how this is reached,
                 // and the number that used to sit here was the raw printing port — advertised by
                 // the printer, never dialled by this app, and so purely misleading.
-                if (link.port != Link.SNMP_PORT) Meta("SNMP port", link.port.toString())
+                if (link.port !=
+                    Link.SNMP_PORT
+                ) {
+                    Meta(stringResource(Res.string.device_meta_snmp_port), link.port.toString())
+                }
             }
 
             is Link.WindowsPrinter -> {
                 // Reached through the printer's own Windows driver — the queue and its port are all
                 // there is to show, and both come straight from the spooler.
-                link.port?.let { Meta("Port", it) }
-                Meta("Queue", link.queueName)
+                link.port?.let { Meta(stringResource(Res.string.device_meta_port), it) }
+                Meta(stringResource(Res.string.device_meta_queue), link.queueName)
             }
         }
         // The decoded form, because it is the one the same printer shows on its other link. The
         // descriptor's own hex spelling is not shown — it is what the device said, but saying it
         // twice in the card taught the reader nothing. `./gradlew diagnose` still prints it.
-        entry.device.canonicalSerial?.let { Meta("Serial", it) }
+        entry.device.canonicalSerial?.let { Meta(stringResource(Res.string.device_meta_serial), it) }
 
         entry.device.crossCheck?.let {
-            Meta("Model from", "${it.name} · SNMP at ${it.link.where}")
+            Meta(
+                stringResource(Res.string.device_meta_model_from),
+                stringResource(Res.string.device_model_from_value, it.name, it.link.where),
+            )
         }
 
         Spacer(Modifier.height(8.dp))
 
         when (entry.confidence) {
             MatchedPrinter.Confidence.EXACT -> MatchTag(
-                "✓ ${entry.model?.name}",
+                stringResource(Res.string.device_match_exact, entry.model?.name.toString()),
                 StatusColors.good,
             )
+
             MatchedPrinter.Confidence.LIKELY -> MatchTag(
-                "≈ ${entry.model?.name} — confirm",
+                stringResource(Res.string.device_match_likely, entry.model?.name.toString()),
                 StatusColors.warn,
             )
+
             MatchedPrinter.Confidence.CLASS_ONLY -> MatchTag(
-                "≈ one of ${entry.candidates.size} — pick the model",
+                stringResource(Res.string.device_match_class_only, entry.candidates.size),
                 StatusColors.warn,
             )
+
             MatchedPrinter.Confidence.NONE -> MatchTag(
-                "No database match — pick manually",
+                stringResource(Res.string.device_match_none),
                 StatusColors.muted,
             )
         }
@@ -355,24 +413,29 @@ private fun DeviceCard(
                     enabled = vm.canTestConnection,
                     modifier = Modifier.width(112.dp),
                 ) {
-                    Text(if (vm.testing) "Testing…" else "Test", maxLines = 1)
+                    Text(
+                        stringResource(if (vm.testing) Res.string.devices_testing else Res.string.devices_test),
+                        maxLines = 1,
+                    )
                 }
                 if (vm.isSaved(entry)) {
                     Spacer(Modifier.width(8.dp))
-                    TextButton(onClick = { vm.forgetNetworkPrinter(entry) }) { Text("Forget") }
+                    TextButton(onClick = {
+                        vm.forgetNetworkPrinter(entry)
+                    }) { Text(stringResource(Res.string.device_forget)) }
                 }
             }
 
             vm.lastTest?.let { result ->
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    result.headline,
+                    result.headline.resolve(),
                     style = MaterialTheme.typography.labelSmall,
                     color = if (result.usable) StatusColors.good else StatusColors.warn,
                 )
                 result.advice?.let {
                     Spacer(Modifier.height(2.dp))
-                    Text(it, style = MaterialTheme.typography.labelSmall, color = StatusColors.muted)
+                    Text(it.resolve(), style = MaterialTheme.typography.labelSmall, color = StatusColors.muted)
                 }
             }
 
@@ -382,7 +445,10 @@ private fun DeviceCard(
                     onClick = vm::requestModelSelection,
                     enabled = vm.canChangeTarget,
                 ) {
-                    Text("Change model…", style = MaterialTheme.typography.labelSmall)
+                    Text(
+                        stringResource(Res.string.device_change_model),
+                        style = MaterialTheme.typography.labelSmall,
+                    )
                 }
             }
         }

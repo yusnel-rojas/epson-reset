@@ -1,5 +1,26 @@
 package nl.redlabs.epsonreset.net
 
+import nl.redlabs.epsonreset.i18n.UiText
+import nl.redlabs.epsonreset.resources.Res
+import nl.redlabs.epsonreset.resources.supply_level_some_remaining
+import nl.redlabs.epsonreset.resources.supply_level_unknown
+import nl.redlabs.epsonreset.resources.supply_level_unspecified
+import nl.redlabs.epsonreset.resources.supply_type_cleaner_unit
+import nl.redlabs.epsonreset.resources.supply_type_developer
+import nl.redlabs.epsonreset.resources.supply_type_ink
+import nl.redlabs.epsonreset.resources.supply_type_ink_cartridge
+import nl.redlabs.epsonreset.resources.supply_type_ink_ribbon
+import nl.redlabs.epsonreset.resources.supply_type_other
+import nl.redlabs.epsonreset.resources.supply_type_photo_conductor
+import nl.redlabs.epsonreset.resources.supply_type_raw
+import nl.redlabs.epsonreset.resources.supply_type_toner
+import nl.redlabs.epsonreset.resources.supply_type_toner_cartridge
+import nl.redlabs.epsonreset.resources.supply_type_transfer_unit
+import nl.redlabs.epsonreset.resources.supply_type_unknown
+import nl.redlabs.epsonreset.resources.supply_type_waste_ink
+import nl.redlabs.epsonreset.resources.supply_type_waste_toner
+import nl.redlabs.epsonreset.resources.supply_type_waste_wax
+
 /**
  * The standard Printer-MIB (RFC 3805), under `1.3.6.1.2.1.43`. It sits beside the private
  * [EpsonMib]: where the private path is firmware-specific and sometimes absent, these OIDs are the
@@ -37,20 +58,20 @@ object PrinterMib {
     /** `prtMarkerSuppliesTypeTC` values, the inkjet-relevant subset. Unlisted codes show raw, the
      *  way [nl.redlabs.epsonreset.protocol.Status] treats unknown field types. */
     private val TYPES = mapOf(
-        1 to "other",
-        2 to "unknown",
-        3 to "toner",
-        4 to "waste toner",
-        5 to "ink",
-        6 to "ink cartridge",
-        7 to "ink ribbon",
-        8 to "waste ink",
-        9 to "photo conductor",
-        10 to "developer",
-        14 to "waste wax",
-        18 to "cleaner unit",
-        20 to "transfer unit",
-        21 to "toner cartridge",
+        1 to Res.string.supply_type_other,
+        2 to Res.string.supply_type_unknown,
+        3 to Res.string.supply_type_toner,
+        4 to Res.string.supply_type_waste_toner,
+        5 to Res.string.supply_type_ink,
+        6 to Res.string.supply_type_ink_cartridge,
+        7 to Res.string.supply_type_ink_ribbon,
+        8 to Res.string.supply_type_waste_ink,
+        9 to Res.string.supply_type_photo_conductor,
+        10 to Res.string.supply_type_developer,
+        14 to Res.string.supply_type_waste_wax,
+        18 to Res.string.supply_type_cleaner_unit,
+        20 to Res.string.supply_type_transfer_unit,
+        21 to Res.string.supply_type_toner_cartridge,
     )
 
     private val WASTE_TYPES = setOf(4, 8, 14)
@@ -82,7 +103,10 @@ object PrinterMib {
         val isInkConsumable: Boolean get() = !isWaste && typeCode in INK_CONSUMABLE_TYPES
 
         /** The type as a word, or the raw code when it isn't one this app names. */
-        val typeLabel: String? get() = typeCode?.let { TYPES[it] ?: "type $it" }
+        val typeLabel: UiText?
+            get() = typeCode?.let { code ->
+                TYPES[code]?.let { UiText.of(it) } ?: UiText.of(Res.string.supply_type_raw, code)
+            }
 
         /**
          * Level as a percentage of capacity, or null when either value is one of the MIB's negative
@@ -97,11 +121,11 @@ object PrinterMib {
             }
 
         /** What a level says when it can't be a percentage. */
-        val levelNote: String?
+        val levelNote: UiText?
             get() = when (level) {
-                -1 -> "unspecified"
-                -2 -> "unknown"
-                -3 -> "some remaining"
+                -1 -> UiText.of(Res.string.supply_level_unspecified)
+                -2 -> UiText.of(Res.string.supply_level_unknown)
+                -3 -> UiText.of(Res.string.supply_level_some_remaining)
                 else -> null
             }
 
