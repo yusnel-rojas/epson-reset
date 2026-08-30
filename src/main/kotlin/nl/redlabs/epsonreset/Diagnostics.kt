@@ -9,6 +9,7 @@ import nl.redlabs.epsonreset.device.DeviceMatcher
 import nl.redlabs.epsonreset.device.Link
 import nl.redlabs.epsonreset.device.PrinterDiscovery
 import nl.redlabs.epsonreset.device.PrinterTransports
+import nl.redlabs.epsonreset.i18n.resolveNow
 import nl.redlabs.epsonreset.protocol.CounterReader
 import nl.redlabs.epsonreset.protocol.Executor
 import nl.redlabs.epsonreset.protocol.FakeTransport
@@ -16,12 +17,16 @@ import nl.redlabs.epsonreset.protocol.SequenceGenerator
 import nl.redlabs.epsonreset.update.AppVersion
 import nl.redlabs.epsonreset.usb.LibUsb
 import nl.redlabs.epsonreset.usb.UsbPrinterScanner
+import java.util.Locale
 
 /** Headless self-check: database, libusb, connected devices, and a dry run. */
 object Diagnostics {
 
     @JvmStatic
     fun main(args: Array<String>) {
+        // Prints for a bug report, not for the app's user: this output stays English.
+        Locale.setDefault(Locale.ENGLISH)
+
         section("Environment")
         println("app        ${AppVersion.display}")
         println("os.name    ${System.getProperty("os.name")} ${System.getProperty("os.version")}")
@@ -194,7 +199,7 @@ object Diagnostics {
         // say what the printer answered before reporting counters read through it.
         if (device.link is Link.Network) {
             val test = ConnectionTest.run(device)
-            println("probe      ${test.headline}")
+            println("probe      ${test.headline.resolveNow()}")
             test.model?.let { println("   reports    $it") }
             test.advice?.let { println("   advice     $it") }
             if (!test.usable) return

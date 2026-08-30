@@ -28,6 +28,40 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import nl.redlabs.epsonreset.db.PrinterModel
+import nl.redlabs.epsonreset.i18n.Strings
+import nl.redlabs.epsonreset.resources.Res
+import nl.redlabs.epsonreset.resources.reset_confirm_absorbed_ink
+import nl.redlabs.epsonreset.resources.reset_confirm_addresses
+import nl.redlabs.epsonreset.resources.reset_confirm_family_warning
+import nl.redlabs.epsonreset.resources.reset_confirm_headline
+import nl.redlabs.epsonreset.resources.reset_confirm_metadata
+import nl.redlabs.epsonreset.resources.reset_confirm_no_warranty
+import nl.redlabs.epsonreset.resources.reset_confirm_snapshot_first
+import nl.redlabs.epsonreset.resources.reset_confirm_the_printer
+import nl.redlabs.epsonreset.resources.reset_confirm_title
+import nl.redlabs.epsonreset.resources.reset_controls_cancel
+import nl.redlabs.epsonreset.resources.reset_controls_metadata
+import nl.redlabs.epsonreset.resources.reset_controls_no_printer
+import nl.redlabs.epsonreset.resources.reset_controls_none_body
+import nl.redlabs.epsonreset.resources.reset_controls_none_title
+import nl.redlabs.epsonreset.resources.reset_controls_pad_caveat
+import nl.redlabs.epsonreset.resources.reset_controls_platen_body
+import nl.redlabs.epsonreset.resources.reset_controls_platen_title
+import nl.redlabs.epsonreset.resources.reset_controls_preview_heading
+import nl.redlabs.epsonreset.resources.reset_controls_progress_heading
+import nl.redlabs.epsonreset.resources.reset_controls_recovery_confirm
+import nl.redlabs.epsonreset.resources.reset_controls_recovery_saved
+import nl.redlabs.epsonreset.resources.reset_controls_recovery_title
+import nl.redlabs.epsonreset.resources.reset_controls_restore_from_backup
+import nl.redlabs.epsonreset.resources.reset_controls_save_then_reset
+import nl.redlabs.epsonreset.resources.reset_controls_simulate
+import nl.redlabs.epsonreset.resources.reset_controls_simulation_only
+import nl.redlabs.epsonreset.resources.reset_controls_subtitle
+import nl.redlabs.epsonreset.resources.reset_controls_title
+import nl.redlabs.epsonreset.resources.reset_controls_write_back
+import nl.redlabs.epsonreset.resources.run_backup_unreadable
+import org.jetbrains.compose.resources.pluralStringResource
+import org.jetbrains.compose.resources.stringResource
 
 /** Reset workflow shared by Maintenance; kept separate from every read-only printer view. */
 @Composable
@@ -47,20 +81,25 @@ internal fun MaintenanceResetSection(
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                "Reset controls",
+                stringResource(Res.string.reset_controls_title),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
             )
             Spacer(Modifier.weight(1f))
             Text(
-                "rkey ${model.readKey} · wlen ${model.writeLength} · mem_high 0x%X".format(model.memHigh),
+                stringResource(
+                    Res.string.reset_controls_metadata,
+                    model.readKey,
+                    model.writeLength,
+                    "0x%X".format(model.memHigh),
+                ),
                 style = MaterialTheme.typography.labelSmall,
                 fontFamily = FontFamily.Monospace,
                 color = StatusColors.muted,
             )
         }
         Text(
-            "${model.name} · Simulating writes nothing; resetting writes EEPROM after confirmation.",
+            stringResource(Res.string.reset_controls_subtitle, model.name),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -68,8 +107,8 @@ internal fun MaintenanceResetSection(
         if (!model.hasResettableCounters) {
             Spacer(Modifier.height(12.dp))
             Callout(
-                "No resettable counters",
-                "This entry has no EEPROM addresses, so there is nothing to write.",
+                stringResource(Res.string.reset_controls_none_title),
+                stringResource(Res.string.reset_controls_none_body),
                 StatusColors.bad,
             )
             return@Column
@@ -78,10 +117,8 @@ internal fun MaintenanceResetSection(
         if (model.isPlatenOnly) {
             Spacer(Modifier.height(12.dp))
             Callout(
-                "Platen pad only",
-                "This model keeps only the platen pad counter in EEPROM. The main waste box " +
-                    "counter lives on a chip and is not reset here — the box itself still needs " +
-                    "servicing when it fills.",
+                stringResource(Res.string.reset_controls_platen_title),
+                stringResource(Res.string.reset_controls_platen_body),
                 StatusColors.warn,
             )
         }
@@ -96,7 +133,11 @@ internal fun MaintenanceResetSection(
             vm.counterDisplayReport?.let { report ->
                 Spacer(Modifier.height(16.dp))
                 Text(
-                    if (vm.dryRun) "Simulated reset preview" else "Reset read/write progress",
+                    if (vm.dryRun) {
+                        stringResource(Res.string.reset_controls_preview_heading)
+                    } else {
+                        stringResource(Res.string.reset_controls_progress_heading)
+                    },
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
                 )
@@ -134,17 +175,17 @@ private fun RunControls(
         // to decide it is worn out, and clicking again does not put it back.
         Row(verticalAlignment = Alignment.CenterVertically) {
             if (active) {
-                OutlinedButton(onClick = { vm.cancel() }) { Text("Cancel") }
+                OutlinedButton(onClick = { vm.cancel() }) { Text(stringResource(Res.string.reset_controls_cancel)) }
             } else {
                 SplitButton(
-                    label = "Save current, then reset",
+                    label = stringResource(Res.string.reset_controls_save_then_reset),
                     primaryEnabled = vm.canResetLive,
                     onPrimary = { onConfirmChange(true) },
                     container = StatusColors.bad,
                     onContainer = StatusColors.onBad,
                     actions = listOf(
                         SplitAction(
-                            "Simulate reset — writes nothing",
+                            stringResource(Res.string.reset_controls_simulate),
                             enabled = vm.canSimulateReset,
                         ) { vm.run(simulate = true) },
                     ),
@@ -155,10 +196,7 @@ private fun RunControls(
 
         Spacer(Modifier.height(8.dp))
         Text(
-            "Resetting clears the counter, which is what unblocks the printer. It does not empty " +
-                "or replace the waste ink pad — or the maintenance box, if this printer uses one. " +
-                "That is a physical part, and it still holds whatever it held a moment ago. Have " +
-                "it replaced or cleaned, or the ink it can no longer absorb has to go somewhere.",
+            stringResource(Res.string.reset_controls_pad_caveat),
             style = MaterialTheme.typography.labelSmall,
             color = StatusColors.warn,
         )
@@ -166,7 +204,7 @@ private fun RunControls(
         if (vm.selectedDevice == null) {
             Spacer(Modifier.height(8.dp))
             Text(
-                "Select a connected printer to reset one. Simulating needs no printer.",
+                stringResource(Res.string.reset_controls_no_printer),
                 style = MaterialTheme.typography.labelSmall,
                 color = StatusColors.muted,
             )
@@ -184,7 +222,7 @@ private fun RunControls(
         vm.modelMismatch?.let {
             Spacer(Modifier.height(8.dp))
             Text(
-                "Simulation only — $it",
+                stringResource(Res.string.reset_controls_simulation_only, it),
                 style = MaterialTheme.typography.labelSmall,
                 color = StatusColors.warn,
             )
@@ -223,7 +261,7 @@ internal fun MaintenanceResetRecovery(vm: ResetViewModel) {
             .padding(12.dp),
     ) {
         Text(
-            "Recovery available",
+            stringResource(Res.string.reset_controls_recovery_title),
             style = MaterialTheme.typography.bodyMedium,
             color = StatusColors.warn,
             fontWeight = FontWeight.SemiBold,
@@ -231,11 +269,9 @@ internal fun MaintenanceResetRecovery(vm: ResetViewModel) {
         Spacer(Modifier.height(4.dp))
         Text(
             if (confirming) {
-                "This writes the original bytes back, returning the counters to where they were " +
-                    "before the run — including the waste levels. What the printer holds now is " +
-                    "saved as its own snapshot first. Continue?"
+                stringResource(Res.string.reset_controls_recovery_confirm)
             } else {
-                "The bytes overwritten by this run were saved to ${file.name} beforehand."
+                stringResource(Res.string.reset_controls_recovery_saved, file.name)
             },
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -247,15 +283,19 @@ internal fun MaintenanceResetRecovery(vm: ResetViewModel) {
                 Button(
                     onClick = {
                         vm.snapshot.loadBackup(file)?.let { vm.snapshot.restore(it, file) }
-                            ?: vm.bad("Could not read ${file.name} — it is missing or not a valid backup.")
+                            ?: vm.bad(Strings.get(Res.string.run_backup_unreadable, file.name))
                         confirming = false
                     },
                     colors = cautionButtonColors(),
-                ) { Text("Write the old bytes back") }
+                ) { Text(stringResource(Res.string.reset_controls_write_back)) }
                 Spacer(Modifier.width(8.dp))
-                OutlinedButton(onClick = { confirming = false }) { Text("Cancel") }
+                OutlinedButton(onClick = {
+                    confirming = false
+                }) { Text(stringResource(Res.string.reset_controls_cancel)) }
             } else {
-                OutlinedButton(onClick = { confirming = true }) { Text("Restore from backup") }
+                OutlinedButton(onClick = {
+                    confirming = true
+                }) { Text(stringResource(Res.string.reset_controls_restore_from_backup)) }
             }
         }
     }
@@ -269,27 +309,19 @@ internal fun MaintenanceResetRecovery(vm: ResetViewModel) {
  */
 @Composable
 private fun ResetConfirmation(vm: ResetViewModel, model: PrinterModel, onDismiss: () -> Unit, onConfirm: () -> Unit) {
-    val printer = vm.selectedDevice?.device?.displayName ?: "the printer"
+    val printer = vm.selectedDevice?.device?.displayName ?: stringResource(Res.string.reset_confirm_the_printer)
+    val addresses = pluralStringResource(Res.plurals.reset_confirm_addresses, model.writeCount, model.writeCount)
     EepromWriteConfirmation(
-        title = "Reset counters — ${model.name}",
-        headline = "Write ${model.name}'s key to ${model.writeCount} " +
-            "address${if (model.writeCount == 1) "" else "es"} on $printer.",
-        metadata = "rkey ${model.readKey} · ${model.writeCount} writes",
+        title = stringResource(Res.string.reset_confirm_title, model.name),
+        headline = stringResource(Res.string.reset_confirm_headline, model.name, addresses, printer),
+        metadata = stringResource(Res.string.reset_confirm_metadata, model.readKey, model.writeCount),
         warning = vm.confirmedClass?.let {
-            "This printer reports only \"$it\". ${model.name} is the model you confirmed it " +
-                "to be — a near neighbour's key is not the same key, so check the printer label."
+            stringResource(Res.string.reset_confirm_family_warning, it, model.name)
         },
         paragraphs = listOf(
-            "This clears the printer's record of the ink it has absorbed, which is what unblocks " +
-                "it. It does not empty anything. The waste ink pad — or the maintenance box, if " +
-                "this printer uses one — is a physical part holding real ink; it will hold exactly " +
-                "as much after this run as before, and only replacing or cleaning it changes that. " +
-                "A full one left in place overflows.",
-            "The bytes about to be overwritten are saved to a snapshot first, and the run " +
-                "stops rather than proceeding if that cannot be done.",
-            "Whether to do this is your decision, and what follows from it is yours to " +
-                "carry: this software comes with no warranty, and its authors are not " +
-                "accountable for what happens to your printer.",
+            stringResource(Res.string.reset_confirm_absorbed_ink),
+            stringResource(Res.string.reset_confirm_snapshot_first),
+            stringResource(Res.string.reset_confirm_no_warranty),
         ),
         onDismiss = onDismiss,
         onConfirm = onConfirm,

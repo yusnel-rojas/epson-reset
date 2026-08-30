@@ -7,6 +7,7 @@ import nl.redlabs.epsonreset.protocol.Alignment
 import nl.redlabs.epsonreset.protocol.CounterReader
 import nl.redlabs.epsonreset.protocol.Maintenance
 import nl.redlabs.epsonreset.protocol.Status
+import java.util.Locale
 
 /**
  * Hardware experiment: get a printer to actually perform a maintenance operation.
@@ -25,6 +26,9 @@ object MaintenanceProbe {
 
     @JvmStatic
     fun main(args: Array<String>) {
+        // Prints for a bug report, not for the app's user: this output stays English.
+        Locale.setDefault(Locale.ENGLISH)
+
         val live = args.any { it == "--live" }
         val useControl = args.any { it == "--control" }
         val precheck = args.none { it == "--no-precheck" }

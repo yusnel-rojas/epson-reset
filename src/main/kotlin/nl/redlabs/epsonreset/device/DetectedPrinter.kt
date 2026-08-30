@@ -1,6 +1,10 @@
 package nl.redlabs.epsonreset.device
 
 import nl.redlabs.epsonreset.db.PrinterModel
+import nl.redlabs.epsonreset.i18n.Strings
+import nl.redlabs.epsonreset.resources.Res
+import nl.redlabs.epsonreset.resources.printer_unnamed_at
+import nl.redlabs.epsonreset.resources.printer_unnamed_pid
 
 /** A printer found during discovery, or a remembered network address, plus what is known about it. */
 data class DetectedPrinter(
@@ -33,8 +37,8 @@ data class DetectedPrinter(
 
     val displayName: String
         get() = product?.takeIf { it.isNotBlank() }
-            ?: productId?.let { "Epson device %04X".format(it) }
-            ?: "Epson at ${link.where}"
+            ?: productId?.let { Strings.get(Res.string.printer_unnamed_pid, "%04X".format(it)) }
+            ?: Strings.get(Res.string.printer_unnamed_at, link.where)
 
     val pidHex: String? get() = productId?.let { "0x%04X".format(it) }
 

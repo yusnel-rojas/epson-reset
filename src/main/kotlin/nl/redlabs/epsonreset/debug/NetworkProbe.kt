@@ -11,12 +11,16 @@ import nl.redlabs.epsonreset.protocol.Executor
 import nl.redlabs.epsonreset.protocol.FactoryReply
 import nl.redlabs.epsonreset.protocol.SequenceGenerator
 import nl.redlabs.epsonreset.protocol.Status
+import java.util.Locale
 
 /** Staged experiment for the network path. */
 object NetworkProbe {
 
     @JvmStatic
     fun main(args: Array<String>) {
+        // Prints for a bug report, not for the app's user: this output stays English.
+        Locale.setDefault(Locale.ENGLISH)
+
         val target = args.firstOrNull { !it.startsWith("--") }
         if (target == null) return usage()
 

@@ -11,9 +11,26 @@ import nl.redlabs.epsonreset.db.CounterSpec
 import nl.redlabs.epsonreset.db.PrinterDatabase
 import nl.redlabs.epsonreset.db.PrinterModel
 import nl.redlabs.epsonreset.device.MatchedPrinter
+import nl.redlabs.epsonreset.i18n.Strings
+import nl.redlabs.epsonreset.i18n.UiText
+import nl.redlabs.epsonreset.i18n.resolveNow
 import nl.redlabs.epsonreset.probe.DeviceInspector
 import nl.redlabs.epsonreset.probe.SweepAnalysis
 import nl.redlabs.epsonreset.protocol.Transport
+import nl.redlabs.epsonreset.resources.Res
+import nl.redlabs.epsonreset.resources.inspect_keys_answered
+import nl.redlabs.epsonreset.resources.inspect_many_keys
+import nl.redlabs.epsonreset.resources.inspect_no_address
+import nl.redlabs.epsonreset.resources.inspect_no_key_answered
+import nl.redlabs.epsonreset.resources.inspect_no_reply
+import nl.redlabs.epsonreset.resources.inspect_nothing_swept
+import nl.redlabs.epsonreset.resources.inspect_other_operation
+import nl.redlabs.epsonreset.resources.inspect_sweep_failed
+import nl.redlabs.epsonreset.resources.inspect_sweep_read
+import nl.redlabs.epsonreset.resources.inspect_sweeping
+import nl.redlabs.epsonreset.resources.inspect_sweeping_progress
+import nl.redlabs.epsonreset.resources.inspect_trying_keys
+import nl.redlabs.epsonreset.resources.inspect_trying_keys_log
 import kotlin.coroutines.CoroutineContext
 
 /** Read-only exploration state for printers the database does not cover. */
@@ -87,7 +104,7 @@ class InspectState(
     /** Tries the database's known read keys against the attached printer. */
     fun discoverReadKey() {
         if (!canInspect) {
-            bad("Another printer operation is already in progress.")
+            bad(Strings.get(Res.string.inspect_other_operation))
             return
         }
         val db = database() ?: return
@@ -97,8 +114,8 @@ class InspectState(
             resetCancellation()
             inspecting = true
             keys.clear()
-            updateProgress(0f, "Trying read keys…")
-            info("Trying ${DeviceInspector.candidateKeys(db).size} known read keys — read-only, nothing is written.")
+            updateProgress(0f, Strings.get(Res.string.inspect_trying_keys))
+            info(Strings.get(Res.string.inspect_trying_keys_log, DeviceInspector.candidateKeys(db).size))
 
             val results = withContext(io) {
                 openTransport(device, false).use { transport ->
@@ -118,15 +135,21 @@ class InspectState(
 
             val answered = results.filter { it.answered }
             when {
-                results.isEmpty() -> bad("No reply at all — the printer never opened a D4 channel. ${transportError()}")
-                answered.isEmpty() -> warn("None of the known read keys produced a reading.")
+                results.isEmpty() -> bad(Strings.get(Res.string.inspect_no_reply, transportError()))
+                answered.isEmpty() -> warn(Strings.get(Res.string.inspect_no_key_answered))
                 else -> {
                     chooseKey(answered.first().readKey)
-                    good("${answered.size} key(s) answered. Using ${answered.first().hex}.")
+                    good(
+                        Strings.plural(
+                            Res.plurals.inspect_keys_answered,
+                            answered.size,
+                            answered.size,
+                            answered.first().hex,
+                        ),
+                    )
                     if (answered.size > 1) {
                         warn(
-                            "More than one key answered, so this firmware probably doesn't check the " +
-                                "read key. The sweep is the useful result, not the key.",
+                            Strings.get(Res.string.inspect_many_keys),
                         )
                     }
                 }
@@ -140,7 +163,7 @@ class InspectState(
     /** Reads every address up to [rangeEnd] with the chosen key. Never writes. */
     fun sweepAddresses() {
         if (!canInspect) {
-            bad("Another printer operation is already in progress.")
+            bad(Strings.get(Res.string.inspect_other_operation))
             return
         }
         val selectedKey = key ?: return
@@ -150,8 +173,14 @@ class InspectState(
         scope.launch {
             resetCancellation()
             inspecting = true
-            updateProgress(0f, "Sweeping…")
-            info("Sweeping 0x0000–0x%04X with key 0x%04X — read-only.".format(end, selectedKey))
+            updateProgress(0f, Strings.get(Res.string.inspect_sweeping_progress))
+            info(
+                Strings.get(
+                    Res.string.inspect_sweeping,
+                    "0x%04X".format(end),
+                    "0x%04X".format(selectedKey),
+                ),
+            )
 
             val addresses = (0..end).toList()
             val result = withContext(io) {
@@ -178,10 +207,16 @@ class InspectState(
             candidates.addAll(found)
 
             when {
-                result.error != null -> bad("Sweep failed: ${result.error}")
-                result.answered == 0 -> bad("No address answered. The key is probably wrong.")
+                result.error != null -> bad(Strings.get(Res.string.inspect_sweep_failed, result.error))
+                result.answered == 0 -> bad(Strings.get(Res.string.inspect_no_address))
                 else -> good(
-                    "Read ${result.answered} of ${result.total} addresses; ${found.size} candidate counter(s).",
+                    UiText.plural(
+                        Res.plurals.inspect_sweep_read,
+                        found.size,
+                        result.answered,
+                        result.total,
+                        found.size,
+                    ).resolveNow(),
                 )
             }
 
@@ -198,7 +233,7 @@ class InspectState(
 
     /** A report to file, so a fix reaches every tool built on the same data. */
     fun report(): String {
-        val currentSweep = sweep ?: return "Nothing has been swept yet."
+        val currentSweep = sweep ?: return Strings.get(Res.string.inspect_nothing_swept)
         return SweepAnalysis.report(
             device = selectedDevice()?.device,
             sweep = currentSweep,

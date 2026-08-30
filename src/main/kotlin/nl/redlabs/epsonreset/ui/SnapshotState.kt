@@ -16,11 +16,75 @@ import nl.redlabs.epsonreset.db.CounterSpec
 import nl.redlabs.epsonreset.db.PrinterDatabase
 import nl.redlabs.epsonreset.db.PrinterModel
 import nl.redlabs.epsonreset.device.MatchedPrinter
+import nl.redlabs.epsonreset.i18n.Strings
+import nl.redlabs.epsonreset.i18n.UiText
+import nl.redlabs.epsonreset.i18n.resolveNow
 import nl.redlabs.epsonreset.protocol.CounterReader
 import nl.redlabs.epsonreset.protocol.Executor
 import nl.redlabs.epsonreset.protocol.SequenceGenerator
 import nl.redlabs.epsonreset.protocol.Status
 import nl.redlabs.epsonreset.protocol.Transport
+import nl.redlabs.epsonreset.resources.Res
+import nl.redlabs.epsonreset.resources.snap_ambiguous_units
+import nl.redlabs.epsonreset.resources.snap_choose_model_above
+import nl.redlabs.epsonreset.resources.snap_choose_model_for_key
+import nl.redlabs.epsonreset.resources.snap_choose_model_to_read
+import nl.redlabs.epsonreset.resources.snap_compare_blocked
+import nl.redlabs.epsonreset.resources.snap_compare_busy
+import nl.redlabs.epsonreset.resources.snap_compare_dry_run
+import nl.redlabs.epsonreset.resources.snap_compare_from_dry_run
+import nl.redlabs.epsonreset.resources.snap_compare_model_mismatch
+import nl.redlabs.epsonreset.resources.snap_compare_nothing_answered
+import nl.redlabs.epsonreset.resources.snap_could_not_save_first
+import nl.redlabs.epsonreset.resources.snap_current_reading
+import nl.redlabs.epsonreset.resources.snap_dry_run_note
+import nl.redlabs.epsonreset.resources.snap_generating
+import nl.redlabs.epsonreset.resources.snap_missing_reset_addresses
+import nl.redlabs.epsonreset.resources.snap_model_changed
+import nl.redlabs.epsonreset.resources.snap_model_mismatch_warn
+import nl.redlabs.epsonreset.resources.snap_model_not_in_database
+import nl.redlabs.epsonreset.resources.snap_no_current_reading
+import nl.redlabs.epsonreset.resources.snap_no_printer_selected
+import nl.redlabs.epsonreset.resources.snap_no_reading
+import nl.redlabs.epsonreset.resources.snap_no_resettable
+import nl.redlabs.epsonreset.resources.snap_not_saved_error
+import nl.redlabs.epsonreset.resources.snap_not_saved_missing
+import nl.redlabs.epsonreset.resources.snap_nothing_saved
+import nl.redlabs.epsonreset.resources.snap_nothing_saved_busy
+import nl.redlabs.epsonreset.resources.snap_nothing_saved_detail
+import nl.redlabs.epsonreset.resources.snap_nothing_to_write
+import nl.redlabs.epsonreset.resources.snap_other_operation
+import nl.redlabs.epsonreset.resources.snap_pick_model_first
+import nl.redlabs.epsonreset.resources.snap_power_cycle
+import nl.redlabs.epsonreset.resources.snap_read_failed
+import nl.redlabs.epsonreset.resources.snap_read_from_disk
+import nl.redlabs.epsonreset.resources.snap_read_just_now
+import nl.redlabs.epsonreset.resources.snap_read_printer_first
+import nl.redlabs.epsonreset.resources.snap_refusing_cross_model
+import nl.redlabs.epsonreset.resources.snap_refusing_cross_unit
+import nl.redlabs.epsonreset.resources.snap_restore_complete
+import nl.redlabs.epsonreset.resources.snap_restore_incomplete
+import nl.redlabs.epsonreset.resources.snap_restore_model_mismatch
+import nl.redlabs.epsonreset.resources.snap_restoring
+import nl.redlabs.epsonreset.resources.snap_saved
+import nl.redlabs.epsonreset.resources.snap_saved_current
+import nl.redlabs.epsonreset.resources.snap_saving_overwritten
+import nl.redlabs.epsonreset.resources.snap_select_printer_above
+import nl.redlabs.epsonreset.resources.snap_select_snapshot
+import nl.redlabs.epsonreset.resources.snap_select_snapshot_first
+import nl.redlabs.epsonreset.resources.snap_select_target_printer
+import nl.redlabs.epsonreset.resources.snap_selected_model
+import nl.redlabs.epsonreset.resources.snap_stopped_before_writing
+import nl.redlabs.epsonreset.resources.snap_target_changed
+import nl.redlabs.epsonreset.resources.snap_untied_unit
+import nl.redlabs.epsonreset.resources.snap_why_dry_run
+import nl.redlabs.epsonreset.resources.snap_why_no_addresses
+import nl.redlabs.epsonreset.resources.snap_why_no_model
+import nl.redlabs.epsonreset.resources.snap_why_no_report
+import nl.redlabs.epsonreset.resources.snap_why_nothing_answered
+import nl.redlabs.epsonreset.resources.snap_why_wrong_model
+import nl.redlabs.epsonreset.resources.vm_and_more
+import nl.redlabs.epsonreset.resources.vm_progress_packet
 import java.io.File
 import kotlin.coroutines.CoroutineContext
 
@@ -132,11 +196,11 @@ class SnapshotState(
         simulate: Boolean = dryRun(),
     ): Boolean {
         if (busy()) {
-            bad("Another printer operation is already in progress.")
+            bad(Strings.get(Res.string.snap_other_operation))
             return false
         }
         val model = selectedModel() ?: run {
-            bad("Pick the model first — a restore needs its write key.")
+            bad(Strings.get(Res.string.snap_pick_model_first))
             return false
         }
         val device = selectedDevice()
@@ -157,16 +221,24 @@ class SnapshotState(
 
         scope.launch {
             resetCancellation()
-            startRun("Generating restore sequence…")
+            startRun(Strings.get(Res.string.snap_generating))
 
             val sequence = SequenceGenerator.generateWrites(model, backup.writes)
             info(
-                "Restoring ${backup.entries.size} addresses to ${model.name} from the backup taken ${backup.createdAt}.",
+                Strings.get(
+                    Res.string.snap_restoring,
+                    backup.entries.size,
+                    model.name,
+                    backup.createdAt,
+                ),
             )
 
             val listener = object : Executor.Listener {
                 override fun onPacket(index: Int, total: Int, message: String) = onMain {
-                    updateProgress(index.toFloat() / total, "Packet $index / $total — $message")
+                    updateProgress(
+                        index.toFloat() / total,
+                        Strings.get(Res.string.vm_progress_packet, index, total, message),
+                    )
                 }
 
                 // The same per-address feedback a reset draws. Nothing is read back afterwards, so
@@ -188,7 +260,7 @@ class SnapshotState(
             // the backups folder that looks like a real recovery point and is not one.
             val net = saveFirst && !isDry
             if (saveFirst && isDry) {
-                info("DRY RUN — a live restore would read and save the current bytes before writing.")
+                info(Strings.get(Res.string.snap_dry_run_note))
             }
 
             var savedFirst: File? = null
@@ -196,7 +268,7 @@ class SnapshotState(
                 openTransport(device, isDry).use { transport ->
                     transport?.let {
                         if (net) {
-                            onMain { updateProgress(0f, "Saving the bytes about to be overwritten…") }
+                            onMain { updateProgress(0f, Strings.get(Res.string.snap_saving_overwritten)) }
                             val before = CounterReader.readAll(it, model, specsFor(model), null, isCancelled)
                             when (val outcome = captureSafetyNet(model, sequence, before, device)) {
                                 is SafetyNet.Blocked -> return@let Executor.Result(error = outcome.reason)
@@ -219,10 +291,10 @@ class SnapshotState(
             finishRun(result, isDry)
 
             if (result.success) {
-                good("Restore complete — ${result.writesAcknowledged}/${result.writesTotal} writes acknowledged.")
-                warn("Power-cycle the printer to finalise the change.")
+                good(Strings.get(Res.string.snap_restore_complete, result.writesAcknowledged, result.writesTotal))
+                warn(Strings.get(Res.string.snap_power_cycle))
             } else {
-                bad(result.error.ifBlank { "The restore did not complete." })
+                bad(result.error.ifBlank { Strings.get(Res.string.snap_restore_incomplete) })
             }
         }
         return true
@@ -250,8 +322,7 @@ class SnapshotState(
     ): SafetyNet {
         before.error?.let {
             return SafetyNet.Blocked(
-                "Nothing was written — the bytes this restore would overwrite could not be read " +
-                    "first ($it). Reads are unprivileged and safe to retry.",
+                Strings.get(Res.string.snap_read_failed, it),
             )
         }
 
@@ -263,15 +334,14 @@ class SnapshotState(
         )
 
         return when (capture) {
-            is Capture.NothingToWrite -> SafetyNet.Blocked("This snapshot writes nothing, so nothing was sent.")
+            is Capture.NothingToWrite -> SafetyNet.Blocked(Strings.get(Res.string.snap_nothing_to_write))
 
             is Capture.Incomplete -> {
                 val shown = capture.missing.take(8).joinToString(", ")
-                val more = if (capture.missing.size > 8) " +${capture.missing.size - 8} more" else ""
+                val more =
+                    if (capture.missing.size > 8) Strings.get(Res.string.vm_and_more, capture.missing.size - 8) else ""
                 SafetyNet.Blocked(
-                    "Stopped before writing anything: ${capture.missing.size} of the addresses this " +
-                        "restore would write did not answer the read, so they could not be saved " +
-                        "first ($shown$more). Reads are unprivileged and safe to retry.",
+                    Strings.get(Res.string.snap_stopped_before_writing, capture.missing.size, "$shown$more"),
                 )
             }
 
@@ -279,16 +349,17 @@ class SnapshotState(
                 onSuccess = { saved ->
                     onMain {
                         good(
-                            "Saved the current bytes to ${saved.name} — ${capture.backup.entries.size} " +
-                                "addresses, taken just before this restore.",
+                            Strings.get(Res.string.snap_saved_current, saved.name, capture.backup.entries.size),
                         )
                     }
                     SafetyNet.Saved(saved)
                 },
                 onFailure = { e ->
                     SafetyNet.Blocked(
-                        "Nothing was written — the current bytes could not be saved first " +
+                        Strings.get(
+                            Res.string.snap_could_not_save_first,
                             "(${e.message ?: e::class.simpleName}).",
+                        ),
                     )
                 },
             )
@@ -304,7 +375,7 @@ class SnapshotState(
     ): Boolean {
         if (simulate) {
             if (!backup.model.equals(model.name, ignoreCase = true)) {
-                warn("This backup is for ${backup.model} but ${model.name} is selected. A live run would refuse.")
+                warn(Strings.get(Res.string.snap_model_mismatch_warn, backup.model, model.name))
             }
             return true
         }
@@ -322,10 +393,9 @@ class SnapshotState(
             is UnitChoice.NoSuchModel -> {
                 bad(
                     if (candidate == null) {
-                        "Select the printer to restore to first."
+                        Strings.get(Res.string.snap_select_target_printer)
                     } else {
-                        "That backup is for ${choice.model}, but the selected printer is " +
-                            "${model.name}. Refusing to write one model's bytes to another."
+                        Strings.get(Res.string.snap_refusing_cross_model, choice.model, model.name)
                     },
                 )
                 false
@@ -333,21 +403,24 @@ class SnapshotState(
 
             is UnitChoice.WrongUnit -> {
                 bad(
-                    "That backup came from ${choice.wanted}; this printer reports " +
-                        "${choice.connected.joinToString(", ")}. Refusing to write.",
+                    Strings.get(
+                        Res.string.snap_refusing_cross_unit,
+                        choice.wanted,
+                        choice.connected.joinToString(", "),
+                    ),
                 )
                 false
             }
 
             is UnitChoice.Ambiguous -> {
-                bad("${choice.count} ${choice.model} units match and none can be told apart by serial.")
+                bad(Strings.get(Res.string.snap_ambiguous_units, choice.count, choice.model))
                 false
             }
 
             is UnitChoice.Write -> {
                 choice.unconfirmed?.let {
                     warn(
-                        "This backup can't be tied to this exact unit — $it. Check you're pointed at the right printer.",
+                        Strings.get(Res.string.snap_untied_unit, it),
                     )
                 }
                 true
@@ -364,8 +437,8 @@ class SnapshotState(
      */
     val createSnapshotBlockedReason: String?
         get() = when {
-            selectedDevice() == null -> "Select a printer from the target above."
-            selectedModel() == null -> "Choose the printer's model in the target above."
+            selectedDevice() == null -> Strings.get(Res.string.snap_select_printer_above)
+            selectedModel() == null -> Strings.get(Res.string.snap_choose_model_above)
             else -> familyBlockedReason()
         }
 
@@ -375,13 +448,13 @@ class SnapshotState(
     /** Takes a fresh real-printer reading, then saves it. This action never reuses an old report. */
     fun readAndSaveSnapshot() {
         if (busy() || reading()) {
-            bad("Nothing saved — another printer operation is already in progress.")
+            bad(Strings.get(Res.string.snap_nothing_saved_busy))
             return
         }
         val model = selectedModel() ?: return
         val device = selectedDevice() ?: return
         createSnapshotBlockedReason?.let {
-            bad("Nothing saved — $it")
+            bad(Strings.get(Res.string.snap_nothing_saved, it))
             return
         }
 
@@ -392,12 +465,12 @@ class SnapshotState(
             val report = readReport()
             when {
                 currentDevice?.device?.id != device.device.id ->
-                    bad("Nothing saved — the target printer changed while it was being read.")
+                    bad(Strings.get(Res.string.snap_target_changed))
                 currentModel?.name != model.name ->
-                    bad("Nothing saved — the target model changed while the printer was being read.")
-                report == null -> bad("Nothing saved — the printer produced no reading.")
+                    bad(Strings.get(Res.string.snap_model_changed))
+                report == null -> bad(Strings.get(Res.string.snap_no_reading))
                 else -> snapshotBlockedReason(model, report)?.let {
-                    bad("Nothing saved — $it.")
+                    bad(Strings.get(Res.string.snap_nothing_saved_detail, it))
                 } ?: saveSnapshotNow(model, report)
             }
         }
@@ -412,18 +485,21 @@ class SnapshotState(
         }
 
     private fun snapshotBlockedReason(model: PrinterModel?, report: CounterReader.Report?): String? = when {
-        model == null -> "pick the model these counters belong to first"
-        report == null -> "read the counters first — a snapshot stores bytes that were actually read"
+        model == null -> Strings.get(Res.string.snap_why_no_model)
+        report == null -> Strings.get(Res.string.snap_why_no_report)
         !report.model.equals(model.name, ignoreCase = true) ->
-            "the last reading belongs to ${report.model}, not ${model.name}; read again"
+            Strings.get(Res.string.snap_why_wrong_model, report.model, model.name)
         readWasSimulated() ->
-            "these values came from the simulated EEPROM of a dry run, not from a printer. " +
-                "Switch to Live and read again"
-        report.answered == 0 -> "nothing answered the last read, so there is nothing to save"
+            Strings.get(Res.string.snap_why_dry_run)
+        report.answered == 0 -> Strings.get(Res.string.snap_why_nothing_answered)
         else -> when (val capture = capture(model, report)) {
-            Capture.NothingToWrite -> "${model.name} has no resettable addresses to save"
+            Capture.NothingToWrite -> Strings.get(Res.string.snap_why_no_addresses, model.name)
             is Capture.Incomplete ->
-                "${capture.missing.size} reset address(es) did not answer the read, so the snapshot would be incomplete"
+                UiText.plural(
+                    Res.plurals.snap_missing_reset_addresses,
+                    capture.missing.size,
+                    capture.missing.size,
+                ).resolveNow()
             is Capture.Ready -> null
         }
     }
@@ -433,14 +509,14 @@ class SnapshotState(
     /** Saves the counters on screen as a snapshot, at whatever moment the user asks for one. */
     fun saveSnapshot() {
         if (busy()) {
-            bad("Nothing saved — another printer operation is already in progress.")
+            bad(Strings.get(Res.string.snap_nothing_saved_busy))
             return
         }
         val model = selectedModel() ?: return
         val report = readReport() ?: return
 
         snapshotBlockedReason?.let {
-            bad("Nothing saved — $it.")
+            bad(Strings.get(Res.string.snap_nothing_saved_detail, it))
             return
         }
 
@@ -452,15 +528,14 @@ class SnapshotState(
 
         when (capture) {
             is Capture.NothingToWrite ->
-                bad("${model.name} has no resettable addresses, so a snapshot would have nothing to put back.")
+                bad(Strings.get(Res.string.snap_no_resettable, model.name))
 
             is Capture.Incomplete -> {
                 val shown = capture.missing.take(8).joinToString(", ")
-                val more = if (capture.missing.size > 8) " +${capture.missing.size - 8} more" else ""
+                val more =
+                    if (capture.missing.size > 8) Strings.get(Res.string.vm_and_more, capture.missing.size - 8) else ""
                 bad(
-                    "Nothing saved: ${capture.missing.size} of the addresses a reset would write " +
-                        "did not answer the read ($shown$more), so a restore could not put them " +
-                        "back. Reads are unprivileged and safe to retry.",
+                    Strings.get(Res.string.snap_not_saved_missing, capture.missing.size, "$shown$more"),
                 )
             }
 
@@ -468,13 +543,17 @@ class SnapshotState(
                 val saved = withContext(io) { runCatching { capture.backup.save(backupDir()) } }
                 saved.onSuccess { file ->
                     good(
-                        "Snapshot saved as ${file.name} — ${capture.backup.entries.size} addresses, " +
-                            "${capture.backup.changedByReset} differ from their reset value.",
+                        Strings.get(
+                            Res.string.snap_saved,
+                            file.name,
+                            capture.backup.entries.size,
+                            capture.backup.changedByReset,
+                        ),
                     )
                     refreshNow()
                     selectedSnapshot = snapshots.firstOrNull { it.file == file }
                 }.onFailure { e ->
-                    bad("Snapshot not saved: ${e.message ?: e::class.simpleName}.")
+                    bad(Strings.get(Res.string.snap_not_saved_error, e.message ?: e::class.simpleName.orEmpty()))
                 }
             }
         }
@@ -519,9 +598,14 @@ class SnapshotState(
         showRestorePlan = false
         val backup = snapshot?.backup ?: return
         info(
-            "Read ${snapshot.file.name} from disk — ${backup.model}, taken ${backup.takenAt}, " +
-                "${backup.entries.size} addresses (${backup.changedByReset} differ from their " +
-                "reset value). No printer was involved.",
+            Strings.get(
+                Res.string.snap_read_from_disk,
+                snapshot.file.name,
+                backup.model,
+                backup.takenAt,
+                backup.entries.size,
+                backup.changedByReset,
+            ),
         )
     }
 
@@ -615,7 +699,7 @@ class SnapshotState(
 
     fun previewRestore() {
         if (!canPreviewRestore) {
-            bad("Read the printer first — what a restore would change is measured against it.")
+            bad(Strings.get(Res.string.snap_read_printer_first))
             return
         }
         compareTarget = CompareTarget.None
@@ -639,19 +723,17 @@ class SnapshotState(
     /** Why the printer cannot be read for a comparison right now, or null when it can. */
     val compareReadBlockedReason: String?
         get() {
-            val backup = selectedSnapshot?.backup ?: return "Select a snapshot first."
+            val backup = selectedSnapshot?.backup ?: return Strings.get(Res.string.snap_select_snapshot_first)
             val model = selectedModel()
-                ?: return "Choose ${backup.model} in the target above so there is a model to read."
+                ?: return Strings.get(Res.string.snap_choose_model_to_read, backup.model)
             if (!model.name.equals(backup.model, ignoreCase = true)) {
-                return "This snapshot is a ${backup.model} but ${model.name} is selected. The same " +
-                    "address is a different counter on each, so there is nothing to compare."
+                return Strings.get(Res.string.snap_compare_model_mismatch, backup.model, model.name)
             }
             if (selectedDevice() == null) {
-                return "No printer is selected — choose one from the printer menu above."
+                return Strings.get(Res.string.snap_no_printer_selected)
             }
             if (dryRun()) {
-                return "Dry run invents a byte for every address, so comparing against it would " +
-                    "show differences that are not real. Switch to Live to read this printer."
+                return Strings.get(Res.string.snap_compare_dry_run)
             }
             return null
         }
@@ -666,13 +748,12 @@ class SnapshotState(
     /** Compares against the reading already in memory. */
     fun compareWithCurrentReading() {
         if (readReport() == null) {
-            bad("There is no current reading to compare against — read the counters first.")
+            bad(Strings.get(Res.string.snap_no_current_reading))
             return
         }
         if (readWasSimulated()) {
             bad(
-                "That reading came from a dry run's simulated EEPROM, not from a printer. " +
-                    "Switch to Live and read again before comparing.",
+                Strings.get(Res.string.snap_compare_from_dry_run),
             )
             return
         }
@@ -686,12 +767,12 @@ class SnapshotState(
     /** Reads the printer now and compares the selected snapshot against it. */
     fun readForComparison() {
         if (busy() || reading()) {
-            bad("Cannot read for comparison — another printer operation is already in progress.")
+            bad(Strings.get(Res.string.snap_compare_busy))
             return
         }
         val model = selectedModel() ?: return
         compareReadBlockedReason?.let {
-            bad("Cannot read for comparison — $it")
+            bad(Strings.get(Res.string.snap_compare_blocked, it))
             return
         }
 
@@ -700,7 +781,7 @@ class SnapshotState(
             if (readReport()?.answered?.let { it > 0 } == true) {
                 compareTarget = CompareTarget.CurrentReading
             } else {
-                warn("Nothing answered the read, so there is nothing to compare against.")
+                warn(Strings.get(Res.string.snap_compare_nothing_answered))
             }
         }
     }
@@ -727,8 +808,8 @@ class SnapshotState(
                 is CompareTarget.CurrentReading -> {
                     val report = readReport() ?: return null
                     val other = SnapshotComparison.Side(
-                        label = "Current reading",
-                        takenAt = "read just now",
+                        label = Strings.get(Res.string.snap_current_reading),
+                        takenAt = Strings.get(Res.string.snap_read_just_now),
                         model = report.model,
                         serial = identifyingSerial(selectedDevice()),
                         readings = report.readings,
@@ -796,13 +877,12 @@ class SnapshotState(
     /** Why the selected snapshot cannot be written back right now, or null when it can. */
     val snapshotRestoreBlockedReason: String?
         get() {
-            if (busy()) return "Another printer operation is already in progress."
-            val backup = selectedSnapshot?.backup ?: return "Select a snapshot."
+            if (busy()) return Strings.get(Res.string.snap_other_operation)
+            val backup = selectedSnapshot?.backup ?: return Strings.get(Res.string.snap_select_snapshot)
             val model = selectedModel()
-                ?: return "Choose ${backup.model} in the target above — a restore needs its write key."
+                ?: return Strings.get(Res.string.snap_choose_model_for_key, backup.model)
             if (!model.name.equals(backup.model, ignoreCase = true)) {
-                return "This snapshot is a ${backup.model}; ${model.name} is selected. " +
-                    "Switch the selection before writing one model's bytes into another."
+                return Strings.get(Res.string.snap_restore_model_mismatch, backup.model, model.name)
             }
             return if (dryRun()) null else writeBlockedReason()
         }
@@ -811,12 +891,12 @@ class SnapshotState(
     fun useSnapshotModel() {
         val backup = selectedSnapshot?.backup ?: return
         val model = database()?.get(backup.model) ?: run {
-            bad("'${backup.model}' is not in the database, so its write key is unavailable.")
+            bad(Strings.get(Res.string.snap_model_not_in_database, backup.model))
             return
         }
         if (!selectModel(model)) return
         updateQuery(model.name)
-        info("Selected ${model.name} — the model this snapshot was taken from.")
+        info(Strings.get(Res.string.snap_selected_model, model.name))
     }
 
     /** Writes the selected snapshot back. Gated exactly as any other restore is. */

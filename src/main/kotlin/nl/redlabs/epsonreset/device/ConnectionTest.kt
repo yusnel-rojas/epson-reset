@@ -1,6 +1,7 @@
 package nl.redlabs.epsonreset.device
 
 import nl.redlabs.epsonreset.db.PrinterModel
+import nl.redlabs.epsonreset.i18n.UiText
 import nl.redlabs.epsonreset.net.EpsonMib
 import nl.redlabs.epsonreset.net.SnmpTransport
 import nl.redlabs.epsonreset.protocol.CounterReader
@@ -8,6 +9,18 @@ import nl.redlabs.epsonreset.protocol.DeviceId
 import nl.redlabs.epsonreset.protocol.Executor
 import nl.redlabs.epsonreset.protocol.SequenceGenerator
 import nl.redlabs.epsonreset.protocol.Status
+import nl.redlabs.epsonreset.resources.Res
+import nl.redlabs.epsonreset.resources.connection_advice_net
+import nl.redlabs.epsonreset.resources.connection_advice_nothing
+import nl.redlabs.epsonreset.resources.connection_advice_usb
+import nl.redlabs.epsonreset.resources.connection_failed
+import nl.redlabs.epsonreset.resources.connection_net_counters
+import nl.redlabs.epsonreset.resources.connection_net_refused
+import nl.redlabs.epsonreset.resources.connection_net_status_only
+import nl.redlabs.epsonreset.resources.connection_no_answer
+import nl.redlabs.epsonreset.resources.connection_usb_no_answer
+import nl.redlabs.epsonreset.resources.connection_usb_no_counters
+import nl.redlabs.epsonreset.resources.connection_usb_ok
 
 /** Proves a printer can be talked to, and — over the network — how far. */
 object ConnectionTest {
@@ -46,34 +59,28 @@ object ConnectionTest {
 
         val model: String? get() = reportedModel ?: identity?.model
 
-        val headline: String
+        /** [failure] and [refusal] pass through raw — the transport's and the printer's own words. */
+        val headline: UiText
             get() = when {
-                !opened -> failure ?: "Could not connect."
-                !overNetwork && answered -> "Connected over USB — counter access is available."
-                !overNetwork && identity != null ->
-                    "Printer identified over USB, but counter access is unavailable on this connection."
-                !overNetwork -> "USB connection opened, but the printer did not answer the counter request."
-                reach == Reach.COUNTERS -> "Connected — this printer allows counter access over the network."
-                reach == Reach.STATUS_ONLY && refusal != null ->
-                    "Connected. Identity and ink levels work; the printer refuses counter access here."
-                reach == Reach.STATUS_ONLY ->
-                    "Connected. Identity and ink levels work; counter access was not tested."
-                else -> "Connected, but the printer did not answer."
+                !opened -> failure?.let { UiText.raw(it) } ?: UiText.of(Res.string.connection_failed)
+                !overNetwork && answered -> UiText.of(Res.string.connection_usb_ok)
+                !overNetwork && identity != null -> UiText.of(Res.string.connection_usb_no_counters)
+                !overNetwork -> UiText.of(Res.string.connection_usb_no_answer)
+                reach == Reach.COUNTERS -> UiText.of(Res.string.connection_net_counters)
+                reach == Reach.STATUS_ONLY && refusal != null -> UiText.of(Res.string.connection_net_refused)
+                reach == Reach.STATUS_ONLY -> UiText.of(Res.string.connection_net_status_only)
+                else -> UiText.of(Res.string.connection_no_answer)
             }
 
-        val advice: String?
+        val advice: UiText?
             get() = when {
                 !opened -> null
                 usable -> null
                 overNetwork ->
-                    refusal
-                        ?: "Identity works but counters were not readable over this connection."
-                identity != null ->
-                    "The printer is reachable, but counter reads and resets are unavailable. " +
-                        "Reconnect it directly over USB and try again."
-                else ->
-                    "Nothing came back. Check this address is the printer and not another device " +
-                        "on the network."
+                    refusal?.let { UiText.raw(it) }
+                        ?: UiText.of(Res.string.connection_advice_net)
+                identity != null -> UiText.of(Res.string.connection_advice_usb)
+                else -> UiText.of(Res.string.connection_advice_nothing)
             }
     }
 

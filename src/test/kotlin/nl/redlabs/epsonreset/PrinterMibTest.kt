@@ -1,5 +1,6 @@
 package nl.redlabs.epsonreset
 
+import nl.redlabs.epsonreset.i18n.resolveNow
 import nl.redlabs.epsonreset.net.EpsonMib
 import nl.redlabs.epsonreset.net.PrinterMib
 import nl.redlabs.epsonreset.net.Snmp
@@ -300,8 +301,8 @@ class SupplyTest {
     @Test
     fun `the negative sentinels are not a percentage`() {
         assertNull(supply(level = -2).percent)
-        assertEquals("unknown", supply(level = -2).levelNote)
-        assertEquals("some remaining", supply(level = -3).levelNote)
+        assertEquals("unknown", assertNotNull(supply(level = -2).levelNote).resolveNow())
+        assertEquals("some remaining", assertNotNull(supply(level = -3).levelNote).resolveNow())
         assertNull(supply(level = 50, max = -2).percent)
     }
 
@@ -318,8 +319,8 @@ class SupplyTest {
 
     @Test
     fun `an unknown type is shown by its code, not guessed at`() {
-        assertEquals("ink", supply(typeCode = 5, level = 1).typeLabel)
-        assertEquals("type 99", supply(typeCode = 99, level = 1).typeLabel)
+        assertEquals("ink", assertNotNull(supply(typeCode = 5, level = 1).typeLabel).resolveNow())
+        assertEquals("type 99", assertNotNull(supply(typeCode = 99, level = 1).typeLabel).resolveNow())
     }
 
     @Test

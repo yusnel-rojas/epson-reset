@@ -2,10 +2,19 @@ package nl.redlabs.epsonreset.probe
 
 import nl.redlabs.epsonreset.db.PrinterDatabase
 import nl.redlabs.epsonreset.db.PrinterModel
+import nl.redlabs.epsonreset.i18n.Strings
 import nl.redlabs.epsonreset.protocol.CounterReader
 import nl.redlabs.epsonreset.protocol.Executor
 import nl.redlabs.epsonreset.protocol.SequenceGenerator
 import nl.redlabs.epsonreset.protocol.Transport
+import nl.redlabs.epsonreset.resources.Res
+import nl.redlabs.epsonreset.resources.sweep_cancelled
+import nl.redlabs.epsonreset.resources.sweep_channel_never_opened
+import nl.redlabs.epsonreset.resources.sweep_key_answered
+import nl.redlabs.epsonreset.resources.sweep_key_used_by
+import nl.redlabs.epsonreset.resources.sweep_no_channel
+import nl.redlabs.epsonreset.resources.sweep_reading
+import nl.redlabs.epsonreset.resources.sweep_trying_key
 
 /** Read-only exploration of a printer the database doesn't cover. */
 object DeviceInspector {
@@ -71,7 +80,7 @@ object DeviceInspector {
         isCancelled: () -> Boolean = { false },
     ): List<KeyResult> {
         if (!handshake(transport, listener)) {
-            listener?.onNote("The D4 channel never opened — the printer answered nothing.")
+            listener?.onNote(Strings.get(Res.string.sweep_channel_never_opened))
             return emptyList()
         }
 
@@ -81,7 +90,7 @@ object DeviceInspector {
             if (isCancelled() || results.count { it.answered } >= stopAfter) break
 
             val probes = probeAddressesFor(db, key).ifEmpty { DEFAULT_PROBES }
-            listener?.onProgress(index + 1, keys.size, "Trying key 0x%04X".format(key))
+            listener?.onProgress(index + 1, keys.size, Strings.get(Res.string.sweep_trying_key, "0x%04X".format(key)))
 
             val readings = mutableMapOf<Int, Int>()
             for (address in probes) {
@@ -100,9 +109,15 @@ object DeviceInspector {
 
             if (result.answered) {
                 listener?.onNote(
-                    "Key ${result.hex} answered ${result.hits}/${result.probes} probes" +
+                    Strings.get(
+                        Res.string.sweep_key_answered,
+                        result.hex,
+                        result.hits,
+                        result.probes,
                         result.exampleModels.takeIf { it.isNotEmpty() }
-                            ?.let { " (used by ${it.joinToString(", ")})" }.orEmpty(),
+                            ?.let { Strings.get(Res.string.sweep_key_used_by, it.joinToString(", ")) }
+                            .orEmpty(),
+                    ),
                 )
             }
         }
@@ -120,15 +135,19 @@ object DeviceInspector {
         handshakeFirst: Boolean = true,
     ): Sweep {
         if (handshakeFirst && !handshake(transport, listener)) {
-            return Sweep(readKey, addresses, emptyMap(), "The D4 channel never opened.")
+            return Sweep(readKey, addresses, emptyMap(), Strings.get(Res.string.sweep_no_channel))
         }
 
         val values = mutableMapOf<Int, Int>()
         for ((index, address) in addresses.withIndex()) {
             if (isCancelled()) {
-                return Sweep(readKey, addresses, values, "Cancelled after $index of ${addresses.size} reads.")
+                return Sweep(readKey, addresses, values, Strings.get(Res.string.sweep_cancelled, index, addresses.size))
             }
-            listener?.onProgress(index + 1, addresses.size, "Reading 0x%04X".format(address))
+            listener?.onProgress(
+                index + 1,
+                addresses.size,
+                Strings.get(Res.string.sweep_reading, "0x%04X".format(address)),
+            )
             readOne(transport, readKey, address, listener)?.let { values[address] = it }
         }
         return Sweep(readKey, addresses, values)

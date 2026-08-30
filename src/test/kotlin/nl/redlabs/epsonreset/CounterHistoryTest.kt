@@ -3,6 +3,7 @@ package nl.redlabs.epsonreset
 import nl.redlabs.epsonreset.db.CounterSpec
 import nl.redlabs.epsonreset.history.CounterJournal
 import nl.redlabs.epsonreset.history.CounterProjection
+import nl.redlabs.epsonreset.i18n.resolveNow
 import nl.redlabs.epsonreset.protocol.CounterReader
 import java.io.File
 import java.time.Instant
@@ -157,7 +158,7 @@ class CounterProjectionTest {
         ).single()
 
         assertNull(trend.projectedAt)
-        assertTrue(assertNotNull(trend.projectionReason).contains("at least a day"))
+        assertTrue(assertNotNull(trend.projectionReason).resolveNow().contains("at least a day"))
     }
 
     @Test
@@ -169,7 +170,7 @@ class CounterProjectionTest {
 
         assertEquals(0.0, trend.ratePerDay)
         assertNull(trend.projectedAt)
-        assertTrue(assertNotNull(trend.projectionReason).contains("No increase"))
+        assertTrue(assertNotNull(trend.projectionReason).resolveNow().contains("No increase"))
     }
 
     @Test
@@ -182,6 +183,6 @@ class CounterProjectionTest {
 
         assertEquals(10.0, trend.ratePerDay)
         assertNull(trend.projectedAt)
-        assertEquals("No measured maximum", trend.projectionReason)
+        assertEquals("No measured maximum", assertNotNull(trend.projectionReason).resolveNow())
     }
 }

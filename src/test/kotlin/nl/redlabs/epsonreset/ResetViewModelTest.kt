@@ -23,6 +23,7 @@ import nl.redlabs.epsonreset.device.ModelChoices
 import nl.redlabs.epsonreset.device.PrinterDiscovery
 import nl.redlabs.epsonreset.device.PrinterTransports
 import nl.redlabs.epsonreset.history.CounterJournal
+import nl.redlabs.epsonreset.i18n.resolveNow
 import nl.redlabs.epsonreset.net.PrinterMib
 import nl.redlabs.epsonreset.net.SavedPrinters
 import nl.redlabs.epsonreset.protocol.CounterReader
@@ -1822,7 +1823,7 @@ class ViewModelComparisonTest {
         vm.snapshot.compareWithCurrentReading()
 
         val result = assertNotNull(vm.snapshot.comparison)
-        assertTrue(result.afterIsAtResetValue, result.summary)
+        assertTrue(result.afterIsAtResetValue, result.summary.resolveNow())
         assertEquals(0x19, result.bytes.first { it.address == 58 }.before)
         assertEquals(0x00, result.bytes.first { it.address == 58 }.after)
     }
@@ -2731,7 +2732,7 @@ class ViewModelOverviewRefreshTest {
         assertFalse(vm.overviewRefreshing)
         assertFalse(overview.coverage.first { it.section == OverviewSection.COUNTERS }.available)
         assertContains(
-            overview.coverage.first { it.section == OverviewSection.COUNTERS }.detail,
+            overview.coverage.first { it.section == OverviewSection.COUNTERS }.detail.resolveNow(),
             "cancelled",
         )
         assertEquals(0, hardware.packets)

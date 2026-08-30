@@ -1,11 +1,13 @@
 package nl.redlabs.epsonreset
 
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.isSpecified
+import androidx.compose.ui.window.ApplicationScope
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPlacement
 import androidx.compose.ui.window.WindowPosition
@@ -14,19 +16,29 @@ import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
+import nl.redlabs.epsonreset.i18n.AppLanguage
 import nl.redlabs.epsonreset.prefs.Preferences
 import nl.redlabs.epsonreset.prefs.PreferencesStore
 import nl.redlabs.epsonreset.prefs.ScreenFit
 import nl.redlabs.epsonreset.resources.Res
+import nl.redlabs.epsonreset.resources.app_name
 import nl.redlabs.epsonreset.resources.icon
 import nl.redlabs.epsonreset.ui.App
 import org.jetbrains.compose.resources.painterResource
+import org.jetbrains.compose.resources.stringResource
 import kotlin.time.Duration.Companion.milliseconds
 
 /** How long the window has to hold still before its geometry is worth a disk write. */
 private const val GEOMETRY_SETTLE_MS = 600L
 
-fun main() = application {
+fun main() {
+    // First touch of AppLanguage, which is what captures the OS locale before it can be overridden.
+    AppLanguage.apply(PreferencesStore.current().language)
+    application { AppWindow() }
+}
+
+@Composable
+private fun ApplicationScope.AppWindow() {
     val prefs = remember { PreferencesStore.current() }
     val appIcon = painterResource(Res.drawable.icon)
     val state = rememberWindowState(
@@ -54,7 +66,7 @@ fun main() = application {
             PreferencesStore.update { Geometry.of(state).applyTo(it) }
             exitApplication()
         },
-        title = "Epson Reset",
+        title = stringResource(Res.string.app_name),
         icon = appIcon,
         state = state,
     ) {

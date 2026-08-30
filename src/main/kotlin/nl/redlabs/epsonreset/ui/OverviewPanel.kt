@@ -36,6 +36,42 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import nl.redlabs.epsonreset.db.PrinterModel
+import nl.redlabs.epsonreset.i18n.resolve
+import nl.redlabs.epsonreset.resources.Res
+import nl.redlabs.epsonreset.resources.overview_age_hours
+import nl.redlabs.epsonreset.resources.overview_age_just_now
+import nl.redlabs.epsonreset.resources.overview_age_minutes
+import nl.redlabs.epsonreset.resources.overview_attention_count
+import nl.redlabs.epsonreset.resources.overview_cancel_refresh
+import nl.redlabs.epsonreset.resources.overview_choose_printer
+import nl.redlabs.epsonreset.resources.overview_empty_choose
+import nl.redlabs.epsonreset.resources.overview_empty_model_kept
+import nl.redlabs.epsonreset.resources.overview_empty_needs_printer
+import nl.redlabs.epsonreset.resources.overview_empty_scanning
+import nl.redlabs.epsonreset.resources.overview_empty_scanning_body
+import nl.redlabs.epsonreset.resources.overview_firmware
+import nl.redlabs.epsonreset.resources.overview_hide_detail
+import nl.redlabs.epsonreset.resources.overview_no_model
+import nl.redlabs.epsonreset.resources.overview_no_model_choose
+import nl.redlabs.epsonreset.resources.overview_no_model_scan
+import nl.redlabs.epsonreset.resources.overview_no_warnings
+import nl.redlabs.epsonreset.resources.overview_not_refreshed
+import nl.redlabs.epsonreset.resources.overview_not_refreshed_body
+import nl.redlabs.epsonreset.resources.overview_open_maintenance
+import nl.redlabs.epsonreset.resources.overview_per_address_detail
+import nl.redlabs.epsonreset.resources.overview_printers_found
+import nl.redlabs.epsonreset.resources.overview_refresh
+import nl.redlabs.epsonreset.resources.overview_refreshed
+import nl.redlabs.epsonreset.resources.overview_scan
+import nl.redlabs.epsonreset.resources.overview_sections_all
+import nl.redlabs.epsonreset.resources.overview_sections_missing
+import nl.redlabs.epsonreset.resources.overview_select_live_printer
+import nl.redlabs.epsonreset.resources.overview_show_detail
+import nl.redlabs.epsonreset.resources.overview_stop_scanning
+import nl.redlabs.epsonreset.resources.overview_view_counters
+import nl.redlabs.epsonreset.resources.overview_view_history
+import org.jetbrains.compose.resources.pluralStringResource
+import org.jetbrains.compose.resources.stringResource
 import java.time.Duration
 import java.time.Instant
 import java.time.ZoneId
@@ -79,9 +115,9 @@ private fun OverviewNoPrinterState(vm: ResetViewModel, model: PrinterModel?) {
     ) {
         Text(
             if (vm.scanState is ResetViewModel.ScanState.Scanning) {
-                "Looking for printers…"
+                stringResource(Res.string.overview_empty_scanning)
             } else {
-                "Choose a printer to see its overview"
+                stringResource(Res.string.overview_empty_choose)
             },
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold,
@@ -90,11 +126,13 @@ private fun OverviewNoPrinterState(vm: ResetViewModel, model: PrinterModel?) {
         Text(
             when {
                 vm.scanState is ResetViewModel.ScanState.Scanning ->
-                    "Scanning USB and the local network. The discovered printer will become the live target."
+                    stringResource(Res.string.overview_empty_scanning_body)
+
                 vm.devices.isNotEmpty() ->
-                    "${vm.devices.size} printers were found. Choose the one whose status, supplies and counters you want to read."
+                    pluralStringResource(Res.plurals.overview_printers_found, vm.devices.size, vm.devices.size)
+
                 else ->
-                    "Overview needs a live printer for connection status, supplies, lifetime pages and counters."
+                    stringResource(Res.string.overview_empty_needs_printer)
             },
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -102,7 +140,7 @@ private fun OverviewNoPrinterState(vm: ResetViewModel, model: PrinterModel?) {
         model?.let {
             Spacer(Modifier.height(6.dp))
             Text(
-                "${it.name} remains selected for a simulated reset under Maintenance.",
+                stringResource(Res.string.overview_empty_model_kept, it.name),
                 style = MaterialTheme.typography.labelSmall,
                 color = StatusColors.warn,
             )
@@ -112,16 +150,20 @@ private fun OverviewNoPrinterState(vm: ResetViewModel, model: PrinterModel?) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             when {
                 vm.scanState is ResetViewModel.ScanState.Scanning ->
-                    OutlinedButton(onClick = { vm.scan() }) { Text("Stop scanning") }
+                    OutlinedButton(onClick = { vm.scan() }) { Text(stringResource(Res.string.overview_stop_scanning)) }
                 vm.devices.isEmpty() ->
-                    Button(onClick = { vm.scan() }, enabled = vm.canScan) { Text("Scan for printers") }
+                    Button(onClick = {
+                        vm.scan()
+                    }, enabled = vm.canScan) { Text(stringResource(Res.string.overview_scan)) }
                 else ->
-                    Button(onClick = vm::requestPrinterMenu) { Text("Choose printer") }
+                    Button(onClick = vm::requestPrinterMenu) {
+                        Text(stringResource(Res.string.overview_choose_printer))
+                    }
             }
             if (model != null) {
                 Spacer(Modifier.width(8.dp))
                 OutlinedButton(onClick = { vm.tab = ResetViewModel.Tab.MAINTENANCE }) {
-                    Text("Open Maintenance")
+                    Text(stringResource(Res.string.overview_open_maintenance))
                 }
             }
         }
@@ -137,11 +179,11 @@ private fun CounterViewSelector(vm: ResetViewModel, selected: ResetViewModel.Cou
             .padding(3.dp),
     ) {
         CounterViewButton(
-            label = "Counters",
+            label = stringResource(Res.string.overview_view_counters),
             selected = selected == ResetViewModel.CounterView.COUNTERS,
         ) { vm.counterView = ResetViewModel.CounterView.COUNTERS }
         CounterViewButton(
-            label = "History",
+            label = stringResource(Res.string.overview_view_history),
             selected = selected == ResetViewModel.CounterView.HISTORY,
         ) { vm.counterView = ResetViewModel.CounterView.HISTORY }
     }
@@ -220,7 +262,7 @@ private fun CountersSection(vm: ResetViewModel, model: PrinterModel) {
 
                 Spacer(Modifier.height(8.dp))
                 Disclosure(
-                    label = "Per-address detail",
+                    label = stringResource(Res.string.overview_per_address_detail),
                     expanded = vm.counterDetailsExpanded,
                     onToggle = { vm.counterDetailsExpanded = !vm.counterDetailsExpanded },
                 )
@@ -272,14 +314,16 @@ private fun OverviewHeader(vm: ResetViewModel, model: PrinterModel?) {
         Column(Modifier.weight(1f)) {
             if (overview == null) {
                 Text(
-                    "Select a live printer to collect overview information.",
+                    stringResource(Res.string.overview_select_live_printer),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             } else {
                 Text(
-                    listOfNotNull(overview.linkKind, overview.firmware?.let { "firmware $it" })
-                        .joinToString(" · "),
+                    listOfNotNull(
+                        overview.linkKind,
+                        overview.firmware?.let { stringResource(Res.string.overview_firmware, it) },
+                    ).joinToString(" · "),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -290,9 +334,12 @@ private fun OverviewHeader(vm: ResetViewModel, model: PrinterModel?) {
         if (vm.selectedDevice != null) {
             Spacer(Modifier.width(16.dp))
             if (vm.overviewRefreshing) {
-                OutlinedButton(onClick = vm::cancel) { Text("Cancel refresh") }
+                OutlinedButton(onClick = vm::cancel) { Text(stringResource(Res.string.overview_cancel_refresh)) }
             } else {
-                Button(onClick = vm::refreshOverview, enabled = vm.canRefreshOverview) { Text("Refresh overview") }
+                Button(
+                    onClick = vm::refreshOverview,
+                    enabled = vm.canRefreshOverview,
+                ) { Text(stringResource(Res.string.overview_refresh)) }
             }
         }
     }
@@ -319,15 +366,15 @@ private fun RefreshedAt(refreshedAt: Instant) {
 
     val age = Duration.between(refreshedAt, now).coerceAtLeast(Duration.ZERO)
     val label = when {
-        age < Duration.ofMinutes(1) -> "just now"
-        age < Duration.ofHours(1) -> "${age.toMinutes()} min ago"
-        age < Duration.ofDays(1) -> "${age.toHours()} h ago"
+        age < Duration.ofMinutes(1) -> stringResource(Res.string.overview_age_just_now)
+        age < Duration.ofHours(1) -> stringResource(Res.string.overview_age_minutes, age.toMinutes())
+        age < Duration.ofDays(1) -> stringResource(Res.string.overview_age_hours, age.toHours())
         else -> OVERVIEW_TIME.format(refreshedAt)
     }
 
     TooltipArea(tooltip = { TooltipText(OVERVIEW_TIME.format(refreshedAt)) }) {
         Text(
-            "Refreshed $label",
+            stringResource(Res.string.overview_refreshed, label),
             style = MaterialTheme.typography.labelSmall,
             color = if (age >= STALE_AFTER) StatusColors.warn else StatusColors.muted,
         )
@@ -366,11 +413,13 @@ private fun OverviewCard(content: @Composable ColumnScope.() -> Unit) {
 private fun AlertsCard(vm: ResetViewModel, overview: OverviewReading?) {
     OverviewCard {
         if (overview == null) {
-            Text("Overview not refreshed yet", style = MaterialTheme.typography.titleSmall)
+            Text(
+                stringResource(Res.string.overview_not_refreshed),
+                style = MaterialTheme.typography.titleSmall,
+            )
             Spacer(Modifier.height(4.dp))
             Text(
-                "Refresh reads connection details, status, supplies and counters. Missing sources stay " +
-                    "listed as unavailable instead of being treated as good news.",
+                stringResource(Res.string.overview_not_refreshed_body),
                 style = MaterialTheme.typography.bodySmall,
                 color = StatusColors.muted,
             )
@@ -379,10 +428,10 @@ private fun AlertsCard(vm: ResetViewModel, overview: OverviewReading?) {
 
         val allReported = overview.coverage.all { it.available }
         Text(
-            when (overview.alerts.size) {
-                0 -> "No reported warnings"
-                1 -> "1 thing needs attention"
-                else -> "${overview.alerts.size} things need attention"
+            if (overview.alerts.isEmpty()) {
+                stringResource(Res.string.overview_no_warnings)
+            } else {
+                pluralStringResource(Res.plurals.overview_attention_count, overview.alerts.size, overview.alerts.size)
             },
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.SemiBold,
@@ -408,13 +457,21 @@ private fun AlertsCard(vm: ResetViewModel, overview: OverviewReading?) {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(Modifier.weight(1f)) {
-                    Text(alert.title, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold)
-                    Text(alert.detail, style = MaterialTheme.typography.labelSmall, color = StatusColors.muted)
+                    Text(
+                        alert.title.resolve(),
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        alert.detail.resolve(),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = StatusColors.muted,
+                    )
                 }
                 // A full pad is exactly when somebody wants the tab that deals with it.
                 alert.action?.let { action ->
                     Spacer(Modifier.width(10.dp))
-                    OutlinedButton(onClick = { vm.tab = actionTab(action) }) { Text(action.label) }
+                    OutlinedButton(onClick = { vm.tab = actionTab(action) }) { Text(stringResource(action.label)) }
                 }
             }
         }
@@ -442,9 +499,13 @@ private fun CoverageCard(overview: OverviewReading) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 if (missing.isEmpty()) {
-                    "All ${overview.coverage.size} sections reported"
+                    pluralStringResource(
+                        Res.plurals.overview_sections_all,
+                        overview.coverage.size,
+                        overview.coverage.size,
+                    )
                 } else {
-                    "${missing.size} of ${overview.coverage.size} sections did not report"
+                    stringResource(Res.string.overview_sections_missing, missing.size, overview.coverage.size)
                 },
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.SemiBold,
@@ -452,7 +513,11 @@ private fun CoverageCard(overview: OverviewReading) {
             )
             Spacer(Modifier.weight(1f))
             Text(
-                if (expanded) "Hide detail" else "Show detail",
+                if (expanded) {
+                    stringResource(Res.string.overview_hide_detail)
+                } else {
+                    stringResource(Res.string.overview_show_detail)
+                },
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier
@@ -473,12 +538,12 @@ private fun CoverageCard(overview: OverviewReading) {
                         modifier = Modifier.width(20.dp),
                     )
                     Text(
-                        coverage.section.label,
+                        stringResource(coverage.section.label),
                         style = MaterialTheme.typography.labelMedium,
                         modifier = Modifier.width(120.dp),
                     )
                     Text(
-                        coverage.detail,
+                        coverage.detail.resolve(),
                         style = MaterialTheme.typography.labelSmall,
                         color = StatusColors.muted,
                         modifier = Modifier.weight(1f),
@@ -497,16 +562,16 @@ private fun EmptyState(vm: ResetViewModel, modifier: Modifier = Modifier) {
             modifier = Modifier.width(420.dp),
         ) {
             Text(
-                "No model selected",
+                stringResource(Res.string.overview_no_model),
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Spacer(Modifier.height(8.dp))
             Text(
                 if (vm.devices.isEmpty()) {
-                    "Open the target above to scan for a printer or choose a model for a dry run."
+                    stringResource(Res.string.overview_no_model_scan)
                 } else {
-                    "Open the target above to choose a printer and resolve its model."
+                    stringResource(Res.string.overview_no_model_choose)
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = StatusColors.muted,

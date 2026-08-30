@@ -10,7 +10,17 @@ import nl.redlabs.epsonreset.db.CounterSpec
 import nl.redlabs.epsonreset.device.Serials
 import nl.redlabs.epsonreset.history.CounterJournal
 import nl.redlabs.epsonreset.history.CounterProjection
+import nl.redlabs.epsonreset.i18n.Strings
 import nl.redlabs.epsonreset.protocol.CounterReader
+import nl.redlabs.epsonreset.resources.Res
+import nl.redlabs.epsonreset.resources.history_delete_failed
+import nl.redlabs.epsonreset.resources.history_delete_failed_detail
+import nl.redlabs.epsonreset.resources.history_deleted
+import nl.redlabs.epsonreset.resources.history_deleted_log
+import nl.redlabs.epsonreset.resources.history_no_serial
+import nl.redlabs.epsonreset.resources.history_not_inspected
+import nl.redlabs.epsonreset.resources.history_read_failed
+import nl.redlabs.epsonreset.resources.history_sample_not_recorded
 import java.time.Instant
 import kotlin.coroutines.CoroutineContext
 
@@ -44,6 +54,10 @@ class CounterHistoryState(
     var actionStatus by mutableStateOf<String?>(null)
         private set
 
+    /** Whether [actionStatus] reports success. A translated sentence cannot be re-read for its tone. */
+    var actionOk by mutableStateOf(false)
+        private set
+
     private var requestedTarget: Pair<String, String>? = null
     private var requestVersion = 0L
 
@@ -55,7 +69,7 @@ class CounterHistoryState(
             requestVersion++
             requestedTarget = null
             view = null
-            unavailableReason = "This printer supplied no serial, so its readings cannot be joined safely."
+            unavailableReason = Strings.get(Res.string.history_no_serial)
             return
         }
 
@@ -93,7 +107,7 @@ class CounterHistoryState(
             requestVersion++
             requestedTarget = null
             view = null
-            unavailableReason = "This printer supplied no serial, so its readings cannot be joined safely."
+            unavailableReason = Strings.get(Res.string.history_no_serial)
             return
         }
 
@@ -118,7 +132,9 @@ class CounterHistoryState(
             stats = latestStats
             show(samples.lastOrNull()?.serial ?: serial, report.model, samples)
             appendFailure?.let {
-                actionStatus = "New counter sample was not recorded: ${it.message ?: it::class.simpleName}."
+                actionStatus =
+                    Strings.get(Res.string.history_sample_not_recorded, it.message ?: it::class.simpleName.orEmpty())
+                actionOk = false
                 bad(actionStatus!!)
             }
         }.onFailure(::showReadFailure)
@@ -128,7 +144,9 @@ class CounterHistoryState(
         scope.launch {
             val result = withContext(io) { runCatching { journal.stats() } }
             result.onSuccess { stats = it }.onFailure {
-                actionStatus = "History could not be inspected: ${it.message ?: it::class.simpleName}."
+                actionStatus =
+                    Strings.get(Res.string.history_not_inspected, it.message ?: it::class.simpleName.orEmpty())
+                actionOk = false
             }
         }
     }
@@ -141,14 +159,18 @@ class CounterHistoryState(
                 if (ok) {
                     stats = CounterJournal.Stats(0, 0, 0L)
                     view = view?.copy(samples = emptyList(), trends = emptyList())
-                    actionStatus = "Counter history deleted."
-                    info("Deleted the local counter history.")
+                    actionStatus = Strings.get(Res.string.history_deleted)
+                    actionOk = true
+                    info(Strings.get(Res.string.history_deleted_log))
                 } else {
-                    actionStatus = "Counter history could not be deleted."
+                    actionStatus = Strings.get(Res.string.history_delete_failed)
+                    actionOk = false
                     bad(actionStatus!!)
                 }
             }.onFailure {
-                actionStatus = "Counter history could not be deleted: ${it.message ?: it::class.simpleName}."
+                actionStatus =
+                    Strings.get(Res.string.history_delete_failed_detail, it.message ?: it::class.simpleName.orEmpty())
+                actionOk = false
                 bad(actionStatus!!)
             }
         }
@@ -164,7 +186,8 @@ class CounterHistoryState(
     }
 
     private fun showReadFailure(error: Throwable) {
-        unavailableReason = "Counter history could not be read: ${error.message ?: error::class.simpleName}."
+        unavailableReason =
+            Strings.get(Res.string.history_read_failed, error.message ?: error::class.simpleName.orEmpty())
         bad(unavailableReason!!)
     }
 }

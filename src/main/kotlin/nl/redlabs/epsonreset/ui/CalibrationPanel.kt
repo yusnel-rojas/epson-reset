@@ -41,6 +41,58 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogWindow
 import androidx.compose.ui.window.rememberDialogState
 import nl.redlabs.epsonreset.db.Calibration
+import nl.redlabs.epsonreset.i18n.StatusText
+import nl.redlabs.epsonreset.i18n.Strings
+import nl.redlabs.epsonreset.i18n.counterName
+import nl.redlabs.epsonreset.i18n.resolve
+import nl.redlabs.epsonreset.i18n.resolveNow
+import nl.redlabs.epsonreset.resources.Res
+import nl.redlabs.epsonreset.resources.cal_applied_label
+import nl.redlabs.epsonreset.resources.cal_cannot_calibrate
+import nl.redlabs.epsonreset.resources.cal_close
+import nl.redlabs.epsonreset.resources.cal_confirms
+import nl.redlabs.epsonreset.resources.cal_copy_entry
+import nl.redlabs.epsonreset.resources.cal_copy_overlay
+import nl.redlabs.epsonreset.resources.cal_copy_report
+import nl.redlabs.epsonreset.resources.cal_count_label
+import nl.redlabs.epsonreset.resources.cal_dialog_title
+import nl.redlabs.epsonreset.resources.cal_disagrees
+import nl.redlabs.epsonreset.resources.cal_fills_a_gap
+import nl.redlabs.epsonreset.resources.cal_has_maximum
+import nl.redlabs.epsonreset.resources.cal_intro
+import nl.redlabs.epsonreset.resources.cal_limit_marker
+import nl.redlabs.epsonreset.resources.cal_loose_decimals
+import nl.redlabs.epsonreset.resources.cal_measure_title
+import nl.redlabs.epsonreset.resources.cal_model_label
+import nl.redlabs.epsonreset.resources.cal_model_placeholder
+import nl.redlabs.epsonreset.resources.cal_models_with_limit
+import nl.redlabs.epsonreset.resources.cal_no_candidates
+import nl.redlabs.epsonreset.resources.cal_no_maximum
+import nl.redlabs.epsonreset.resources.cal_no_model
+import nl.redlabs.epsonreset.resources.cal_no_serial
+import nl.redlabs.epsonreset.resources.cal_not_measured
+import nl.redlabs.epsonreset.resources.cal_note_label
+import nl.redlabs.epsonreset.resources.cal_note_placeholder
+import nl.redlabs.epsonreset.resources.cal_nothing_yet
+import nl.redlabs.epsonreset.resources.cal_open_issue
+import nl.redlabs.epsonreset.resources.cal_percent_label
+import nl.redlabs.epsonreset.resources.cal_percent_placeholder
+import nl.redlabs.epsonreset.resources.cal_pick
+import nl.redlabs.epsonreset.resources.cal_report_body
+import nl.redlabs.epsonreset.resources.cal_report_contains
+import nl.redlabs.epsonreset.resources.cal_report_ink
+import nl.redlabs.epsonreset.resources.cal_report_no_ink
+import nl.redlabs.epsonreset.resources.cal_result
+import nl.redlabs.epsonreset.resources.cal_result_range
+import nl.redlabs.epsonreset.resources.cal_service_required
+import nl.redlabs.epsonreset.resources.cal_session_note
+import nl.redlabs.epsonreset.resources.cal_siblings
+import nl.redlabs.epsonreset.resources.cal_source_confirmed
+import nl.redlabs.epsonreset.resources.cal_source_reported
+import nl.redlabs.epsonreset.resources.cal_source_selected
+import nl.redlabs.epsonreset.resources.cal_undo
+import nl.redlabs.epsonreset.resources.cal_use_maximum
+import org.jetbrains.compose.resources.stringResource
 
 /** Where a printer's own maximum gets measured and reported. */
 @Composable
@@ -54,7 +106,10 @@ fun CalibrationDialog(vm: ResetViewModel) {
     DialogWindow(
         onCloseRequest = { calibration.dialogOpen = false },
         state = state,
-        title = "Contribute a calibration — ${vm.selectedModel?.name ?: "no model"}",
+        title = stringResource(
+            Res.string.cal_dialog_title,
+            vm.selectedModel?.name ?: stringResource(Res.string.cal_no_model),
+        ),
     ) {
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
             Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp)) {
@@ -64,12 +119,14 @@ fun CalibrationDialog(vm: ResetViewModel) {
                 if (blocked != null) {
                     Spacer(Modifier.height(16.dp))
                     Text(
-                        "Nothing to calibrate yet — $blocked.",
+                        stringResource(Res.string.cal_nothing_yet, blocked),
                         style = MaterialTheme.typography.bodyMedium,
                         color = StatusColors.warn,
                     )
                     Spacer(Modifier.height(16.dp))
-                    OutlinedButton(onClick = { calibration.dialogOpen = false }) { Text("Close") }
+                    OutlinedButton(onClick = {
+                        calibration.dialogOpen = false
+                    }) { Text(stringResource(Res.string.cal_close)) }
                     return@Column
                 }
 
@@ -86,8 +143,8 @@ fun CalibrationDialog(vm: ResetViewModel) {
                 OutlinedTextField(
                     value = calibration.note,
                     onValueChange = { calibration.note = it },
-                    label = { Text("Note (optional)") },
-                    placeholder = { Text("Which tool reported the percentage, what the printer's panel said…") },
+                    label = { Text(stringResource(Res.string.cal_note_label)) },
+                    placeholder = { Text(stringResource(Res.string.cal_note_placeholder)) },
                     modifier = Modifier.fillMaxWidth(),
                 )
 
@@ -106,7 +163,7 @@ private fun Header(vm: ResetViewModel) {
     Column {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                "Measure a counter maximum",
+                stringResource(Res.string.cal_measure_title),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
             )
@@ -115,7 +172,7 @@ private fun Header(vm: ResetViewModel) {
             // possible statement of what one contribution is worth.
             vm.capabilitySummary?.let {
                 Text(
-                    "${it.withLimit} of ${it.total} models can show a percentage",
+                    stringResource(Res.string.cal_models_with_limit, it.withLimit, it.total),
                     style = MaterialTheme.typography.labelSmall,
                     color = StatusColors.muted,
                 )
@@ -123,9 +180,7 @@ private fun Header(vm: ResetViewModel) {
         }
         Spacer(Modifier.height(6.dp))
         Text(
-            "A percentage needs a maximum, and Epson publishes none — every one this app knows was " +
-                "measured off a printer. Yours can supply one: say what a counter reads at a moment " +
-                "its true percentage is known, and the maximum follows.",
+            stringResource(Res.string.cal_intro),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -145,8 +200,8 @@ private fun ModelField(vm: ResetViewModel) {
             OutlinedTextField(
                 value = calibration.model,
                 onValueChange = { calibration.model = it },
-                label = { Text("The model this printer actually is") },
-                placeholder = { Text("ET-2825") },
+                label = { Text(stringResource(Res.string.cal_model_label)) },
+                placeholder = { Text(stringResource(Res.string.cal_model_placeholder)) },
                 singleLine = true,
                 modifier = Modifier.weight(1f),
             )
@@ -155,7 +210,13 @@ private fun ModelField(vm: ResetViewModel) {
 
             Box {
                 OutlinedButton(onClick = { menu = true }, enabled = candidates.isNotEmpty()) {
-                    Text(if (candidates.isEmpty()) "No candidates" else "Pick…")
+                    Text(
+                        if (candidates.isEmpty()) {
+                            stringResource(Res.string.cal_no_candidates)
+                        } else {
+                            stringResource(Res.string.cal_pick)
+                        },
+                    )
                 }
                 DropdownMenu(menu, onDismissRequest = { menu = false }) {
                     for (name in candidates) {
@@ -190,9 +251,7 @@ private fun ModelField(vm: ResetViewModel) {
         if (siblings > 1) {
             Spacer(Modifier.height(4.dp))
             Text(
-                "$siblings models share this counter layout. The entry claims only the one named " +
-                    "above — a shared layout is not proof of a shared pad capacity, and if a " +
-                    "sibling ever measures differently, these names are what let the group be split.",
+                stringResource(Res.string.cal_siblings, siblings),
                 style = MaterialTheme.typography.labelSmall,
                 color = StatusColors.muted,
             )
@@ -205,8 +264,12 @@ private fun label(vm: ResetViewModel, name: String): String? = when (name) {
     // Same distinction the form's warning draws: a name the firmware gave carries more than one
     // the user supplied, and the two must not be captioned alike.
     vm.identifiedModel?.name ->
-        if (vm.confirmedClass == null) "reported by the printer" else "confirmed by you"
-    vm.selectedModel?.name -> "selected in the target"
+        if (vm.confirmedClass == null) {
+            Strings.get(Res.string.cal_source_reported)
+        } else {
+            Strings.get(Res.string.cal_source_confirmed)
+        }
+    vm.selectedModel?.name -> Strings.get(Res.string.cal_source_selected)
     else -> null
 }
 
@@ -230,7 +293,7 @@ private fun CounterRow(calibration: CalibrationState, row: CalibrationState.Row)
             )
             Column(Modifier.weight(1f)) {
                 Text(
-                    spec.description,
+                    counterName(spec.description).resolve(),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -248,12 +311,13 @@ private fun CounterRow(calibration: CalibrationState, row: CalibrationState.Row)
         val existing = spec.max
         Text(
             if (existing == null) {
-                "This app has no maximum for this counter, so it shows no percentage. That is what " +
-                    "is missing."
+                stringResource(Res.string.cal_no_maximum)
             } else {
-                "This app has max $existing, so it shows %.2f%%. Measuring it again is still worth "
-                    .format(row.counter.percent ?: 0.0) +
-                    "doing — that figure came from one printer."
+                stringResource(
+                    Res.string.cal_has_maximum,
+                    existing,
+                    "%.2f".format(row.counter.percent ?: 0.0),
+                )
             },
             style = MaterialTheme.typography.labelSmall,
             color = if (existing == null) StatusColors.warn else StatusColors.muted,
@@ -266,8 +330,8 @@ private fun CounterRow(calibration: CalibrationState, row: CalibrationState.Row)
                 value = input.percent,
                 onValueChange = { calibration.setPercent(spec.addresses, it) },
                 enabled = !input.serviceRequired,
-                label = { Text("Percentage another tool shows") },
-                placeholder = { Text("60.90") },
+                label = { Text(stringResource(Res.string.cal_percent_label)) },
+                placeholder = { Text(stringResource(Res.string.cal_percent_placeholder)) },
                 singleLine = true,
                 modifier = Modifier.weight(1f),
             )
@@ -278,7 +342,7 @@ private fun CounterRow(calibration: CalibrationState, row: CalibrationState.Row)
                 value = input.reportedValue,
                 onValueChange = { calibration.setReportedValue(spec.addresses, it) },
                 enabled = !input.serviceRequired,
-                label = { Text("…and the count it shows") },
+                label = { Text(stringResource(Res.string.cal_count_label)) },
                 placeholder = { Text(row.counter.value?.toString() ?: "") },
                 singleLine = true,
                 modifier = Modifier.weight(1f),
@@ -291,7 +355,7 @@ private fun CounterRow(calibration: CalibrationState, row: CalibrationState.Row)
                 onCheckedChange = { calibration.setServiceRequired(spec.addresses, it) },
             )
             Text(
-                "…or the printer is saying service required right now",
+                stringResource(Res.string.cal_service_required),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -306,13 +370,13 @@ private fun CounterRow(calibration: CalibrationState, row: CalibrationState.Row)
 private fun Outcome(outcome: Calibration.Outcome?) {
     when (outcome) {
         null -> Text(
-            "Not measured — leave it blank if you have nothing to say about this counter.",
+            stringResource(Res.string.cal_not_measured),
             style = MaterialTheme.typography.labelSmall,
             color = StatusColors.muted,
         )
 
         is Calibration.Outcome.Rejected -> Text(
-            "Cannot calibrate this counter — ${outcome.reason}.",
+            stringResource(Res.string.cal_cannot_calibrate, outcome.reason),
             style = MaterialTheme.typography.labelSmall,
             color = StatusColors.warn,
         )
@@ -321,12 +385,16 @@ private fun Outcome(outcome: Calibration.Outcome?) {
             val m = outcome.measured
             Column {
                 Text(
-                    "max ${m.max}  ·  shows %.2f%%".format(m.percent) +
+                    stringResource(
+                        Res.string.cal_result,
+                        m.max,
+                        "%.2f%%".format(m.percent),
                         if (m.range.first == m.range.last) {
                             ""
                         } else {
-                            "  ·  consistent with ${m.range.first}–${m.range.last}"
+                            stringResource(Res.string.cal_result_range, m.range.first, m.range.last)
                         },
+                    ),
                     style = MaterialTheme.typography.labelMedium,
                     fontFamily = FontFamily.Monospace,
                     color = when (m.agreement) {
@@ -337,15 +405,17 @@ private fun Outcome(outcome: Calibration.Outcome?) {
                 Text(
                     when (m.agreement) {
                         Calibration.Agreement.FILLS_A_GAP ->
-                            "New — this model had no maximum for this counter."
+                            stringResource(Res.string.cal_fills_a_gap)
+
                         Calibration.Agreement.CONFIRMS ->
-                            "Confirms the ${m.existingMax} already on file. Worth filing anyway: " +
-                                "that figure rests on one printer, and this is a second."
+                            stringResource(Res.string.cal_confirms, m.existingMax.toString())
+
                         Calibration.Agreement.DISAGREES ->
-                            "Disagrees with the ${m.existingMax} already on file, which would show " +
-                                "%.2f%%. Both came from one printer each, so this is a finding — "
-                                    .format(m.existingPercent ?: 0.0) +
-                                "file it rather than assuming either is wrong."
+                            stringResource(
+                                Res.string.cal_disagrees,
+                                m.existingMax.toString(),
+                                "%.2f".format(m.existingPercent ?: 0.0),
+                            )
                     },
                     style = MaterialTheme.typography.labelSmall,
                     color = when (m.agreement) {
@@ -356,17 +426,14 @@ private fun Outcome(outcome: Calibration.Outcome?) {
                 )
                 if (m.looksLikeLimitByte) {
                     Text(
-                        "This byte reads 94 (0x5E), which is Epson's limit marker rather than a " +
-                            "count — those read 94 always. Worth checking it really is a counter " +
-                            "before filing this.",
+                        stringResource(Res.string.cal_limit_marker),
                         style = MaterialTheme.typography.labelSmall,
                         color = StatusColors.warn,
                     )
                 }
                 if (m.isCoarse) {
                     Text(
-                        "That percentage was given to few decimals, so it brackets the maximum " +
-                            "loosely. Type every digit the other tool shows.",
+                        stringResource(Res.string.cal_loose_decimals),
                         style = MaterialTheme.typography.labelSmall,
                         color = StatusColors.warn,
                     )
@@ -389,33 +456,29 @@ private fun Included(vm: ResetViewModel) {
             .padding(12.dp),
     ) {
         Text(
-            "What the report contains",
+            stringResource(Res.string.cal_report_contains),
             style = MaterialTheme.typography.labelMedium,
             fontWeight = FontWeight.SemiBold,
         )
         Spacer(Modifier.height(6.dp))
         Text(
-            buildString {
-                append("Model, firmware and connection; the counters above with their values and ")
-                append("what this app currently believes about each; ")
-                append(
-                    if (ink.isEmpty()) {
-                        "no ink levels (this printer reported none); "
-                    } else {
-                        "ink levels (" + ink.joinToString(", ") { "${it.colour} ${it.percent}%" } + "); "
-                    },
-                )
-                append("and the printer's raw status block, undecoded.")
-            },
+            stringResource(
+                Res.string.cal_report_body,
+                if (ink.isEmpty()) {
+                    stringResource(Res.string.cal_report_no_ink)
+                } else {
+                    stringResource(
+                        Res.string.cal_report_ink,
+                        ink.joinToString(", ") { "${StatusText.inkColour(it).resolveNow()} ${it.percent}%" },
+                    )
+                },
+            ),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(Modifier.height(4.dp))
         Text(
-            "Not the serial number. A pad capacity is a model constant, so the serial would " +
-                "identify your printer in a public issue while adding nothing. Nothing is sent on " +
-                "its own either: \"Open an issue\" fills in a form in your browser for you to read " +
-                "and submit.",
+            stringResource(Res.string.cal_no_serial),
             style = MaterialTheme.typography.labelSmall,
             color = StatusColors.muted,
         )
@@ -432,45 +495,46 @@ private fun Actions(vm: ResetViewModel, copy: (String) -> Unit) {
             Button(
                 onClick = { calibration.openIssue(copy) },
                 enabled = enabled,
-            ) { Text("Open an issue") }
+            ) { Text(stringResource(Res.string.cal_open_issue)) }
             Spacer(Modifier.width(8.dp))
             // Named for what it changes, not for what it reveals: it replaces the divisor behind
             // every percentage on this model, and "Show it now" reads like a preview.
             OutlinedButton(onClick = { calibration.applyToSession() }, enabled = enabled) {
-                Text(if (calibration.applied) "Applied" else "Use this maximum now")
+                Text(
+                    if (calibration.applied) {
+                        stringResource(Res.string.cal_applied_label)
+                    } else {
+                        stringResource(Res.string.cal_use_maximum)
+                    },
+                )
             }
             if (calibration.applied) {
                 Spacer(Modifier.width(8.dp))
-                OutlinedButton(onClick = { calibration.revertSession() }) { Text("Undo") }
+                OutlinedButton(onClick = { calibration.revertSession() }) { Text(stringResource(Res.string.cal_undo)) }
             }
             Spacer(Modifier.weight(1f))
-            TextButton(onClick = { calibration.dialogOpen = false }) { Text("Close") }
+            TextButton(onClick = { calibration.dialogOpen = false }) { Text(stringResource(Res.string.cal_close)) }
         }
 
         Row(verticalAlignment = Alignment.CenterVertically) {
             TextButton(
                 onClick = { copy(calibration.entry()) },
                 enabled = enabled,
-            ) { Text("Copy entry") }
+            ) { Text(stringResource(Res.string.cal_copy_entry)) }
             TextButton(
                 onClick = { copy(calibration.overlay()) },
                 enabled = enabled,
-            ) { Text("Copy overlay") }
+            ) { Text(stringResource(Res.string.cal_copy_overlay)) }
             TextButton(
                 onClick = { copy(calibration.report()) },
                 enabled = enabled,
-            ) { Text("Copy report") }
+            ) { Text(stringResource(Res.string.cal_copy_report)) }
         }
 
         if (calibration.applied) {
             Spacer(Modifier.height(6.dp))
             Hint(
-                "Every percentage for this model is now divided by the maximum above, for this " +
-                    "session only — Undo puts it back, and so does restarting. To keep it, save " +
-                    "the overlay as counters-overlay.json in the data directory " +
-                    "(${nl.redlabs.epsonreset.AppPaths.counterOverlay}); that one survives a " +
-                    "restart and is undone only by deleting the file, which Settings can do. " +
-                    "And file the issue, so nobody with this model has to measure it again.",
+                stringResource(Res.string.cal_session_note, nl.redlabs.epsonreset.AppPaths.counterOverlay),
                 StatusColors.good,
             )
         }

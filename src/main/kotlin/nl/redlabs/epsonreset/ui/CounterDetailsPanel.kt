@@ -21,6 +21,15 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import nl.redlabs.epsonreset.protocol.CounterReader
+import nl.redlabs.epsonreset.resources.Res
+import nl.redlabs.epsonreset.resources.details_intro
+import nl.redlabs.epsonreset.resources.details_no_layout
+import nl.redlabs.epsonreset.resources.details_open_model_snapshots
+import nl.redlabs.epsonreset.resources.details_open_snapshots
+import nl.redlabs.epsonreset.resources.details_saved_snapshots
+import nl.redlabs.epsonreset.resources.details_view_snapshots
+import org.jetbrains.compose.resources.pluralStringResource
+import org.jetbrains.compose.resources.stringResource
 
 /** Read-only decoded counters and raw bytes nested inside Overview. */
 @Composable
@@ -29,7 +38,7 @@ internal fun CounterDetailsContent(vm: ResetViewModel) {
 
     Column {
         Text(
-            "Current values and EEPROM bytes. This view is read-only; reset actions remain under Maintenance.",
+            stringResource(Res.string.details_intro),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -37,7 +46,7 @@ internal fun CounterDetailsContent(vm: ResetViewModel) {
         if (model == null) {
             Box(Modifier.fillMaxWidth().height(240.dp), contentAlignment = Alignment.Center) {
                 Text(
-                    "No counter layout selected",
+                    stringResource(Res.string.details_no_layout),
                     style = MaterialTheme.typography.titleMedium,
                     color = StatusColors.muted,
                 )
@@ -70,7 +79,6 @@ internal fun CounterDetailsContent(vm: ResetViewModel) {
 @Composable
 private fun CounterSnapshotsFooter(vm: ResetViewModel, modelName: String) {
     val count = vm.snapshot.snapshotsForSelectedModel.size
-    val noun = if (count == 1) "snapshot" else "snapshots"
 
     Row(
         Modifier
@@ -84,15 +92,15 @@ private fun CounterSnapshotsFooter(vm: ResetViewModel, modelName: String) {
     ) {
         Column(Modifier.weight(1f)) {
             Text(
-                "$count saved $noun for $modelName",
+                pluralStringResource(Res.plurals.details_saved_snapshots, count, count, modelName),
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.SemiBold,
             )
             Text(
                 if (count == 0) {
-                    "Open Snapshots to capture the current bytes or inspect other models."
+                    stringResource(Res.string.details_open_snapshots)
                 } else {
-                    "Open the snapshots for this model to compare or restore saved bytes."
+                    stringResource(Res.string.details_open_model_snapshots)
                 },
                 style = MaterialTheme.typography.labelSmall,
                 color = StatusColors.muted,
@@ -100,7 +108,7 @@ private fun CounterSnapshotsFooter(vm: ResetViewModel, modelName: String) {
         }
         Spacer(Modifier.width(12.dp))
         Text(
-            "View snapshots →",
+            stringResource(Res.string.details_view_snapshots),
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.primary,
             fontWeight = FontWeight.SemiBold,

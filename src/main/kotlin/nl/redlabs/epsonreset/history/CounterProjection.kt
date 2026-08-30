@@ -1,6 +1,14 @@
 package nl.redlabs.epsonreset.history
 
 import nl.redlabs.epsonreset.db.CounterSpec
+import nl.redlabs.epsonreset.i18n.UiText
+import nl.redlabs.epsonreset.resources.Res
+import nl.redlabs.epsonreset.resources.projection_needs_a_day
+import nl.redlabs.epsonreset.resources.projection_needs_another_read
+import nl.redlabs.epsonreset.resources.projection_no_increase
+import nl.redlabs.epsonreset.resources.projection_no_maximum
+import nl.redlabs.epsonreset.resources.projection_no_reading
+import nl.redlabs.epsonreset.resources.projection_out_of_range
 import java.time.Duration
 import java.time.Instant
 import kotlin.math.roundToLong
@@ -22,7 +30,7 @@ object CounterProjection {
         val elapsedDays: Double?,
         val ratePerDay: Double?,
         val projectedAt: Instant?,
-        val projectionReason: String?,
+        val projectionReason: UiText?,
         val resetObserved: Boolean,
         val points: List<TrendPoint>,
     )
@@ -93,19 +101,20 @@ object CounterProjection {
         samples: Int,
         elapsedMillis: Long,
         ratePerDay: Double?,
-    ): Pair<Instant?, String?> {
-        val maximum = spec.max?.takeIf { it > 0 }?.toLong() ?: return null to "No measured maximum"
-        if (latest == null || latestAt == null) return null to "No complete reading"
+    ): Pair<Instant?, UiText?> {
+        val maximum =
+            spec.max?.takeIf { it > 0 }?.toLong() ?: return null to UiText.of(Res.string.projection_no_maximum)
+        if (latest == null || latestAt == null) return null to UiText.of(Res.string.projection_no_reading)
         if (latest >= maximum) return latestAt to null
-        if (samples < 2) return null to "Needs another live read"
-        if (elapsedMillis < MIN_PROJECTION_SPAN_MILLIS) return null to "Needs readings at least a day apart"
-        val rate = ratePerDay?.takeIf { it > 0.0 } ?: return null to "No increase in this period"
+        if (samples < 2) return null to UiText.of(Res.string.projection_needs_another_read)
+        if (elapsedMillis < MIN_PROJECTION_SPAN_MILLIS) return null to UiText.of(Res.string.projection_needs_a_day)
+        val rate = ratePerDay?.takeIf { it > 0.0 } ?: return null to UiText.of(Res.string.projection_no_increase)
 
         val remainingDays = (maximum - latest) / rate
         val remainingMillis = (remainingDays * DAY_MILLIS).takeIf { it.isFinite() }?.roundToLong()
-            ?: return null to "Projection is outside the supported date range"
+            ?: return null to UiText.of(Res.string.projection_out_of_range)
         val projected = runCatching { latestAt.plusMillis(remainingMillis.coerceAtLeast(0L)) }.getOrNull()
-            ?: return null to "Projection is outside the supported date range"
+            ?: return null to UiText.of(Res.string.projection_out_of_range)
         return projected to null
     }
 

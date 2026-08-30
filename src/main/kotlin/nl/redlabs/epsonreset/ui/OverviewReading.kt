@@ -2,9 +2,44 @@ package nl.redlabs.epsonreset.ui
 
 import nl.redlabs.epsonreset.db.CounterSpec
 import nl.redlabs.epsonreset.device.ConnectionTest
+import nl.redlabs.epsonreset.i18n.StatusText
+import nl.redlabs.epsonreset.i18n.UiText
+import nl.redlabs.epsonreset.i18n.counterName
 import nl.redlabs.epsonreset.net.PrinterMib
 import nl.redlabs.epsonreset.protocol.CounterReader
 import nl.redlabs.epsonreset.protocol.Status
+import nl.redlabs.epsonreset.resources.Res
+import nl.redlabs.epsonreset.resources.overview_action_maintenance
+import nl.redlabs.epsonreset.resources.overview_alert_counter_maxed_detail
+import nl.redlabs.epsonreset.resources.overview_alert_counter_maxed_title
+import nl.redlabs.epsonreset.resources.overview_alert_counter_nearly_detail
+import nl.redlabs.epsonreset.resources.overview_alert_counter_nearly_title
+import nl.redlabs.epsonreset.resources.overview_alert_error_detail
+import nl.redlabs.epsonreset.resources.overview_alert_error_title
+import nl.redlabs.epsonreset.resources.overview_alert_ink_low_detail
+import nl.redlabs.epsonreset.resources.overview_alert_ink_low_title
+import nl.redlabs.epsonreset.resources.overview_alert_not_idle
+import nl.redlabs.epsonreset.resources.overview_alert_supply_detail
+import nl.redlabs.epsonreset.resources.overview_alert_supply_filling
+import nl.redlabs.epsonreset.resources.overview_alert_supply_low
+import nl.redlabs.epsonreset.resources.overview_alert_supply_unnamed
+import nl.redlabs.epsonreset.resources.overview_alert_supply_warn_level
+import nl.redlabs.epsonreset.resources.overview_coverage_connection_untested
+import nl.redlabs.epsonreset.resources.overview_coverage_counters_answered
+import nl.redlabs.epsonreset.resources.overview_coverage_counters_none
+import nl.redlabs.epsonreset.resources.overview_coverage_counters_unread
+import nl.redlabs.epsonreset.resources.overview_coverage_lifetime_no
+import nl.redlabs.epsonreset.resources.overview_coverage_lifetime_yes
+import nl.redlabs.epsonreset.resources.overview_coverage_status_no
+import nl.redlabs.epsonreset.resources.overview_coverage_status_yes
+import nl.redlabs.epsonreset.resources.overview_coverage_supplies_no
+import nl.redlabs.epsonreset.resources.overview_coverage_supplies_yes
+import nl.redlabs.epsonreset.resources.overview_section_connection
+import nl.redlabs.epsonreset.resources.overview_section_counters
+import nl.redlabs.epsonreset.resources.overview_section_lifetime
+import nl.redlabs.epsonreset.resources.overview_section_status
+import nl.redlabs.epsonreset.resources.overview_section_supplies
+import org.jetbrains.compose.resources.StringResource
 import java.time.Instant
 
 /**
@@ -40,7 +75,7 @@ data class OverviewReading(
             printerMib: PrinterMib.Reading?,
             counters: CounterReader.Report?,
             specs: List<CounterSpec>,
-            counterUnavailableReason: String? = null,
+            counterUnavailableReason: UiText? = null,
         ): OverviewReading {
             val suppliesAvailable =
                 status?.inkLevels?.isNotEmpty() == true ||
@@ -61,33 +96,46 @@ data class OverviewReading(
                     OverviewCoverage(
                         OverviewSection.CONNECTION,
                         connection?.opened == true && connection.answered,
-                        connection?.headline ?: "Connection was not tested.",
+                        connection?.headline ?: UiText.of(Res.string.overview_coverage_connection_untested),
                     ),
                     OverviewCoverage(
                         OverviewSection.STATUS,
                         status != null,
-                        if (status != null) "Printer status reported." else "Status was not reported.",
+                        if (status != null) {
+                            UiText.of(Res.string.overview_coverage_status_yes)
+                        } else {
+                            UiText.of(Res.string.overview_coverage_status_no)
+                        },
                     ),
                     OverviewCoverage(
                         OverviewSection.SUPPLIES,
                         suppliesAvailable,
-                        if (suppliesAvailable) "Supply information reported." else "Supplies were not reported.",
+                        if (suppliesAvailable) {
+                            UiText.of(Res.string.overview_coverage_supplies_yes)
+                        } else {
+                            UiText.of(Res.string.overview_coverage_supplies_no)
+                        },
                     ),
                     OverviewCoverage(
                         OverviewSection.LIFETIME_USAGE,
                         printerMib?.lifeCount != null,
-                        printerMib?.lifeCount?.let { "Lifetime page count reported." }
-                            ?: "Lifetime page count was not reported.",
+                        printerMib?.lifeCount?.let { UiText.of(Res.string.overview_coverage_lifetime_yes) }
+                            ?: UiText.of(Res.string.overview_coverage_lifetime_no),
                     ),
                     OverviewCoverage(
                         OverviewSection.COUNTERS,
                         countersAvailable,
                         when {
-                            countersAvailable -> "${counters?.answered} counter address(es) answered."
+                            countersAvailable -> UiText.plural(
+                                Res.plurals.overview_coverage_counters_answered,
+                                counters?.answered ?: 0,
+                                counters?.answered ?: 0,
+                            )
+
                             counterUnavailableReason != null -> counterUnavailableReason
-                            counters?.error != null -> counters.error
-                            counters != null -> "No counter address answered."
-                            else -> "Counters were not read."
+                            counters?.error != null -> UiText.raw(counters.error)
+                            counters != null -> UiText.of(Res.string.overview_coverage_counters_none)
+                            else -> UiText.of(Res.string.overview_coverage_counters_unread)
                         },
                     ),
                 ),
@@ -101,24 +149,30 @@ data class OverviewReading(
             counters: CounterReader.Report?,
             specs: List<CounterSpec>,
         ): List<OverviewAlert> = buildList {
-            status?.errorDescription?.let { described ->
+            status?.errorCode?.let { code ->
                 add(
                     OverviewAlert(
                         severity = OverviewAlert.Severity.ERROR,
-                        title = "Printer error reported",
-                        detail = "The printer reports $described.",
+                        title = UiText.of(Res.string.overview_alert_error_title),
+                        detail = UiText.of(Res.string.overview_alert_error_detail, StatusText.error(code)),
                     ),
                 )
             }
-            status?.busyReason?.let { reason ->
-                add(OverviewAlert(OverviewAlert.Severity.ATTENTION, "Printer is not idle", reason))
+            status?.let(StatusText::busy)?.let { reason ->
+                add(
+                    OverviewAlert(
+                        OverviewAlert.Severity.ATTENTION,
+                        UiText.of(Res.string.overview_alert_not_idle),
+                        reason,
+                    ),
+                )
             }
             status?.inkLevels.orEmpty().filter { it.isLow }.forEach { ink ->
                 add(
                     OverviewAlert(
                         OverviewAlert.Severity.ATTENTION,
-                        "${ink.colour} ink is low",
-                        "The printer reports ${ink.percent}% remaining.",
+                        UiText.of(Res.string.overview_alert_ink_low_title, StatusText.inkColour(ink)),
+                        UiText.of(Res.string.overview_alert_ink_low_detail, ink.percent),
                     ),
                 )
             }
@@ -127,13 +181,21 @@ data class OverviewReading(
             printerMib?.supplies.orEmpty()
                 .filter { it.isWarn && (!statusHasInk || !it.isInkConsumable) }
                 .forEach { supply ->
-                    val name = supply.description.ifBlank { supply.typeLabel ?: "Supply ${supply.index}" }
-                    val amount = supply.percent?.let { "$it%" } ?: supply.levelNote ?: "a warning level"
+                    val name = supply.description.takeIf { it.isNotBlank() }?.let { UiText.raw(it) }
+                        ?: supply.typeLabel
+                        ?: UiText.of(Res.string.overview_alert_supply_unnamed, supply.index)
+                    val amount = supply.percent?.let { UiText.raw("$it%") }
+                        ?: supply.levelNote
+                        ?: UiText.of(Res.string.overview_alert_supply_warn_level)
                     add(
                         OverviewAlert(
                             OverviewAlert.Severity.ATTENTION,
-                            if (supply.isWaste) "$name is filling up" else "$name is low",
-                            "The printer reports $amount.",
+                            if (supply.isWaste) {
+                                UiText.of(Res.string.overview_alert_supply_filling, name)
+                            } else {
+                                UiText.of(Res.string.overview_alert_supply_low, name)
+                            },
+                            UiText.of(Res.string.overview_alert_supply_detail, amount),
                         ),
                     )
                 }
@@ -146,16 +208,18 @@ data class OverviewReading(
                     val value = counter.value ?: return@forEach
                     val maximum = counter.spec.max?.takeIf { it > 0 } ?: return@forEach
                     val percent = counter.percent ?: return@forEach
-                    val name = counter.spec.description.removeSuffix(" (?)")
+                    val name = counterName(counter.spec.description)
 
                     when (overviewCounterLevel(percent)) {
                         OverviewCounterLevel.MAXED -> add(
                             OverviewAlert(
                                 OverviewAlert.Severity.ERROR,
-                                "$name is at its maximum",
-                                "%,d of %,d — the printer may refuse to print until this is reset, "
-                                    .format(value, maximum) +
-                                    "and the pad or maintenance box itself needs replacing.",
+                                UiText.of(Res.string.overview_alert_counter_maxed_title, name),
+                                UiText.of(
+                                    Res.string.overview_alert_counter_maxed_detail,
+                                    "%,d".format(value),
+                                    "%,d".format(maximum),
+                                ),
                                 OverviewAlert.Action.MAINTENANCE,
                             ),
                         )
@@ -163,8 +227,13 @@ data class OverviewReading(
                         OverviewCounterLevel.REACHING -> add(
                             OverviewAlert(
                                 OverviewAlert.Severity.ATTENTION,
-                                "$name is nearly full",
-                                "%,d of %,d (%.0f%%).".format(value, maximum, percent),
+                                UiText.of(Res.string.overview_alert_counter_nearly_title, name),
+                                UiText.of(
+                                    Res.string.overview_alert_counter_nearly_detail,
+                                    "%,d".format(value),
+                                    "%,d".format(maximum),
+                                    "%.0f%%".format(percent),
+                                ),
                                 OverviewAlert.Action.MAINTENANCE,
                             ),
                         )
@@ -177,24 +246,24 @@ data class OverviewReading(
     }
 }
 
-enum class OverviewSection(val label: String) {
-    CONNECTION("Connection"),
-    STATUS("Status"),
-    SUPPLIES("Supplies"),
-    LIFETIME_USAGE("Lifetime usage"),
-    COUNTERS("Counters"),
+enum class OverviewSection(val label: StringResource) {
+    CONNECTION(Res.string.overview_section_connection),
+    STATUS(Res.string.overview_section_status),
+    SUPPLIES(Res.string.overview_section_supplies),
+    LIFETIME_USAGE(Res.string.overview_section_lifetime),
+    COUNTERS(Res.string.overview_section_counters),
 }
 
-data class OverviewCoverage(val section: OverviewSection, val available: Boolean, val detail: String)
+data class OverviewCoverage(val section: OverviewSection, val available: Boolean, val detail: UiText)
 
 data class OverviewAlert(
     val severity: Severity,
-    val title: String,
-    val detail: String,
+    val title: UiText,
+    val detail: UiText,
     /** Where this is dealt with, when the app has somewhere to send you. */
     val action: Action? = null,
 ) {
     enum class Severity { ATTENTION, ERROR }
 
-    enum class Action(val label: String) { MAINTENANCE("Open Maintenance") }
+    enum class Action(val label: StringResource) { MAINTENANCE(Res.string.overview_action_maintenance) }
 }

@@ -32,6 +32,15 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import nl.redlabs.epsonreset.resources.Res
+import nl.redlabs.epsonreset.resources.log_clear
+import nl.redlabs.epsonreset.resources.log_copy
+import nl.redlabs.epsonreset.resources.log_hide
+import nl.redlabs.epsonreset.resources.log_hide_trace
+import nl.redlabs.epsonreset.resources.log_show
+import nl.redlabs.epsonreset.resources.log_show_trace
+import nl.redlabs.epsonreset.resources.log_title
+import org.jetbrains.compose.resources.stringResource
 
 /** Height of the log when open; collapsed it keeps only its header bar. */
 private val EXPANDED_HEIGHT = 200.dp
@@ -85,7 +94,7 @@ fun LogPanel(vm: ResetViewModel, modifier: Modifier = Modifier) {
                     modifier = Modifier.width(16.dp),
                 )
                 Text(
-                    "Log",
+                    stringResource(Res.string.log_title),
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.SemiBold,
                 )
@@ -105,7 +114,7 @@ fun LogPanel(vm: ResetViewModel, modifier: Modifier = Modifier) {
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f),
                     )
-                    TextButton(onClick = { vm.logCollapsed = false }) { Text("Show") }
+                    TextButton(onClick = { vm.logCollapsed = false }) { Text(stringResource(Res.string.log_show)) }
                 } else {
                     Spacer(Modifier.width(12.dp))
                     if (operationLabel != null) {
@@ -122,13 +131,19 @@ fun LogPanel(vm: ResetViewModel, modifier: Modifier = Modifier) {
                         Spacer(Modifier.weight(1f))
                     }
                     TextButton(onClick = { showTrace = !showTrace }) {
-                        Text(if (showTrace) "Hide packet trace" else "Show packet trace")
+                        Text(
+                            if (showTrace) {
+                                stringResource(Res.string.log_hide_trace)
+                            } else {
+                                stringResource(Res.string.log_show_trace)
+                            },
+                        )
                     }
                     TextButton(onClick = { copy(vm.exportLog()) }) {
-                        Text("Copy")
+                        Text(stringResource(Res.string.log_copy))
                     }
-                    TextButton(onClick = { vm.clearLog() }) { Text("Clear") }
-                    TextButton(onClick = { vm.logCollapsed = true }) { Text("Hide") }
+                    TextButton(onClick = { vm.clearLog() }) { Text(stringResource(Res.string.log_clear)) }
+                    TextButton(onClick = { vm.logCollapsed = true }) { Text(stringResource(Res.string.log_hide)) }
                 }
             }
 

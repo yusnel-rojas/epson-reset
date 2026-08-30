@@ -3,6 +3,7 @@ package nl.redlabs.epsonreset
 import nl.redlabs.epsonreset.db.CounterSpec
 import nl.redlabs.epsonreset.device.ConnectionTest
 import nl.redlabs.epsonreset.history.CounterProjection
+import nl.redlabs.epsonreset.i18n.resolveNow
 import nl.redlabs.epsonreset.net.PrinterMib
 import nl.redlabs.epsonreset.protocol.CounterReader
 import nl.redlabs.epsonreset.protocol.DeviceId
@@ -76,10 +77,10 @@ class OverviewReadingTest {
         )
 
         assertTrue(snapshot.alerts.any { it.severity == OverviewAlert.Severity.ERROR })
-        assertTrue(snapshot.alerts.any { it.title == "Printer is not idle" })
-        assertTrue(snapshot.alerts.any { it.title == "Black ink is low" })
-        assertTrue(snapshot.alerts.any { it.title.contains("Waste ink is filling up") })
-        assertTrue(snapshot.alerts.any { it.title == "Waste counter is at its maximum" })
+        assertTrue(snapshot.alerts.any { it.title.resolveNow() == "Printer is not idle" })
+        assertTrue(snapshot.alerts.any { it.title.resolveNow() == "Black ink is low" })
+        assertTrue(snapshot.alerts.any { it.title.resolveNow().contains("Waste ink is filling up") })
+        assertTrue(snapshot.alerts.any { it.title.resolveNow() == "Waste counter is at its maximum" })
     }
 
     /** The error is named, not spelled `0x04` — the same wording `Status.busyReason` uses. */
@@ -94,7 +95,7 @@ class OverviewReadingTest {
             ).alerts.firstOrNull { it.severity == OverviewAlert.Severity.ERROR },
         )
 
-        assertEquals("The printer reports paper jam.", alert.detail)
+        assertEquals("The printer reports paper jam.", alert.detail.resolveNow())
     }
 
     /**
@@ -114,12 +115,12 @@ class OverviewReadingTest {
 
         val nearly = assertNotNull(alertsAt(94).singleOrNull())
         assertEquals(OverviewAlert.Severity.ATTENTION, nearly.severity)
-        assertEquals("Waste counter is nearly full", nearly.title)
+        assertEquals("Waste counter is nearly full", nearly.title.resolveNow())
         assertEquals(OverviewAlert.Action.MAINTENANCE, nearly.action)
 
         val full = assertNotNull(alertsAt(100).singleOrNull())
         assertEquals(OverviewAlert.Severity.ERROR, full.severity)
-        assertEquals("Waste counter is at its maximum", full.title)
+        assertEquals("Waste counter is at its maximum", full.title.resolveNow())
         assertEquals(OverviewAlert.Action.MAINTENANCE, full.action)
     }
 
@@ -166,7 +167,7 @@ class OverviewReadingTest {
             emptyList(),
         )
 
-        assertEquals(1, snapshot.alerts.count { it.title.contains("Black") })
+        assertEquals(1, snapshot.alerts.count { it.title.resolveNow().contains("Black") })
     }
 }
 
@@ -296,8 +297,8 @@ class ConnectionHeadlineTest {
 
         assertEquals(
             "Printer identified over USB, but counter access is unavailable on this connection.",
-            result.headline,
+            result.headline.resolveNow(),
         )
-        assertFalse(result.headline.contains("packet channel"))
+        assertFalse(result.headline.resolveNow().contains("packet channel"))
     }
 }

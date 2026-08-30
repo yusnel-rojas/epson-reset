@@ -1,5 +1,9 @@
 package nl.redlabs.epsonreset.net
 
+import nl.redlabs.epsonreset.i18n.Strings
+import nl.redlabs.epsonreset.resources.Res
+import nl.redlabs.epsonreset.resources.mdns_no_multicast
+import nl.redlabs.epsonreset.resources.mdns_no_multicast_hint
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetAddress
@@ -51,9 +55,8 @@ object MdnsDiscovery {
         } else {
             val unicast = openUnicastFallback()
                 ?: return BrowseResult.Unavailable(
-                    "No multicast socket could be opened.",
-                    "Add the printer by IP address instead — discovery is a convenience, not a " +
-                        "requirement.",
+                    Strings.get(Res.string.mdns_no_multicast),
+                    Strings.get(Res.string.mdns_no_multicast_hint),
                 )
             unicast.use { collect(it, query(service, unicastReply = true), records, timeoutMs) }
         }

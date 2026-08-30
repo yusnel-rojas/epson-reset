@@ -1,6 +1,10 @@
 package nl.redlabs.epsonreset.ui
 
 import nl.redlabs.epsonreset.protocol.CounterReader
+import nl.redlabs.epsonreset.resources.Res
+import nl.redlabs.epsonreset.resources.plan_target_reset
+import nl.redlabs.epsonreset.resources.plan_target_snapshot
+import org.jetbrains.compose.resources.StringResource
 
 /**
  * A run of EEPROM writes as the counter table draws it: what each address is to be given, and how
@@ -13,7 +17,7 @@ import nl.redlabs.epsonreset.protocol.CounterReader
  */
 data class WritePlan(
     /** Named in the legend, so the right-hand byte of every chip says what it is. */
-    val targetLabel: String,
+    val targetLabel: StringResource,
     /** Address to the byte this run will write. Empty keeps each reading's own reset target. */
     val targets: Map<Int, Int> = emptyMap(),
     /** How far each address has got. Empty before anything has been sent — a plan, not a run. */
@@ -42,8 +46,8 @@ data class WritePlan(
     )
 
     companion object {
-        const val RESET_TARGET = "reset target"
-        const val SNAPSHOT_TARGET = "saved value"
+        val RESET_TARGET = Res.string.plan_target_reset
+        val SNAPSHOT_TARGET = Res.string.plan_target_snapshot
 
         /** No run and no retargeting: the table shows each address against its own reset value. */
         val None = WritePlan(RESET_TARGET)

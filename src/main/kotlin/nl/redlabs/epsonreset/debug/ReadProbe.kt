@@ -8,6 +8,7 @@ import nl.redlabs.epsonreset.protocol.SequenceGenerator
 import nl.redlabs.epsonreset.protocol.Transport
 import nl.redlabs.epsonreset.usb.LibUsbTransport
 import nl.redlabs.epsonreset.usb.UsbPrinterScanner
+import java.util.Locale
 
 /**
  * Hardware experiment: dump every exchange of the D4 handshake and then try several read-command
@@ -17,6 +18,9 @@ object ReadProbe {
 
     @JvmStatic
     fun main(args: Array<String>) {
+        // Prints for a bug report, not for the app's user: this output stays English.
+        Locale.setDefault(Locale.ENGLISH)
+
         val db = PrinterDatabase.load()
         val modelName = args.firstOrNull() ?: "ET-2825"
         val model = db[modelName] ?: run {

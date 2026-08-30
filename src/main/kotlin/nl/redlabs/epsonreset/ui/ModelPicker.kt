@@ -24,6 +24,22 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import nl.redlabs.epsonreset.db.PrinterModel
+import nl.redlabs.epsonreset.resources.Res
+import nl.redlabs.epsonreset.resources.model_picker_back
+import nl.redlabs.epsonreset.resources.model_picker_back_to
+import nl.redlabs.epsonreset.resources.model_picker_choose_label
+import nl.redlabs.epsonreset.resources.model_picker_confirmed_as
+import nl.redlabs.epsonreset.resources.model_picker_done
+import nl.redlabs.epsonreset.resources.model_picker_matches
+import nl.redlabs.epsonreset.resources.model_picker_no_matches
+import nl.redlabs.epsonreset.resources.model_picker_reported
+import nl.redlabs.epsonreset.resources.model_picker_reports_itself
+import nl.redlabs.epsonreset.resources.model_picker_rkey
+import nl.redlabs.epsonreset.resources.model_picker_search
+import nl.redlabs.epsonreset.resources.model_picker_series_scope
+import nl.redlabs.epsonreset.resources.model_picker_title
+import org.jetbrains.compose.resources.pluralStringResource
+import org.jetbrains.compose.resources.stringResource
 
 /** Model half of the app-wide target menu. */
 @Composable
@@ -36,12 +52,12 @@ fun ModelPicker(
     Column(modifier.padding(vertical = 12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                "Printer model",
+                stringResource(Res.string.model_picker_title),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
             )
             Spacer(Modifier.weight(1f))
-            TextButton(onClick = onBack) { Text("Back") }
+            TextButton(onClick = onBack) { Text(stringResource(Res.string.model_picker_back)) }
         }
 
         // Only reachable over the top of a printer that named itself, and that is worth saying
@@ -68,7 +84,7 @@ fun ModelPicker(
         OutlinedTextField(
             value = vm.query,
             onValueChange = { vm.query = it },
-            label = { Text("Search ${vm.database?.size ?: 0} models") },
+            label = { Text(stringResource(Res.string.model_picker_search, vm.database?.size ?: 0)) },
             singleLine = true,
             enabled = vm.canChangeTarget,
             modifier = Modifier.fillMaxWidth(),
@@ -79,9 +95,9 @@ fun ModelPicker(
         val results = vm.searchResults
         Text(
             if (results.isEmpty()) {
-                "no matches"
+                stringResource(Res.string.model_picker_no_matches)
             } else {
-                "${results.size} match${if (results.size == 1) "" else "es"}"
+                pluralStringResource(Res.plurals.model_picker_matches, results.size, results.size)
             },
             style = MaterialTheme.typography.labelSmall,
             color = StatusColors.muted,
@@ -128,17 +144,15 @@ private fun ScopedModelChoice(
             .padding(10.dp),
     ) {
         Text(
-            reported?.let { "This printer reports \"$it\" — choose the model on its label." }
-                ?: "Choose the model printed on this printer.",
+            reported?.let { stringResource(Res.string.model_picker_reported, it) }
+                ?: stringResource(Res.string.model_picker_choose_label),
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.SemiBold,
             color = StatusColors.warn,
         )
         Spacer(Modifier.height(4.dp))
         Text(
-            "Only the ${candidates.size} model${if (candidates.size == 1) "" else "s"} in the " +
-                "identified series ${if (candidates.size == 1) "is" else "are"} shown. " +
-                "The choice is remembered.",
+            pluralStringResource(Res.plurals.model_picker_series_scope, candidates.size, candidates.size),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -164,7 +178,7 @@ private fun ScopedModelChoice(
                 )
                 Spacer(Modifier.weight(1f))
                 Text(
-                    "rkey ${model.readKey} · ${model.writeCount} writes",
+                    stringResource(Res.string.model_picker_rkey, model.readKey, model.writeCount),
                     style = MaterialTheme.typography.labelSmall,
                     fontFamily = FontFamily.Monospace,
                     color = StatusColors.muted,
@@ -192,9 +206,9 @@ private fun OverrideWarning(vm: ResetViewModel, identified: PrinterModel) {
             mismatch
                 // Same rule as the collapsed card: a name the user supplied is not the printer's word.
                 ?: vm.confirmedClass?.let {
-                    "You confirmed this printer as ${identified.name}. It reports only \"$it\"."
+                    stringResource(Res.string.model_picker_confirmed_as, identified.name, it)
                 }
-                ?: "This printer reports itself as ${identified.name}.",
+                ?: stringResource(Res.string.model_picker_reports_itself, identified.name),
             style = MaterialTheme.typography.labelSmall,
             color = if (mismatch == null) MaterialTheme.colorScheme.onSurfaceVariant else tone,
         )
@@ -204,7 +218,11 @@ private fun OverrideWarning(vm: ResetViewModel, identified: PrinterModel) {
             contentPadding = PaddingValues(0.dp),
         ) {
             Text(
-                if (mismatch == null) "Done" else "Back to ${identified.name}",
+                if (mismatch == null) {
+                    stringResource(Res.string.model_picker_done)
+                } else {
+                    stringResource(Res.string.model_picker_back_to, identified.name)
+                },
                 style = MaterialTheme.typography.labelSmall,
             )
         }

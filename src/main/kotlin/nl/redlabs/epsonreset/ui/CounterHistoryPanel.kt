@@ -21,6 +21,31 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import nl.redlabs.epsonreset.history.CounterProjection
+import nl.redlabs.epsonreset.i18n.UiText
+import nl.redlabs.epsonreset.i18n.counterName
+import nl.redlabs.epsonreset.i18n.resolve
+import nl.redlabs.epsonreset.i18n.resolveNow
+import nl.redlabs.epsonreset.resources.Res
+import nl.redlabs.epsonreset.resources.history_live_samples
+import nl.redlabs.epsonreset.resources.history_no_layout
+import nl.redlabs.epsonreset.resources.history_no_rate
+import nl.redlabs.epsonreset.resources.history_no_span
+import nl.redlabs.epsonreset.resources.history_none_paused
+import nl.redlabs.epsonreset.resources.history_none_recording
+import nl.redlabs.epsonreset.resources.history_one_sample
+import nl.redlabs.epsonreset.resources.history_paused
+import nl.redlabs.epsonreset.resources.history_rate
+import nl.redlabs.epsonreset.resources.history_rate_relative
+import nl.redlabs.epsonreset.resources.history_recording
+import nl.redlabs.epsonreset.resources.history_reset_note
+import nl.redlabs.epsonreset.resources.history_summary
+import nl.redlabs.epsonreset.resources.history_title
+import nl.redlabs.epsonreset.resources.history_too_early
+import nl.redlabs.epsonreset.resources.projection_arrives_around
+import nl.redlabs.epsonreset.resources.projection_at_maximum
+import nl.redlabs.epsonreset.resources.projection_none_yet
+import org.jetbrains.compose.resources.pluralStringResource
+import org.jetbrains.compose.resources.stringResource
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 
@@ -41,13 +66,17 @@ fun CounterHistoryPanel(vm: ResetViewModel, modifier: Modifier = Modifier) {
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                "Counter history",
+                stringResource(Res.string.history_title),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
             )
             Spacer(Modifier.weight(1f))
             Text(
-                if (vm.keepCounterHistory) "Recording locally" else "Recording paused",
+                if (vm.keepCounterHistory) {
+                    stringResource(Res.string.history_recording)
+                } else {
+                    stringResource(Res.string.history_paused)
+                },
                 style = MaterialTheme.typography.labelSmall,
                 color = if (vm.keepCounterHistory) StatusColors.good else StatusColors.warn,
             )
@@ -61,7 +90,12 @@ fun CounterHistoryPanel(vm: ResetViewModel, modifier: Modifier = Modifier) {
 
         view ?: return@Column
         Text(
-            "${view.samples.size} live sample(s) for ${view.model} · serial ${view.serial}",
+            stringResource(
+                Res.string.history_summary,
+                pluralStringResource(Res.plurals.history_live_samples, view.samples.size, view.samples.size),
+                view.model,
+                view.serial,
+            ),
             style = MaterialTheme.typography.labelSmall,
             fontFamily = FontFamily.Monospace,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -70,9 +104,9 @@ fun CounterHistoryPanel(vm: ResetViewModel, modifier: Modifier = Modifier) {
             Spacer(Modifier.height(8.dp))
             Text(
                 if (vm.keepCounterHistory) {
-                    "The next successful live read starts this printer's history."
+                    stringResource(Res.string.history_none_recording)
                 } else {
-                    "No saved history for this printer. Enable recording in Settings to start one."
+                    stringResource(Res.string.history_none_paused)
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = StatusColors.muted,
@@ -83,7 +117,7 @@ fun CounterHistoryPanel(vm: ResetViewModel, modifier: Modifier = Modifier) {
         if (view.trends.isEmpty()) {
             Spacer(Modifier.height(8.dp))
             Text(
-                "The reads are recorded, but this model has no decoded counter layout to trend.",
+                stringResource(Res.string.history_no_layout),
                 style = MaterialTheme.typography.bodySmall,
                 color = StatusColors.muted,
             )
@@ -99,8 +133,7 @@ fun CounterHistoryPanel(vm: ResetViewModel, modifier: Modifier = Modifier) {
         if (view.trends.any { it.resetObserved }) {
             Spacer(Modifier.height(8.dp))
             Text(
-                "A detected counter drop starts a new trend, so an earlier reset cannot turn the " +
-                    "fill rate negative.",
+                stringResource(Res.string.history_reset_note),
                 style = MaterialTheme.typography.labelSmall,
                 color = StatusColors.muted,
             )
@@ -119,7 +152,7 @@ private fun TrendRow(trend: CounterProjection.Trend) {
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                trend.spec.description + if (trend.spec.isUncertain) " (?)" else "",
+                counterName(trend.spec.description).resolve() + if (trend.spec.isUncertain) " (?)" else "",
                 style = MaterialTheme.typography.bodySmall,
                 fontWeight = FontWeight.Medium,
                 modifier = Modifier.weight(1f),
@@ -137,12 +170,12 @@ private fun TrendRow(trend: CounterProjection.Trend) {
 
         Spacer(Modifier.height(3.dp))
         Text(
-            movementLabel(trend),
+            movementLabel(trend).resolve(),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Text(
-            projectionLabel(trend),
+            projectionLabel(trend).resolve(),
             style = MaterialTheme.typography.labelSmall,
             color = if (trend.projectedAt != null) StatusColors.warn else StatusColors.muted,
         )
@@ -217,25 +250,34 @@ internal fun sparklineGeometry(
     }
 }
 
-private fun movementLabel(trend: CounterProjection.Trend): String {
-    if (trend.samplesUsed < 2) return "One usable sample — another live read establishes movement."
-    val elapsed = trend.elapsedDays ?: return "The samples have no measurable time between them."
-    if (elapsed < 1.0) return "${signed(trend.delta)} in less than a day — too early for a stable rate."
-    val rate = trend.ratePerDay ?: return "No usable fill rate."
+private fun movementLabel(trend: CounterProjection.Trend): UiText {
+    if (trend.samplesUsed < 2) return UiText.of(Res.string.history_one_sample)
+    val elapsed = trend.elapsedDays ?: return UiText.of(Res.string.history_no_span)
+    if (elapsed < 1.0) return UiText.of(Res.string.history_too_early, signed(trend.delta))
+    val rate = trend.ratePerDay ?: return UiText.of(Res.string.history_no_rate)
     val percentRate = trend.spec.max?.takeIf { it > 0 }?.let { rate / it * 100.0 }
-    val relative = percentRate?.let { " · ${"%.3f".format(it)}% of max/day" }.orEmpty()
-    return "${signed(trend.delta)} over ${"%.1f".format(elapsed)} days · ${"%.2f".format(rate)} per day$relative"
+    val relative = percentRate
+        ?.let { UiText.of(Res.string.history_rate_relative, "%.3f".format(it)).resolveNow() }
+        .orEmpty()
+
+    return UiText.of(
+        Res.string.history_rate,
+        signed(trend.delta),
+        "%.1f".format(elapsed),
+        "%.2f".format(rate),
+        relative,
+    )
 }
 
-private fun projectionLabel(trend: CounterProjection.Trend): String {
+private fun projectionLabel(trend: CounterProjection.Trend): UiText {
     val maximum = trend.spec.max?.toLong()
     if (maximum != null && trend.latest != null && trend.latest >= maximum) {
-        return "The counter is at or above its measured maximum."
+        return UiText.of(Res.string.projection_at_maximum)
     }
     trend.projectedAt?.let {
-        return "At this rate, the measured maximum arrives around ${DATE.format(it)}."
+        return UiText.of(Res.string.projection_arrives_around, DATE.format(it))
     }
-    return trend.projectionReason ?: "No projection yet."
+    return trend.projectionReason ?: UiText.of(Res.string.projection_none_yet)
 }
 
 private fun signed(value: Long?): String = value?.let { if (it > 0L) "+$it" else it.toString() } ?: "—"

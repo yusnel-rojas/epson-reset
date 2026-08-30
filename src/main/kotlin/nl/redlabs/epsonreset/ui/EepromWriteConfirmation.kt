@@ -21,6 +21,10 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogWindow
 import androidx.compose.ui.window.rememberDialogState
+import nl.redlabs.epsonreset.resources.Res
+import nl.redlabs.epsonreset.resources.confirm_back
+import nl.redlabs.epsonreset.resources.confirm_write_eeprom
+import org.jetbrains.compose.resources.stringResource
 
 /** One consistent final gate for every action that writes EEPROM. */
 @Composable
@@ -32,7 +36,7 @@ internal fun EepromWriteConfirmation(
     onDismiss: () -> Unit,
     onConfirm: () -> Unit,
     warning: String? = null,
-    confirmLabel: String = "Yes, write EEPROM",
+    confirmLabel: String = stringResource(Res.string.confirm_write_eeprom),
 ) {
     DialogWindow(
         onCloseRequest = onDismiss,
@@ -68,7 +72,7 @@ internal fun EepromWriteConfirmation(
                 Spacer(Modifier.weight(1f))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Spacer(Modifier.weight(1f))
-                    OutlinedButton(onClick = onDismiss) { Text("Back") }
+                    OutlinedButton(onClick = onDismiss) { Text(stringResource(Res.string.confirm_back)) }
                     Spacer(Modifier.width(8.dp))
                     Button(onClick = onConfirm, colors = dangerButtonColors()) { Text(confirmLabel) }
                 }

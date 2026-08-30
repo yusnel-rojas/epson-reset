@@ -36,6 +36,35 @@ import nl.redlabs.epsonreset.db.CapabilitySummary
 import nl.redlabs.epsonreset.db.ModelCapability
 import nl.redlabs.epsonreset.db.ResetScope
 import nl.redlabs.epsonreset.db.ValueSupport
+import nl.redlabs.epsonreset.resources.Res
+import nl.redlabs.epsonreset.resources.matrix_col_limit
+import nl.redlabs.epsonreset.resources.matrix_col_model
+import nl.redlabs.epsonreset.resources.matrix_col_read
+import nl.redlabs.epsonreset.resources.matrix_col_reset
+import nl.redlabs.epsonreset.resources.matrix_col_values
+import nl.redlabs.epsonreset.resources.matrix_head_limit
+import nl.redlabs.epsonreset.resources.matrix_head_read
+import nl.redlabs.epsonreset.resources.matrix_head_reset
+import nl.redlabs.epsonreset.resources.matrix_head_scope
+import nl.redlabs.epsonreset.resources.matrix_head_scope_help
+import nl.redlabs.epsonreset.resources.matrix_head_values
+import nl.redlabs.epsonreset.resources.matrix_head_writes
+import nl.redlabs.epsonreset.resources.matrix_head_writes_help
+import nl.redlabs.epsonreset.resources.matrix_legend_layout_only
+import nl.redlabs.epsonreset.resources.matrix_legend_values
+import nl.redlabs.epsonreset.resources.matrix_loading
+import nl.redlabs.epsonreset.resources.matrix_no_match
+import nl.redlabs.epsonreset.resources.matrix_none
+import nl.redlabs.epsonreset.resources.matrix_scope_full
+import nl.redlabs.epsonreset.resources.matrix_scope_platen_only
+import nl.redlabs.epsonreset.resources.matrix_search
+import nl.redlabs.epsonreset.resources.matrix_shown
+import nl.redlabs.epsonreset.resources.matrix_summary
+import nl.redlabs.epsonreset.resources.matrix_title
+import nl.redlabs.epsonreset.resources.matrix_value_bytes_only
+import nl.redlabs.epsonreset.resources.matrix_value_decoded
+import nl.redlabs.epsonreset.resources.matrix_value_partly
+import org.jetbrains.compose.resources.stringResource
 
 /** Every model in the database against what this app can do with it. */
 @Composable
@@ -62,7 +91,11 @@ fun CapabilityMatrix(vm: ResetViewModel, modifier: Modifier = Modifier) {
             if (results.isEmpty()) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(
-                        if (vm.capabilities.isEmpty()) "Loading the database…" else "No models match.",
+                        if (vm.capabilities.isEmpty()) {
+                            stringResource(Res.string.matrix_loading)
+                        } else {
+                            stringResource(Res.string.matrix_no_match)
+                        },
                         style = MaterialTheme.typography.bodySmall,
                         color = StatusColors.muted,
                     )
@@ -89,15 +122,21 @@ fun CapabilityMatrix(vm: ResetViewModel, modifier: Modifier = Modifier) {
 private fun SummaryHeader(summary: CapabilitySummary) {
     Column {
         Text(
-            "Model capabilities",
+            stringResource(Res.string.matrix_title),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold,
         )
         Spacer(Modifier.height(4.dp))
         Text(
-            "${summary.resettable} of ${summary.total} models can be reset · " +
-                "${summary.decoded} decode to real values, ${summary.uncertain} partly · " +
-                "${summary.platenOnly} are platen-only · ${summary.withLimit} know a limit",
+            stringResource(
+                Res.string.matrix_summary,
+                summary.resettable,
+                summary.total,
+                summary.decoded,
+                summary.uncertain,
+                summary.platenOnly,
+                summary.withLimit,
+            ),
             style = MaterialTheme.typography.bodySmall,
             color = StatusColors.muted,
         )
@@ -110,7 +149,7 @@ private fun Filters(vm: ResetViewModel, shown: Int) {
         OutlinedTextField(
             value = vm.matrixQuery,
             onValueChange = { vm.matrixQuery = it },
-            label = { Text("Search models") },
+            label = { Text(stringResource(Res.string.matrix_search)) },
             singleLine = true,
             modifier = Modifier.width(280.dp),
         )
@@ -120,7 +159,7 @@ private fun Filters(vm: ResetViewModel, shown: Int) {
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             for (filter in ResetViewModel.MatrixFilter.entries) {
                 FilterChip(
-                    label = filter.label,
+                    label = stringResource(filter.label),
                     active = vm.matrixFilter == filter,
                     onClick = { vm.matrixFilter = filter },
                 )
@@ -130,7 +169,7 @@ private fun Filters(vm: ResetViewModel, shown: Int) {
         Spacer(Modifier.weight(1f))
 
         Text(
-            "$shown shown",
+            stringResource(Res.string.matrix_shown, shown),
             style = MaterialTheme.typography.labelSmall,
             color = StatusColors.muted,
         )
@@ -175,37 +214,37 @@ private fun HeaderRow() {
             .padding(horizontal = 14.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        HeaderCell("Model", Modifier.weight(1f), null)
+        HeaderCell(stringResource(Res.string.matrix_col_model), Modifier.weight(1f), null)
         HeaderCell(
-            "Reset",
+            stringResource(Res.string.matrix_col_reset),
             Modifier.width(RESET_W),
-            "The database has write keys and EEPROM addresses for this model, so the waste " +
-                "counters can be zeroed.",
+            stringResource(Res.string.matrix_head_reset),
         )
         HeaderCell(
-            "Read",
+            stringResource(Res.string.matrix_col_read),
             Modifier.width(READ_W),
-            "The counters can be sampled. The read command carries no write key, so this is safe " +
-                "even if the model were mismatched.",
+            stringResource(Res.string.matrix_head_read),
         )
         HeaderCell(
-            "Values",
+            stringResource(Res.string.matrix_col_values),
             Modifier.width(VALUES_W),
-            "Whether a reading can be shown as a number. Needs a layout saying which addresses " +
-                "group into one little-endian counter.",
+            stringResource(Res.string.matrix_head_values),
         )
         HeaderCell(
-            "Limit",
+            stringResource(Res.string.matrix_col_limit),
             Modifier.width(LIMIT_W),
-            "A maximum is known, so the counter can be shown as a percentage. The bundled data has " +
-                "one for almost no model; measured ones live in calibrations.json.",
+            stringResource(Res.string.matrix_head_limit),
         )
         HeaderCell(
-            "Reset scope",
+            stringResource(Res.string.matrix_head_scope),
             Modifier.width(SCOPE_W),
-            "Whether a reset clears the main waste box counter too, or only the platen pad.",
+            stringResource(Res.string.matrix_head_scope_help),
         )
-        HeaderCell("Writes", Modifier.width(WRITES_W), "EEPROM writes a reset performs.")
+        HeaderCell(
+            stringResource(Res.string.matrix_head_writes),
+            Modifier.width(WRITES_W),
+            stringResource(Res.string.matrix_head_writes_help),
+        )
     }
 }
 
@@ -278,23 +317,25 @@ private fun CapabilityRow(capability: ModelCapability, selected: Boolean, onClic
         Mark(capability.canRead, Modifier.width(READ_W))
 
         val (valueLabel, valueTone) = when (capability.values) {
-            ValueSupport.DECODED -> "decoded" to StatusColors.good
-            ValueSupport.UNCERTAIN -> "partly" to StatusColors.warn
-            ValueSupport.RAW -> "bytes only" to StatusColors.muted
+            ValueSupport.DECODED -> stringResource(Res.string.matrix_value_decoded) to StatusColors.good
+            ValueSupport.UNCERTAIN -> stringResource(Res.string.matrix_value_partly) to StatusColors.warn
+            ValueSupport.RAW -> stringResource(Res.string.matrix_value_bytes_only) to StatusColors.muted
         }
         Label(valueLabel, valueTone, Modifier.width(VALUES_W))
 
         Mark(capability.hasLimit, Modifier.width(LIMIT_W))
 
         val (scopeLabel, scopeTone) = when (capability.scope) {
-            ResetScope.FULL -> "platen + main" to MaterialTheme.colorScheme.onSurfaceVariant
-            ResetScope.PLATEN_ONLY -> "platen only" to StatusColors.warn
-            ResetScope.NONE -> "—" to StatusColors.muted
+            ResetScope.FULL ->
+                stringResource(Res.string.matrix_scope_full) to MaterialTheme.colorScheme.onSurfaceVariant
+
+            ResetScope.PLATEN_ONLY -> stringResource(Res.string.matrix_scope_platen_only) to StatusColors.warn
+            ResetScope.NONE -> stringResource(Res.string.matrix_none) to StatusColors.muted
         }
         Label(scopeLabel, scopeTone, Modifier.width(SCOPE_W))
 
         Text(
-            if (capability.writeCount > 0) "${capability.writeCount}" else "—",
+            if (capability.writeCount > 0) "${capability.writeCount}" else stringResource(Res.string.matrix_none),
             style = MaterialTheme.typography.labelSmall,
             fontFamily = FontFamily.Monospace,
             color = StatusColors.muted,
@@ -328,16 +369,12 @@ private fun Label(text: String, tone: Color, modifier: Modifier = Modifier) {
 @Composable
 private fun Footnote(summary: CapabilitySummary?) {
     Text(
-        buildString {
-            append("Values: “decoded” means every counter is a certain group of at most 4 bytes; ")
-            append("“partly” means part of the layout is marked a guess, or a group is too ")
-            append("wide to be one number, so those show as bytes. Platen-only models keep the ")
-            append("main waste box counter on a chip — resetting them does not empty the box.")
+        stringResource(Res.string.matrix_legend_values) +
             if (summary != null && summary.layoutOnly > 0) {
-                append(" ${summary.layoutOnly} further models have counter layouts but no entry ")
-                append("in the reset database, so they can't be selected here.")
-            }
-        },
+                stringResource(Res.string.matrix_legend_layout_only, summary.layoutOnly)
+            } else {
+                ""
+            },
         style = MaterialTheme.typography.labelSmall,
         color = StatusColors.muted,
     )

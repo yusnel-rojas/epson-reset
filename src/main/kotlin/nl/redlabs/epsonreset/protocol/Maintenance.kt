@@ -1,5 +1,32 @@
 package nl.redlabs.epsonreset.protocol
 
+import nl.redlabs.epsonreset.i18n.StatusText
+import nl.redlabs.epsonreset.i18n.Strings
+import nl.redlabs.epsonreset.i18n.resolveNow
+import nl.redlabs.epsonreset.resources.Res
+import nl.redlabs.epsonreset.resources.maint_busy_wait
+import nl.redlabs.epsonreset.resources.maint_credit_failed
+import nl.redlabs.epsonreset.resources.maint_echo_empty
+import nl.redlabs.epsonreset.resources.maint_echo_value
+import nl.redlabs.epsonreset.resources.maint_ink_heavy
+import nl.redlabs.epsonreset.resources.maint_ink_moderate
+import nl.redlabs.epsonreset.resources.maint_ink_none
+import nl.redlabs.epsonreset.resources.maint_ink_small
+import nl.redlabs.epsonreset.resources.maint_no_answer
+import nl.redlabs.epsonreset.resources.maint_not_accepted
+import nl.redlabs.epsonreset.resources.maint_op_head_cleaning
+import nl.redlabs.epsonreset.resources.maint_op_head_cleaning_blurb
+import nl.redlabs.epsonreset.resources.maint_op_nozzle_check
+import nl.redlabs.epsonreset.resources.maint_op_nozzle_check_blurb
+import nl.redlabs.epsonreset.resources.maint_op_power_cleaning
+import nl.redlabs.epsonreset.resources.maint_op_power_cleaning_blurb
+import nl.redlabs.epsonreset.resources.maint_refused
+import nl.redlabs.epsonreset.resources.maint_remote_failed
+import nl.redlabs.epsonreset.resources.maint_remote_sent
+import nl.redlabs.epsonreset.resources.maint_started
+import nl.redlabs.epsonreset.resources.maint_state_unknown
+import org.jetbrains.compose.resources.StringResource
+
 /**
  * The printer's own maintenance operations — a nozzle check, a head cleaning — in the two forms a
  * printer will take them, only one of which does anything.
@@ -31,18 +58,18 @@ package nl.redlabs.epsonreset.protocol
 object Maintenance {
 
     /** How much ink an operation spends, and so how much it adds to the waste pad. */
-    enum class InkCost(val label: String) {
+    enum class InkCost(val label: StringResource) {
         /** Nothing measurable. */
-        NONE("none"),
+        NONE(Res.string.maint_ink_none),
 
         /** A test pattern's worth. */
-        SMALL("a little"),
+        SMALL(Res.string.maint_ink_small),
 
         /** A normal cleaning cycle. */
-        MODERATE("a noticeable amount"),
+        MODERATE(Res.string.maint_ink_moderate),
 
         /** A deep or power cleaning — the expensive one, and not for routine use. */
-        HEAVY("a lot"),
+        HEAVY(Res.string.maint_ink_heavy),
     }
 
     /** How well established the command bytes are for a given operation. */
@@ -63,8 +90,10 @@ object Maintenance {
      * assembling packets by hand.
      */
     enum class Operation(
+        /** English, for the `[OUT]` traces and test messages. [title] is the same name for the screen. */
         val label: String,
-        val summary: String,
+        val title: StringResource,
+        val summary: StringResource,
         internal val command: String,
         internal val payload: List<Int>,
         /**
@@ -89,8 +118,8 @@ object Maintenance {
          */
         NOZZLE_CHECK(
             label = "Nozzle check",
-            summary = "Prints the test pattern, so you can see which nozzles are actually blocked " +
-                "before spending a cleaning cycle on them.",
+            title = Res.string.maint_op_nozzle_check,
+            summary = Res.string.maint_op_nozzle_check_blurb,
             command = "nc",
             payload = listOf(0x00),
             remoteParameters = listOf(0x00, 0x00),
@@ -103,8 +132,8 @@ object Maintenance {
         /** The ordinary cleaning cycle. */
         HEAD_CLEANING(
             label = "Head cleaning",
-            summary = "Runs one ordinary cleaning cycle on all colours. The ink it flushes goes " +
-                "into the waste pad.",
+            title = Res.string.maint_op_head_cleaning,
+            summary = Res.string.maint_op_head_cleaning_blurb,
             command = "ch",
             payload = listOf(0x00),
             remoteParameters = listOf(0x00, 0x00),
@@ -125,8 +154,8 @@ object Maintenance {
          */
         POWER_CLEANING(
             label = "Power cleaning",
-            summary = "A deep cleaning cycle. It spends several ordinary cleanings' worth of ink " +
-                "in one go and fills the pad accordingly — a last resort, not a routine.",
+            title = Res.string.maint_op_power_cleaning,
+            summary = Res.string.maint_op_power_cleaning_blurb,
             command = "ch",
             payload = listOf(0x10),
             remoteParameters = listOf(0x00, 0x10),
@@ -238,11 +267,11 @@ object Maintenance {
     fun blockedReason(status: Status.Report?): String? {
         val report = status ?: return null
         if (report.state == null) {
-            return "The printer answered, but did not report whether it is idle. " +
-                "Nothing will be sent until its state can be established."
+            return Strings.get(Res.string.maint_state_unknown)
         }
-        val busy = report.busyReason ?: return null
-        return "$busy Wait for it to finish, then try again."
+        // StatusText, not busyReason: this one is shown on screen, so it follows the UI language.
+        val busy = StatusText.busy(report) ?: return null
+        return Strings.get(Res.string.maint_busy_wait, busy.resolveNow())
     }
 
     /**
@@ -293,13 +322,17 @@ object Maintenance {
         // transmit, and a refusal would look identical to silence.
         for (credit in SequenceGenerator.creditPair()) {
             if (!transport.send(credit)) {
-                return failed(operation, "Transport failure while granting credit.", before?.state)
+                return failed(operation, Strings.get(Res.string.maint_credit_failed), before?.state)
             }
             collected.write(transport.drain())
         }
 
         if (!transport.send(packet)) {
-            return failed(operation, "The printer did not accept the ${operation.label} command.", before?.state)
+            return failed(
+                operation,
+                Strings.get(Res.string.maint_not_accepted, operation.label),
+                before?.state,
+            )
         }
         collected.write(transport.drain())
 
@@ -310,8 +343,7 @@ object Maintenance {
         // silence — FactoryReply only phrases the read and write cases, so the rest get their own.
         if (FactoryReply.isRefused(reply)) {
             val explanation = FactoryReply.explain(reply)
-                ?: "The printer refused the ${operation.label} command (:NA;). Its firmware does " +
-                "not accept it over this connection."
+                ?: Strings.get(Res.string.maint_refused, operation.label)
             // stateAfter stays null: a refusal ends the run before anything is sampled, and
             // repeating the earlier reading here would claim a measurement never taken.
             return Result(operation, false, before?.state, null, reply, explanation)
@@ -326,20 +358,18 @@ object Maintenance {
 
         listener?.onNote(
             when {
-                accepted -> "${operation.label} started — the printer reports it is working."
+                accepted -> Strings.get(Res.string.maint_started, operation.label)
 
                 // Parsed, but nothing to say and nothing done. The channel understood the name and
                 // declined to act on it, which is a different answer from being ignored.
                 echo != null && echo.isEmpty() ->
-                    "The printer echoed '${operation.command}:;' — it parsed the command but did " +
-                        "not act on it, and its state did not move."
+                    Strings.get(Res.string.maint_echo_empty, operation.command)
 
                 echo != null ->
-                    "The printer answered '${operation.command}:$echo;' but its state did not move."
+                    Strings.get(Res.string.maint_echo_value, operation.command, echo)
 
                 else ->
-                    "${operation.label} was sent and nothing refused it, but the printer said " +
-                        "nothing and its state did not move."
+                    Strings.get(Res.string.maint_no_answer, operation.label)
             },
         )
 
@@ -427,12 +457,11 @@ object Maintenance {
 
         val sent = connection.open()?.use { it.send(sequence) }
         if (sent != true) {
-            return failed(operation, "Could not send the ${operation.label} sequence.", before?.state)
+            return failed(operation, Strings.get(Res.string.maint_remote_failed, operation.label), before?.state)
         }
 
         listener?.onNote(
-            "Sent as remote-mode print data. No status poll will be made while the printer may still " +
-                "be processing it; verify the result at the printer.",
+            Strings.get(Res.string.maint_remote_sent),
         )
 
         return Result(operation, false, before?.state, null, ByteArray(0))

@@ -36,6 +36,8 @@ data class Preferences(
     val keepCounterHistory: Boolean = true,
     /** Extra low-level diagnostics in the log (transport return codes, spooler enumeration, etc.). */
     val developerMode: Boolean = false,
+    /** UI language as a bare tag; null follows the OS. Anything outside [LANGUAGES] is read as null. */
+    val language: String? = null,
 ) {
 
     /** Clamps the stored geometry back into the range the app can actually render. */
@@ -47,6 +49,7 @@ data class Preferences(
         lastModel = lastModel?.takeIf { it.isNotBlank() },
         lastPrinterId = lastPrinterId?.takeIf { it.isNotBlank() },
         lastUpdateCheck = lastUpdateCheck.coerceAtLeast(0L),
+        language = language?.lowercase()?.takeIf { it in LANGUAGES },
     )
 
     companion object {
@@ -59,6 +62,8 @@ data class Preferences(
 
         /** Generous enough for any real display wall; small enough to catch a garbage number. */
         const val MAX_DIMENSION = 32_000
+
+        val LANGUAGES = setOf("en", "es")
 
         private val json = Json {
             prettyPrint = true
@@ -86,6 +91,7 @@ data class Preferences(
                 crossCheckOverSnmp = root.bool("crossCheckOverSnmp") ?: defaults.crossCheckOverSnmp,
                 keepCounterHistory = root.bool("keepCounterHistory") ?: defaults.keepCounterHistory,
                 developerMode = root.bool("developerMode") ?: defaults.developerMode,
+                language = root.str("language"),
             ).sanitised()
         }
 
@@ -105,6 +111,7 @@ data class Preferences(
                 put("crossCheckOverSnmp", JsonPrimitive(p.crossCheckOverSnmp))
                 put("keepCounterHistory", JsonPrimitive(p.keepCounterHistory))
                 put("developerMode", JsonPrimitive(p.developerMode))
+                p.language?.let { put("language", JsonPrimitive(it)) }
             }
             return json.encodeToString(JsonObject.serializer(), obj) + "\n"
         }

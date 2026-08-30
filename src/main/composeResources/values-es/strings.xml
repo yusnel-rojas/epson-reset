@@ -1,0 +1,1055 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- ===== App shell: Main.kt, App.kt ===== -->
+    <string name="app_name">Epson Reset</string>
+
+    <string name="tab_overview">Resumen</string>
+    <string name="tab_maintenance">Mantenimiento</string>
+    <string name="tab_snapshots">Instantáneas</string>
+    <string name="tab_inspect">Inspeccionar</string>
+    <string name="tab_models">Modelos</string>
+
+    <!-- ===== Language, SettingsDialog.kt ===== -->
+    <string name="settings_title">Ajustes</string>
+    <string name="settings_close">Cerrar</string>
+    <string name="settings_language_section">Idioma</string>
+    <string name="settings_language_system">Sistema</string>
+    <string name="settings_language_en">English</string>
+    <string name="settings_language_es">Español</string>
+
+    <!-- ===== Safety gates: EepromWriteConfirmation.kt ===== -->
+    <string name="confirm_back">Atrás</string>
+    <string name="confirm_write_eeprom">Sí, escribir la EEPROM</string>
+    <string name="confirm_restore_eeprom">Sí, restaurar la EEPROM</string>
+
+    <!-- ===== The reset gate: MaintenanceResetControls.kt ===== -->
+    <string name="reset_confirm_title">Reiniciar contadores — %1$s</string>
+    <string name="reset_confirm_headline">Escribir la clave de %1$s en %2$s por %3$s.</string>
+    <string name="reset_confirm_metadata">rkey %1$s · %2$s escrituras</string>
+    <string name="reset_confirm_the_printer">la impresora</string>
+    <string name="reset_confirm_family_warning">Esta impresora solo declara "%1$s". %2$s es el modelo que usted confirmó — la clave de un modelo vecino no es la misma clave, así que compruebe la etiqueta de la impresora.</string>
+    <string name="reset_confirm_absorbed_ink">Esto borra el registro que la impresora lleva de la tinta que ha absorbido, y es lo que la desbloquea. No vacía nada. La almohadilla de tinta residual — o la caja de mantenimiento, si esta impresora usa una — es una pieza física con tinta real dentro; después de esta operación contendrá exactamente lo mismo que antes, y solo sustituirla o limpiarla cambia eso. Una almohadilla llena que se deja puesta se desborda.</string>
+    <string name="reset_confirm_snapshot_first">Los bytes que están a punto de sobrescribirse se guardan antes en una instantánea, y la operación se detiene en lugar de continuar si eso no es posible.</string>
+    <string name="reset_confirm_no_warranty">Hacer esto es decisión suya, y lo que se derive de ello le corresponde a usted: este software se entrega sin garantía alguna, y sus autores no responden de lo que le ocurra a su impresora.</string>
+
+    <plurals name="reset_confirm_addresses">
+        <item quantity="one">%1$s dirección</item>
+        <item quantity="other">%1$s direcciones</item>
+    </plurals>
+
+    <!-- ===== Run outcome: RunCompletionDialog.kt ===== -->
+    <string name="run_title_restore_failed">Falló la restauración</string>
+    <string name="run_title_reset_failed">Falló el reinicio</string>
+    <string name="run_title_restore_simulated">Restauración simulada</string>
+    <string name="run_title_dry_run_passed">Simulación superada</string>
+    <string name="run_title_snapshot_restored">Instantánea restaurada</string>
+    <string name="run_title_counters_reset">Contadores reiniciados</string>
+    <string name="run_metadata">%1$s de %2$s escrituras confirmadas · %3$s paquetes enviados</string>
+    <string name="run_power_cycle_title">Apague la impresora y vuelva a encenderla</string>
+    <string name="run_power_cycle_body">Los valores nuevos están en la EEPROM, pero la impresora sigue funcionando con lo que leyó al arrancar. Apáguela con su propio botón, espere a que termine de aparcar el cabezal y vuelva a encenderla.</string>
+    <string name="run_waste_unchanged_title">La tinta residual sigue donde estaba</string>
+    <string name="run_waste_unchanged_body">El contador está a cero, así que la impresora volverá a imprimir — pero la almohadilla de tinta residual, o la caja de mantenimiento si esta impresora usa una, sigue conteniendo cada gota que contenía hace un minuto. Es una pieza física, y solo sustituirla o limpiarla cambia eso. Una que se deja puesta cuando está realmente llena se desborda, y la tinta acaba en un sitio que ni usted ni la impresora han elegido.</string>
+    <string name="run_stranded_body">Algunas escrituras llegaron antes de que esto se detuviera, así que la impresora está en un estado a medias — ni donde estaba ni donde esta operación la llevaba. Restaurar una instantánea es la forma de resolverlo.</string>
+    <string name="run_stranded_backup">Los bytes que esta operación iba a sobrescribir se guardaron antes en %1$s.</string>
+    <string name="run_dry_run_body">Nada llegó a una impresora. Esto se generó y se comprobó contra el dispositivo simulado.</string>
+    <string name="run_choose_snapshot">Elegir una instantánea…</string>
+    <string name="run_restore_this_backup">Restaurar esta copia…</string>
+    <string name="run_ok">Aceptar</string>
+    <string name="run_backup_unreadable">No se pudo leer %1$s — no existe o no es una copia válida.</string>
+    <string name="recovery_confirm_title">Restaurar la EEPROM — %1$s</string>
+    <string name="recovery_confirm_headline">Escribir %1$s bytes de EEPROM guardados en %2$s.</string>
+    <string name="recovery_confirm_metadata">%1$s · tomada %2$s</string>
+    <string name="recovery_confirm_warning">Estos son los bytes que la operación recién fallida estaba a punto de sobrescribir.</string>
+    <string name="recovery_confirm_recovery_point">Esto devuelve los contadores a donde estaban antes de esa operación, incluidos los niveles de residuo. Es el punto de recuperación para exactamente esta situación.</string>
+    <string name="recovery_confirm_snapshot_first">Lo que la impresora contiene ahora se lee y se guarda antes como su propia instantánea, por la misma conexión. Si esos bytes no se pueden leer todos, no se escribe nada.</string>
+
+    <!-- ===== Model choice: ModelPicker.kt ===== -->
+    <string name="model_picker_title">Modelo de impresora</string>
+    <string name="model_picker_back">Atrás</string>
+    <string name="model_picker_search">Buscar entre %1$s modelos</string>
+    <string name="model_picker_no_matches">sin coincidencias</string>
+    <string name="model_picker_rkey">rkey %1$s · %2$s escrituras</string>
+    <string name="model_picker_reported">Esta impresora declara "%1$s" — elija el modelo que figura en su etiqueta.</string>
+    <string name="model_picker_choose_label">Elija el modelo impreso en esta impresora.</string>
+    <string name="model_picker_confirmed_as">Usted confirmó esta impresora como %1$s. La impresora solo declara "%2$s".</string>
+    <string name="model_picker_reports_itself">Esta impresora se declara como %1$s.</string>
+    <string name="model_picker_done">Listo</string>
+    <string name="model_picker_back_to">Volver a %1$s</string>
+
+    <plurals name="model_picker_matches">
+        <item quantity="one">%1$s coincidencia</item>
+        <item quantity="other">%1$s coincidencias</item>
+    </plurals>
+
+    <!-- One entry for the whole sentence: the verb agrees with the count. -->
+    <plurals name="model_picker_series_scope">
+        <item quantity="one">Solo se muestra %1$s modelo de la serie identificada. La elección se recuerda.</item>
+        <item quantity="other">Solo se muestran los %1$s modelos de la serie identificada. La elección se recuerda.</item>
+    </plurals>
+
+    <!-- ===== Reset controls: MaintenanceResetControls.kt ===== -->
+    <string name="reset_controls_title">Controles de reinicio</string>
+    <string name="reset_controls_metadata">rkey %1$s · wlen %2$s · mem_high %3$s</string>
+    <string name="reset_controls_subtitle">%1$s · Simular no escribe nada; reiniciar escribe la EEPROM tras la confirmación.</string>
+    <string name="reset_controls_none_title">Sin contadores reiniciables</string>
+    <string name="reset_controls_none_body">Esta entrada no tiene direcciones de EEPROM, así que no hay nada que escribir.</string>
+    <string name="reset_controls_platen_title">Solo la almohadilla del rodillo</string>
+    <string name="reset_controls_platen_body">Este modelo guarda en la EEPROM únicamente el contador de la almohadilla del rodillo. El contador principal de la caja de residuos vive en un chip y no se reinicia aquí — la caja en sí sigue necesitando mantenimiento cuando se llena.</string>
+    <string name="reset_controls_preview_heading">Vista previa del reinicio simulado</string>
+    <string name="reset_controls_progress_heading">Progreso de lectura/escritura del reinicio</string>
+    <string name="reset_controls_cancel">Cancelar</string>
+    <string name="reset_controls_save_then_reset">Guardar lo actual y reiniciar</string>
+    <string name="reset_controls_simulate">Simular el reinicio — no escribe nada</string>
+    <string name="reset_controls_pad_caveat">Reiniciar pone el contador a cero, que es lo que desbloquea la impresora. No vacía ni sustituye la almohadilla de tinta residual — ni la caja de mantenimiento, si esta impresora usa una. Eso es una pieza física, y sigue conteniendo lo mismo que hace un momento. Hágala sustituir o limpiar, o la tinta que ya no puede absorber tendrá que ir a alguna parte.</string>
+    <string name="reset_controls_no_printer">Seleccione una impresora conectada para reiniciarla. Simular no necesita ninguna impresora.</string>
+    <string name="reset_controls_simulation_only">Solo simulación — %1$s</string>
+    <string name="reset_controls_recovery_title">Recuperación disponible</string>
+    <string name="reset_controls_recovery_confirm">Esto vuelve a escribir los bytes originales y devuelve los contadores a donde estaban antes de la operación — incluidos los niveles de residuo. Lo que la impresora contiene ahora se guarda antes como su propia instantánea. ¿Continuar?</string>
+    <string name="reset_controls_recovery_saved">Los bytes sobrescritos por esta operación se guardaron antes en %1$s.</string>
+    <string name="reset_controls_write_back">Volver a escribir los bytes antiguos</string>
+    <string name="reset_controls_restore_from_backup">Restaurar desde una copia</string>
+
+    <!-- ===== Printer status words: StatusText.kt (codes from protocol/Status.kt) ===== -->
+    <string name="ink_black">Negro</string>
+    <string name="ink_cyan">Cian</string>
+    <string name="ink_magenta">Magenta</string>
+    <string name="ink_yellow">Amarillo</string>
+    <string name="ink_unknown">color %1$s</string>
+
+    <string name="printer_error_fatal">error grave</string>
+    <string name="printer_error_other_interface">hay otra interfaz seleccionada</string>
+    <string name="printer_error_cover_open">tapa abierta</string>
+    <string name="printer_error_paper_jam">atasco de papel</string>
+    <string name="printer_error_ink_out">sin tinta</string>
+    <string name="printer_error_paper_out">sin papel</string>
+    <string name="printer_error_maintenance">solicitud de mantenimiento</string>
+    <string name="printer_error_unknown">código de error %1$s</string>
+
+    <string name="printer_state_error">informando de un error</string>
+    <string name="printer_state_self_test">imprimiendo una página de autocomprobación</string>
+    <string name="printer_state_cleaning">limpiando el cabezal de impresión</string>
+    <string name="printer_state_factory">en su estado de fábrica</string>
+    <string name="printer_state_shutting_down">apagándose</string>
+    <string name="printer_state_unknown">en el estado %1$s</string>
+    <string name="printer_state_sentence">La impresora informa de que está %1$s.</string>
+    <string name="printer_state_sentence_detail">La impresora informa de que está %1$s (%2$s).</string>
+
+    <!-- ===== Overview alerts and coverage: OverviewReading.kt ===== -->
+    <string name="overview_section_connection">Conexión</string>
+    <string name="overview_section_status">Estado</string>
+    <string name="overview_section_supplies">Consumibles</string>
+    <string name="overview_section_lifetime">Uso total</string>
+    <string name="overview_section_counters">Contadores</string>
+
+    <string name="overview_coverage_connection_untested">No se probó la conexión.</string>
+    <string name="overview_coverage_status_yes">La impresora informó de su estado.</string>
+    <string name="overview_coverage_status_no">No se informó del estado.</string>
+    <string name="overview_coverage_supplies_yes">Se informó de los consumibles.</string>
+    <string name="overview_coverage_supplies_no">No se informó de los consumibles.</string>
+    <string name="overview_coverage_lifetime_yes">Se informó del total de páginas.</string>
+    <string name="overview_coverage_lifetime_no">No se informó del total de páginas.</string>
+    <string name="overview_coverage_counters_none">Ninguna dirección de contador respondió.</string>
+    <string name="overview_coverage_counters_unread">No se leyeron los contadores.</string>
+
+    <string name="overview_alert_error_title">La impresora informa de un error</string>
+    <string name="overview_alert_error_detail">La impresora informa de %1$s.</string>
+    <string name="overview_alert_not_idle">La impresora no está en reposo</string>
+    <string name="overview_alert_ink_low_title">Nivel bajo de tinta: %1$s</string>
+    <string name="overview_alert_ink_low_detail">La impresora informa de que queda un %1$s%.</string>
+    <string name="overview_alert_supply_unnamed">Consumible %1$s</string>
+    <string name="overview_alert_supply_warn_level">un nivel de aviso</string>
+    <string name="overview_alert_supply_filling">%1$s se está llenando</string>
+    <string name="overview_alert_supply_low">Queda poco de %1$s</string>
+    <string name="overview_alert_supply_detail">La impresora informa de %1$s.</string>
+    <string name="overview_alert_counter_maxed_title">%1$s está en su máximo</string>
+    <string name="overview_alert_counter_maxed_detail">%1$s de %2$s — la impresora puede negarse a imprimir hasta que esto se reinicie, y la propia almohadilla o caja de mantenimiento necesita sustituirse.</string>
+    <string name="overview_alert_counter_nearly_title">%1$s está casi lleno</string>
+    <string name="overview_alert_counter_nearly_detail">%1$s de %2$s (%3$s).</string>
+
+    <string name="overview_action_maintenance">Abrir Mantenimiento</string>
+
+    <plurals name="overview_coverage_counters_answered">
+        <item quantity="one">%1$s dirección de contador respondió.</item>
+        <item quantity="other">%1$s direcciones de contador respondieron.</item>
+    </plurals>
+
+    <!-- ===== Connection result: device/ConnectionTest.kt ===== -->
+    <string name="connection_failed">No se pudo conectar.</string>
+    <string name="connection_usb_ok">Conectada por USB — el acceso a los contadores está disponible.</string>
+    <string name="connection_usb_no_counters">Impresora identificada por USB, pero el acceso a los contadores no está disponible en esta conexión.</string>
+    <string name="connection_usb_no_answer">Se abrió la conexión USB, pero la impresora no respondió a la petición de contadores.</string>
+    <string name="connection_net_counters">Conectada — esta impresora permite el acceso a los contadores por red.</string>
+    <string name="connection_net_refused">Conectada. La identidad y los niveles de tinta funcionan; la impresora rechaza el acceso a los contadores por aquí.</string>
+    <string name="connection_net_status_only">Conectada. La identidad y los niveles de tinta funcionan; no se probó el acceso a los contadores.</string>
+    <string name="connection_no_answer">Conectada, pero la impresora no respondió.</string>
+    <string name="connection_advice_net">La identidad funciona, pero los contadores no se pudieron leer por esta conexión.</string>
+    <string name="connection_advice_usb">La impresora es accesible, pero las lecturas y los reinicios de contadores no están disponibles. Conéctela directamente por USB e inténtelo de nuevo.</string>
+    <string name="connection_advice_nothing">No respondió nada. Compruebe que esta dirección es la de la impresora y no la de otro dispositivo de la red.</string>
+
+    <!-- ===== Overview refresh: ResetViewModel.kt ===== -->
+    <string name="overview_reason_not_opened">No se pudo abrir la conexión.</string>
+    <string name="overview_reason_cancelled_before">La actualización del resumen se canceló antes de leer los contadores.</string>
+    <string name="overview_reason_no_model">El modelo de la impresora no está resuelto, así que no se leyeron los contadores.</string>
+    <string name="overview_reason_no_addresses">Este modelo no tiene direcciones de contador conocidas.</string>
+    <string name="overview_reason_cancelled">Se canceló la actualización del resumen.</string>
+    <string name="overview_reason_stopped">La actualización del resumen se detuvo: %1$s.</string>
+
+    <!-- ===== Overview screen: OverviewPanel.kt ===== -->
+    <string name="overview_view_counters">Contadores</string>
+    <string name="overview_view_history">Historial</string>
+    <string name="overview_refreshed">Actualizado %1$s</string>
+    <string name="overview_empty_scanning">Buscando impresoras…</string>
+    <string name="overview_empty_choose">Elija una impresora para ver su resumen</string>
+    <string name="overview_empty_scanning_body">Explorando el USB y la red local. La impresora que se encuentre pasará a ser el destino en vivo.</string>
+    <string name="overview_empty_needs_printer">El resumen necesita una impresora en vivo para el estado de conexión, los consumibles, el total de páginas y los contadores.</string>
+    <string name="overview_empty_model_kept">%1$s sigue seleccionado para un reinicio simulado en Mantenimiento.</string>
+    <string name="overview_stop_scanning">Detener la exploración</string>
+    <string name="overview_scan">Buscar impresoras</string>
+    <string name="overview_choose_printer">Elegir impresora</string>
+    <string name="overview_open_maintenance">Abrir Mantenimiento</string>
+    <string name="overview_per_address_detail">Detalle por dirección</string>
+    <string name="overview_select_live_printer">Seleccione una impresora en vivo para recoger la información del resumen.</string>
+    <string name="overview_firmware">firmware %1$s</string>
+    <string name="overview_cancel_refresh">Cancelar la actualización</string>
+    <string name="overview_refresh">Actualizar el resumen</string>
+    <string name="overview_age_just_now">ahora mismo</string>
+    <string name="overview_age_minutes">hace %1$s min</string>
+    <string name="overview_age_hours">hace %1$s h</string>
+    <string name="overview_not_refreshed">El resumen aún no se ha actualizado</string>
+    <string name="overview_not_refreshed_body">Actualizar lee los datos de conexión, el estado, los consumibles y los contadores. Las fuentes que falten se siguen indicando como no disponibles en lugar de tomarse por buenas noticias.</string>
+    <string name="overview_no_warnings">Sin avisos</string>
+    <string name="overview_sections_missing">%1$s de %2$s secciones no informaron</string>
+    <string name="overview_hide_detail">Ocultar el detalle</string>
+    <string name="overview_show_detail">Mostrar el detalle</string>
+    <string name="overview_no_model">Ningún modelo seleccionado</string>
+    <string name="overview_no_model_scan">Abra el destino de arriba para buscar una impresora o elegir un modelo para una simulación.</string>
+    <string name="overview_no_model_choose">Abra el destino de arriba para elegir una impresora y resolver su modelo.</string>
+
+    <plurals name="overview_printers_found">
+        <item quantity="one">Se encontró %1$s impresora. Elija aquella cuyo estado, consumibles y contadores quiere leer.</item>
+        <item quantity="other">Se encontraron %1$s impresoras. Elija aquella cuyo estado, consumibles y contadores quiere leer.</item>
+    </plurals>
+
+    <plurals name="overview_attention_count">
+        <item quantity="one">%1$s cosa necesita atención</item>
+        <item quantity="other">%1$s cosas necesitan atención</item>
+    </plurals>
+
+    <plurals name="overview_sections_all">
+        <item quantity="one">%1$s sección informó</item>
+        <item quantity="other">Las %1$s secciones informaron</item>
+    </plurals>
+
+    <!-- ===== Printer discovery: DevicePanel.kt ===== -->
+    <string name="devices_title">Impresoras</string>
+    <string name="devices_test">Probar</string>
+    <string name="devices_testing">Probando…</string>
+    <string name="device_stop_scanning">Detener la exploración</string>
+    <string name="device_scan_both">Explorar USB y red</string>
+    <string name="device_rescan">Volver a explorar</string>
+    <string name="device_add_by_ip">Añadir impresora por dirección IP…</string>
+    <string name="device_scanning_title">Explorando…</string>
+    <string name="device_scanning_body">Puede detener la exploración o añadir una impresora por dirección desde el menú de exploración.</string>
+    <string name="device_nothing_found_title">No se encontró nada</string>
+    <string name="device_nothing_found_body">Falta libusb, así que la detección por USB está desactivada, y nada respondió en la red. Las simulaciones funcionan igualmente — o añada la impresora por dirección.</string>
+    <string name="device_scan_failed_title">Falló la exploración</string>
+    <string name="device_none_found_title">No se encontraron impresoras Epson</string>
+    <string name="device_none_found_body">Conecte la impresora por USB o póngala en esta red, enciéndala y vuelva a explorar. Una impresora que no se anuncia se puede añadir por dirección.</string>
+    <string name="device_scan_stopped_title">Exploración detenida</string>
+    <string name="device_scan_stopped_body">Vuelva a explorar, o añada una impresora por dirección desde el menú de exploración.</string>
+    <string name="device_not_scanned_title">Aún sin explorar</string>
+    <string name="device_not_scanned_body">Explore para encontrar impresoras Epson en el USB y en esta red.</string>
+    <string name="device_network_note">Detección en red: %1$s</string>
+    <string name="device_add_by_address">Añadir por dirección</string>
+    <string name="device_back">Atrás</string>
+    <string name="device_add">Añadir</string>
+    <string name="device_address_hint">La IP de la impresora, tomada de su hoja de estado de red o de su página web. Se guarda para la próxima vez.</string>
+    <string name="device_saved_not_reached">Guardada · no responde</string>
+    <string name="device_usb_not_answering">USB · no responde</string>
+    <string name="device_meta_pid">PID</string>
+    <string name="device_meta_bus">Bus</string>
+    <string name="device_meta_interface">Interfaz</string>
+    <string name="device_interface_printer_class">%1$s (clase de impresora)</string>
+    <string name="device_interface_vendor_specific">%1$s (específica del fabricante)</string>
+    <string name="device_meta_address">Dirección</string>
+    <string name="device_meta_snmp_port">Puerto SNMP</string>
+    <string name="device_meta_port">Puerto</string>
+    <string name="device_meta_queue">Cola</string>
+    <string name="device_meta_serial">Número de serie</string>
+    <string name="device_meta_model_from">Modelo obtenido de</string>
+    <string name="device_model_from_value">%1$s · SNMP en %2$s</string>
+    <string name="device_match_exact">✓ %1$s</string>
+    <string name="device_match_likely">≈ %1$s — confirmar</string>
+    <string name="device_match_class_only">≈ uno de %1$s — elija el modelo</string>
+    <string name="device_match_none">Sin coincidencia en la base de datos — elíjalo manualmente</string>
+    <string name="device_forget">Olvidar</string>
+    <string name="device_change_model">Cambiar de modelo…</string>
+
+    <!-- ===== Snapshot comparison: backup/SnapshotComparison.kt ===== -->
+    <string name="comparison_layout_uncertain">%1$s  (disposición incierta)</string>
+    <string name="comparison_delta_changed">cambió</string>
+    <string name="comparison_delta_none">—</string>
+    <string name="comparison_nothing_comparable">No hay nada que comparar — ninguna dirección tiene un byte en ambos lados. Si una de estas es una lectura en vivo, no respondió nada.</string>
+    <string name="comparison_nothing_moved">Nada se movió — todas las direcciones tienen el mismo byte en ambos lados.</string>
+    <string name="comparison_summary_moved">%1$s · %2$s</string>
+    <string name="comparison_note_models">Estas muestras son de modelos distintos (%1$s y %2$s). La misma dirección no es el mismo contador en ambos, así que las diferencias de abajo no significan nada.</string>
+    <string name="comparison_note_serials">Impresoras distintas: número de serie %1$s y número de serie %2$s. Una diferencia aquí es que dos máquinas no se parecen, no que una máquina haya cambiado.</string>
+
+    <plurals name="comparison_changed_no_counter">
+        <item quantity="one">%1$s dirección cambió, y no está dentro de ningún contador conocido.</item>
+        <item quantity="other">%1$s direcciones cambiaron, y ninguna está dentro de un contador conocido.</item>
+    </plurals>
+
+    <plurals name="comparison_changed_count">
+        <item quantity="one">%1$s dirección cambió</item>
+        <item quantity="other">%1$s direcciones cambiaron</item>
+    </plurals>
+
+    <plurals name="comparison_note_missing">
+        <item quantity="one">%1$s dirección aparece solo en un lado, o nunca respondió allí. Esa fila muestra un guion y no cuenta como cambiada.</item>
+        <item quantity="other">%1$s direcciones aparecen solo en un lado, o nunca respondieron allí. Esas filas muestran un guion y no cuentan como cambiadas.</item>
+    </plurals>
+
+    <!-- ===== Counter projection: history/CounterProjection.kt ===== -->
+    <string name="projection_no_maximum">Sin máximo medido</string>
+    <string name="projection_no_reading">Sin lectura completa</string>
+    <string name="projection_needs_another_read">Necesita otra lectura en vivo</string>
+    <string name="projection_needs_a_day">Necesita lecturas separadas al menos un día</string>
+    <string name="projection_no_increase">Sin aumento en este periodo</string>
+    <string name="projection_out_of_range">La proyección queda fuera del intervalo de fechas admitido</string>
+
+    <string name="projection_at_maximum">El contador está en su máximo medido o por encima.</string>
+    <string name="projection_arrives_around">A este ritmo, el máximo medido se alcanza alrededor del %1$s.</string>
+    <string name="projection_none_yet">Aún no hay proyección.</string>
+
+    <!-- ===== Standard printer MIB: net/PrinterMib.kt ===== -->
+    <string name="mdns_no_multicast">No se pudo abrir ningún socket de multidifusión.</string>
+    <string name="mdns_no_multicast_hint">Añada la impresora por dirección IP — la detección automática es una comodidad, no un requisito.</string>
+    <string name="supply_type_other">otro</string>
+    <string name="supply_type_unknown">desconocido</string>
+    <string name="supply_type_toner">tóner</string>
+    <string name="supply_type_waste_toner">tóner residual</string>
+    <string name="supply_type_ink">tinta</string>
+    <string name="supply_type_ink_cartridge">cartucho de tinta</string>
+    <string name="supply_type_ink_ribbon">cinta entintada</string>
+    <string name="supply_type_waste_ink">tinta residual</string>
+    <string name="supply_type_photo_conductor">fotoconductor</string>
+    <string name="supply_type_developer">revelador</string>
+    <string name="supply_type_waste_wax">cera residual</string>
+    <string name="supply_type_cleaner_unit">unidad de limpieza</string>
+    <string name="supply_type_transfer_unit">unidad de transferencia</string>
+    <string name="supply_type_toner_cartridge">cartucho de tóner</string>
+    <string name="supply_type_raw">tipo %1$s</string>
+    <string name="supply_unnamed">Consumible %1$s</string>
+    <string name="supply_level_none">—</string>
+    <string name="vm_ink_levels">Tinta: %1$s</string>
+    <string name="supply_percent_full">%1$s lleno</string>
+    <string name="supply_level_unspecified">sin especificar</string>
+    <string name="supply_level_unknown">desconocido</string>
+    <string name="supply_level_some_remaining">queda algo</string>
+
+    <!-- ===== Settings sections: SettingsDialog.kt ===== -->
+    <string name="settings_model_reports">declara "%1$s"</string>
+    <string name="settings_history_section">Historial de contadores</string>
+    <string name="settings_history_toggle">Guardar el historial de contadores en este equipo</string>
+    <string name="settings_history_body">Añade a un registro local las lecturas de contadores en vivo que tengan éxito. Las simulaciones y las lecturas desde archivos de instantánea no se registran nunca. Desactivarlo pausa la recogida sin borrar lo que ya hay.</string>
+    <string name="settings_history_stats">%1$s · %2$s · %3$s</string>
+    <string name="settings_history_confirm_delete">¿Borrar el historial de contadores de todas las impresoras? Esto no se puede deshacer.</string>
+    <string name="settings_history_delete">Borrar el historial</string>
+    <string name="settings_cancel">Cancelar</string>
+    <string name="settings_history_delete_prompt">Borrar el historial de contadores…</string>
+
+    <string name="settings_identification_section">Identificación</string>
+    <string name="settings_identification_toggle">Resolver el modelo exacto por SNMP</string>
+    <string name="settings_identification_body">Un descriptor USB nombra una familia — "ET-2820 Series" abarca ocho equipos que no son todos la misma impresora. La misma máquina en la red responde por SNMP con el equipo concreto. Cuando ambos enlaces muestran el mismo número de serie, se usa el equipo. No cuesta tráfico adicional: a la entrada de red ya se le ha preguntado cuando se comparan las dos.</string>
+
+    <string name="settings_database_section">Base de datos de impresoras</string>
+    <string name="settings_database_loaded">%1$s modelos</string>
+    <string name="settings_database_error">no se pudo cargar — %1$s</string>
+    <string name="settings_database_loading">cargando…</string>
+    <string name="settings_database_body">Se usa la copia incluida en el jar hasta que una descarga la sustituya. Una descarga que no se pueda analizar se descarta en lugar de guardarse, así que una actualización fallida conserva la copia que funciona.</string>
+    <string name="settings_database_update">Actualizar la base de datos</string>
+    <string name="settings_result_see_log">El registro, al pie de la ventana principal, tiene el detalle.</string>
+
+    <string name="settings_updates_section">Actualizaciones de la aplicación</string>
+    <string name="settings_updates_version">Versión %1$s</string>
+    <string name="settings_updates_toggle">Comprobar automáticamente</string>
+    <string name="settings_updates_body">Una vez al día como mucho, y nunca en una compilación de desarrollo. Una comprobación que no consigue llegar a GitHub no gasta el cupo del día.</string>
+    <string name="settings_updates_checking">Comprobando…</string>
+    <string name="settings_updates_check_now">Comprobar ahora</string>
+
+    <string name="settings_maxima_section">Máximos de los contadores</string>
+    <string name="settings_maxima_body">Los porcentajes necesitan un máximo, y la mayoría de los contadores vienen sin él. Una calibración lo aporta. "Usar este máximo ahora" en el formulario de calibración lo aplica solo a esta sesión — desaparece al arrancar de nuevo. Guardar counters-overlay.json en el directorio de datos lo aplica de forma permanente, y solo borrar ese archivo lo deshace.</string>
+    <string name="settings_maxima_overlay">Hay un archivo de superposición en vigor. Los contadores que nombra se leen de él, no de las cifras incluidas.</string>
+    <string name="settings_maxima_session">Hay una calibración aplicada solo a esta sesión.</string>
+    <string name="settings_maxima_shipped">Sin superposición ni calibración de sesión — se usan las cifras incluidas.</string>
+    <string name="settings_maxima_undo_session">Deshacer en esta sesión</string>
+    <string name="settings_maxima_delete_overlay">Borrar el archivo de superposición</string>
+
+    <string name="settings_data_dir_section">Directorio de datos</string>
+    <string name="settings_data_dir_body">La caché de la base de datos, las instantáneas guardadas, el historial de contadores, la superposición, las elecciones recordadas y las preferencias. Cada uno de ellos es un archivo de texto que puede leer, editar o borrar.</string>
+    <string name="settings_data_dir_open">Abrir el directorio de datos</string>
+
+    <string name="settings_choices_section">Elecciones de modelo recordadas</string>
+    <string name="settings_choices_none">Ninguna. Se registra una cada vez que una impresora nombra una familia cuyos miembros no comparten receta de reinicio y usted indica cuál de ellos es.</string>
+    <string name="settings_choices_forget">Olvidar</string>
+    <string name="settings_choices_forget_all">Olvidarlas todas</string>
+
+    <string name="settings_developer_section">Desarrollo</string>
+    <string name="settings_developer_toggle">Modo de desarrollo (registro detallado)</string>
+    <string name="settings_developer_body">Añade diagnósticos de bajo nivel al registro: qué impresoras enumera la cola de Windows y en qué puertos, y cada resultado de WritePrinter/ReadPrinter con su código de error de Windows. Cuando algo como una lectura USB falle, actívelo, reproduzca el fallo y use Copiar en el panel del registro — las líneas adicionales se incluyen y hacen visible la causa.</string>
+
+    <string name="settings_about_section">Acerca de</string>
+    <string name="settings_about_name">Epson Reset %1$s</string>
+    <string name="settings_about_author">por Yusnel Rojas</string>
+    <string name="settings_about_licence">Bajo la Licencia Pública General Affero de GNU v3.0</string>
+
+    <plurals name="settings_history_samples">
+        <item quantity="one">%1$s muestra</item>
+        <item quantity="other">%1$s muestras</item>
+    </plurals>
+
+    <plurals name="settings_history_printers">
+        <item quantity="one">%1$s impresora</item>
+        <item quantity="other">%1$s impresoras</item>
+    </plurals>
+
+    <!-- ===== Maintenance operations: protocol/Maintenance.kt ===== -->
+    <string name="maint_ink_none">nada</string>
+    <string name="maint_ink_small">un poco</string>
+    <string name="maint_ink_moderate">una cantidad apreciable</string>
+    <string name="maint_ink_heavy">mucha</string>
+
+    <string name="maint_op_nozzle_check">Test de inyectores</string>
+    <string name="maint_op_nozzle_check_blurb">Imprime el patrón de prueba, para que pueda ver qué inyectores están realmente obstruidos antes de gastar un ciclo de limpieza en ellos.</string>
+    <string name="maint_op_head_cleaning">Limpieza del cabezal</string>
+    <string name="maint_op_head_cleaning_blurb">Ejecuta un ciclo de limpieza normal en todos los colores. La tinta que expulsa va a la almohadilla de residuos.</string>
+    <string name="maint_op_power_cleaning">Limpieza a fondo</string>
+    <string name="maint_op_power_cleaning_blurb">Un ciclo de limpieza profunda. Gasta de una vez la tinta de varias limpiezas normales y llena la almohadilla en consecuencia — es un último recurso, no una rutina.</string>
+
+    <string name="maint_state_unknown">La impresora respondió, pero no indicó si está en reposo. No se enviará nada hasta que se pueda determinar su estado.</string>
+    <string name="maint_busy_wait">%1$s Espere a que termine e inténtelo de nuevo.</string>
+    <string name="maint_credit_failed">Fallo de transporte al conceder crédito.</string>
+    <string name="maint_not_accepted">La impresora no aceptó el comando %1$s.</string>
+    <string name="maint_refused">La impresora rechazó el comando %1$s (:NA;). Su firmware no lo acepta por esta conexión.</string>
+    <string name="maint_started">%1$s ha comenzado — la impresora informa de que está trabajando.</string>
+    <string name="maint_echo_empty">La impresora devolvió '%1$s:;' — analizó el comando pero no actuó, y su estado no se movió.</string>
+    <string name="maint_echo_value">La impresora respondió '%1$s:%2$s;' pero su estado no se movió.</string>
+    <string name="maint_no_answer">Se envió %1$s y nada lo rechazó, pero la impresora no dijo nada y su estado no se movió.</string>
+    <string name="maint_remote_failed">No se pudo enviar la secuencia %1$s.</string>
+    <string name="maint_remote_sent">Enviado como datos de impresión en modo remoto. No se consultará el estado mientras la impresora pueda seguir procesándolo; compruebe el resultado en la propia impresora.</string>
+
+    <!-- ===== Maintenance screen: MaintenancePanel.kt, MaintenanceState.kt ===== -->
+    <string name="maint_target">Destino: %1$s por %2$s (%3$s).</string>
+    <string name="maint_title">Mantenimiento de la impresora</string>
+    <string name="maint_intro">Aquí están las tareas de mantenimiento habituales. El reinicio de contadores tiene un modo de simulación seguro y copia automática; el mantenimiento de impresión empieza por reunir pruebas antes de gastar tinta.</string>
+    <string name="maint_counter_section">Mantenimiento de contadores</string>
+    <string name="maint_counter_no_model">Seleccione un modelo de impresora para previsualizar o reiniciar sus contadores.</string>
+    <string name="maint_print_section">Mantenimiento de impresión</string>
+    <string name="maint_print_intro">Empiece por un test de inyectores. La limpieza expulsa tinta a la almohadilla de residuos y sube su contador.</string>
+    <string name="maint_last_failed">La última operación no se envió — %1$s</string>
+    <string name="maint_the_printer">la impresora</string>
+    <string name="maint_check_again_title">Compruebe si la limpieza funcionó</string>
+    <string name="maint_check_title">Imprima un test de inyectores</string>
+    <string name="maint_run_confirmation_check">Ejecutar un test de confirmación</string>
+    <string name="maint_print_nozzle_check">Imprimir el test de inyectores</string>
+    <string name="maint_waiting_answer">Esperando su respuesta en el diálogo del patrón.</string>
+    <string name="maint_seen_gaps">Ya he visto el patrón — tiene huecos</string>
+    <string name="maint_no_gaps_note">El patrón no tiene huecos — no hay nada que limpiar.</string>
+    <string name="maint_gaps_note">El patrón tiene huecos.</string>
+    <string name="maint_clean_title">Limpie el cabezal</string>
+    <string name="maint_clean_blurb">Ambos ciclos expulsan tinta a la almohadilla de residuos y suben su contador. Ejecute primero el normal; la limpieza a fondo es un último recurso, no un valor predeterminado más potente. Lo que cuesta cada uno está en su confirmación.</string>
+    <string name="maint_start_over">Empezar de nuevo</string>
+    <string name="maint_pattern_dialog_title">Revise el patrón de inyectores — %1$s</string>
+    <string name="maint_pattern_question">¿Ve huecos o líneas que falten?</string>
+    <string name="maint_pattern_body">Compare con atención las líneas impresas. La limpieza solo se habilita cuando la página demuestra que hace falta.</string>
+    <string name="maint_pattern_no_gaps">Sin huecos</string>
+    <string name="maint_pattern_yes_gaps">Sí, hay huecos</string>
+    <string name="maint_confirm_title">%1$s — %2$s</string>
+    <string name="maint_confirm_question">¿Enviar %1$s a %2$s por USB?</string>
+    <string name="maint_confirm_one_sheet">Esto imprime una hoja y usa %1$s de tinta.</string>
+    <string name="maint_confirm_ink_cost">Coste de tinta: %1$s. Esa tinta se expulsa a la almohadilla de residuos y sube el contador que esta aplicación existe para bajar.</string>
+    <string name="maint_confirm_unproven">Esta es la única operación de la aplicación que no se ha ejecutado en una impresora dentro de este proyecto. Los bytes de su comando están corroborados de forma independiente, pero nadie aquí ha visto ejecutarse una.</string>
+    <string name="maint_confirm_no_poll">La aplicación comprueba que la impresora está en reposo, envía el trabajo y luego, deliberadamente, no consulta su estado mientras pueda seguir activa. Observe la impresora para verificar el resultado.</string>
+    <string name="maint_confirm_run">Ejecutar %1$s</string>
+
+    <string name="maint_block_no_printer">Seleccione primero una impresora conectada en el menú de impresoras de arriba.</string>
+    <string name="maint_block_usb_only">Los comandos de mantenimiento son datos de impresión ESC/P2 y por ahora solo funcionan por USB. La conexión de red expone el canal de control SNMP, que sabe analizar estos comandos pero no los ejecuta. Conecte esta impresora por USB.</string>
+    <string name="maint_block_running">Se está enviando %1$s. Espere a que termine esta operación.</string>
+    <string name="maint_block_other_operation">Ya hay una operación en curso con la impresora.</string>
+    <string name="maint_log_gaps">El patrón de inyectores tiene huecos. La limpieza ya está disponible; enviará tinta a la almohadilla de residuos.</string>
+    <string name="maint_log_no_gaps">El patrón de inyectores no tiene huecos. No hay nada que limpiar; un ciclo innecesario solo llenaría la almohadilla.</string>
+    <string name="maint_log_gaps_asserted">Registrado como con huecos sin imprimir un test. La limpieza queda disponible porque usted ha indicado que hay huecos.</string>
+    <string name="maint_log_needs_check">Ejecute un test de inyectores y confirme que su patrón tiene huecos antes de limpiar.</string>
+    <string name="maint_log_starting">Iniciando %1$s en %2$s por USB.</string>
+    <string name="maint_log_sent">%1$s enviado a %2$s. Compruebe el resultado en la impresora.</string>
+    <string name="maint_status_sending">Enviando %1$s…</string>
+
+    <!-- ===== Model capability matrix: CapabilityMatrix.kt ===== -->
+    <string name="matrix_loading">Cargando la base de datos…</string>
+    <string name="matrix_no_match">Ningún modelo coincide.</string>
+    <string name="matrix_title">Capacidades por modelo</string>
+    <string name="matrix_summary">%1$s de %2$s modelos se pueden reiniciar · %3$s decodifican a valores reales, %4$s en parte · %5$s son solo de rodillo · %6$s conocen un límite</string>
+    <string name="matrix_search">Buscar modelos</string>
+    <string name="matrix_shown">%1$s mostrados</string>
+    <string name="matrix_head_reset">La base de datos tiene claves de escritura y direcciones de EEPROM para este modelo, así que los contadores de residuos se pueden poner a cero.</string>
+    <string name="matrix_head_read">Los contadores se pueden muestrear. El comando de lectura no lleva clave de escritura, así que esto es seguro incluso si el modelo no correspondiera.</string>
+    <string name="matrix_head_values">Si una lectura se puede mostrar como número. Necesita una disposición que diga qué direcciones se agrupan en un contador little-endian.</string>
+    <string name="matrix_head_limit">Se conoce un máximo, así que el contador se puede mostrar como porcentaje. Los datos incluidos tienen uno para casi ningún modelo; los medidos viven en calibrations.json.</string>
+    <string name="matrix_head_scope">Alcance del reinicio</string>
+    <string name="matrix_head_scope_help">Si un reinicio borra también el contador principal de la caja de residuos, o solo el de la almohadilla del rodillo.</string>
+    <string name="matrix_head_writes">Escrituras</string>
+    <string name="matrix_head_writes_help">Escrituras de EEPROM que realiza un reinicio.</string>
+    <string name="matrix_col_model">Modelo</string>
+    <string name="matrix_col_reset">Reinicio</string>
+    <string name="matrix_col_read">Lectura</string>
+    <string name="matrix_col_values">Valores</string>
+    <string name="matrix_col_limit">Límite</string>
+    <string name="matrix_value_decoded">decodificado</string>
+    <string name="matrix_value_partly">en parte</string>
+    <string name="matrix_value_bytes_only">solo bytes</string>
+    <string name="matrix_scope_full">rodillo + principal</string>
+    <string name="matrix_none">—</string>
+    <string name="matrix_filter_all">Todos</string>
+    <string name="matrix_filter_resettable">Reiniciables</string>
+    <string name="matrix_filter_platen_only">Solo rodillo</string>
+    <string name="matrix_filter_decoded">Valores decodificados</string>
+    <string name="matrix_filter_with_limit">Tiene un límite</string>
+    <string name="matrix_scope_platen_only">solo rodillo</string>
+    <string name="matrix_legend_values">Valores: “decodificado” significa que cada contador es un grupo seguro de 4 bytes como mucho; “en parte” significa que parte de la disposición está marcada como conjetura, o que un grupo es demasiado ancho para ser un solo número, así que esos se muestran como bytes. Los modelos de solo rodillo guardan el contador principal de la caja de residuos en un chip — reiniciarlos no vacía la caja.</string>
+    <string name="matrix_legend_layout_only"> Otros %1$s modelos tienen disposición de contadores pero ninguna entrada en la base de datos de reinicio, así que no se pueden seleccionar aquí.</string>
+
+    <!-- ===== Counter history: CounterHistoryPanel.kt, CounterHistoryState.kt ===== -->
+    <string name="history_title">Historial de contadores</string>
+    <string name="history_recording">Registrando localmente</string>
+    <string name="history_paused">Registro en pausa</string>
+    <string name="history_summary">%1$s de %2$s · número de serie %3$s</string>
+    <string name="history_none_recording">La próxima lectura en vivo con éxito inicia el historial de esta impresora.</string>
+    <string name="history_none_paused">No hay historial guardado para esta impresora. Active el registro en Ajustes para empezar uno.</string>
+    <string name="history_no_layout">Las lecturas se registran, pero este modelo no tiene una disposición de contadores decodificada de la que sacar tendencias.</string>
+    <string name="history_reset_note">Una caída detectada en un contador inicia una tendencia nueva, así que un reinicio anterior no puede volver negativo el ritmo de llenado.</string>
+    <string name="history_one_sample">Una sola muestra utilizable — otra lectura en vivo establece el movimiento.</string>
+    <string name="history_no_span">Entre las muestras no hay tiempo medible.</string>
+    <string name="history_too_early">%1$s en menos de un día — demasiado pronto para un ritmo estable.</string>
+    <string name="history_no_rate">Sin ritmo de llenado utilizable.</string>
+    <string name="history_rate_relative"> · %1$s% del máximo al día</string>
+    <string name="history_rate">%1$s en %2$s días · %3$s al día%4$s</string>
+    <string name="history_no_serial">Esta impresora no dio ningún número de serie, así que sus lecturas no se pueden unir con seguridad.</string>
+    <string name="history_sample_not_recorded">No se registró la nueva muestra de contadores: %1$s.</string>
+    <string name="history_not_inspected">No se pudo examinar el historial: %1$s.</string>
+    <string name="history_deleted">Historial de contadores borrado.</string>
+    <string name="history_deleted_log">Se borró el historial local de contadores.</string>
+    <string name="history_delete_failed">No se pudo borrar el historial de contadores.</string>
+    <string name="history_delete_failed_detail">No se pudo borrar el historial de contadores: %1$s.</string>
+    <string name="history_read_failed">No se pudo leer el historial de contadores: %1$s.</string>
+
+    <plurals name="history_live_samples">
+        <item quantity="one">%1$s muestra en vivo</item>
+        <item quantity="other">%1$s muestras en vivo</item>
+    </plurals>
+
+    <!-- ===== Update checks: AppUpdates.kt ===== -->
+    <string name="update_available">La versión %1$s está disponible.</string>
+    <string name="update_available_log">La versión %1$s está disponible — usted tiene la %2$s.</string>
+    <string name="update_up_to_date">Al día — %1$s.</string>
+    <string name="update_inconclusive">No se pudo confirmar cuál es la última versión.</string>
+    <string name="update_inconclusive_log">Comprobación de actualizaciones no concluyente — %1$s.</string>
+    <string name="update_failed">No se pudo comprobar si hay actualizaciones.</string>
+    <string name="update_failed_log">Falló la comprobación de actualizaciones — %1$s.</string>
+    <string name="update_no_browser">No se pudo abrir un navegador. La página de la versión es %1$s</string>
+
+    <!-- ===== Target chip: PrinterChip.kt ===== -->
+    <string name="printer_unnamed_pid">Dispositivo Epson %1$s</string>
+    <string name="printer_unnamed_at">Epson en %1$s</string>
+    <string name="chip_no_printer">Sin impresora</string>
+    <string name="chip_choose_model">elegir modelo</string>
+    <string name="chip_printer">Impresora</string>
+    <string name="chip_saved_not_reached">Guardada · no responde · %1$s</string>
+    <string name="chip_saved_not_reached_only">Guardada · no responde</string>
+    <string name="chip_link_choose_model">%1$s · elegir modelo</string>
+    <string name="chip_model_only">Solo el modelo · ninguna impresora seleccionada</string>
+    <string name="chip_open_to_scan">Abrir para buscar impresoras</string>
+
+    <!-- ===== Counter details: CounterDetailsPanel.kt ===== -->
+    <string name="legend_target">  %1$s, en rojo donde difiere del byte de la izquierda</string>
+    <string name="plan_target_reset">valor de reinicio</string>
+    <string name="plan_target_snapshot">valor guardado</string>
+
+    <string name="details_intro">Valores actuales y bytes de la EEPROM. Esta vista es de solo lectura; las acciones de reinicio siguen en Mantenimiento.</string>
+    <string name="details_no_layout">Ninguna disposición de contadores seleccionada</string>
+    <string name="details_open_snapshots">Abra Instantáneas para capturar los bytes actuales o examinar otros modelos.</string>
+    <string name="details_open_model_snapshots">Abra las instantáneas de este modelo para comparar o restaurar bytes guardados.</string>
+    <string name="details_view_snapshots">Ver instantáneas →</string>
+
+    <plurals name="details_saved_snapshots">
+        <item quantity="one">%1$s instantánea guardada de %2$s</item>
+        <item quantity="other">%1$s instantáneas guardadas de %2$s</item>
+    </plurals>
+
+    <!-- ===== Counter table: CounterTable.kt ===== -->
+    <string name="counter_waste">Contador de residuos</string>
+    <string name="counter_wastes">Contadores de residuos</string>
+    <string name="counter_platen_pads">Contadores de la almohadilla del rodillo</string>
+    <string name="counter_waste_main">Contador de residuos (almohadilla principal)</string>
+    <string name="counter_waste_platen">Contador de residuos (almohadilla del rodillo)</string>
+
+    <string name="table_eeprom_bytes">Bytes de la EEPROM</string>
+    <string name="table_other_eeprom_bytes">Otros bytes de la EEPROM</string>
+    <!-- Principal / Rodillo. "P" would read as Principal here, which is the other category. -->
+    <string name="legend_main_badge">P</string>
+    <string name="legend_platen_badge">R</string>
+    <string name="legend_unclassified_badge">?</string>
+    <string name="legend_main">Principal</string>
+    <string name="legend_platen">Rodillo</string>
+    <string name="legend_unclassified">Sin clasificar</string>
+    <string name="counters_title">Contadores</string>
+    <string name="counters_coverage">%1$s/%2$s direcciones informadas</string>
+    <string name="counters_answered">%1$s/%2$s respondieron</string>
+    <string name="counters_detail_bytes_only">Bytes actuales; el valor completo del contador no estaba disponible.</string>
+    <string name="counters_detail_percent">%1$s% del máximo medido</string>
+    <string name="counters_detail_no_maximum">Máximo sin medir</string>
+    <string name="counters_other_bytes">Otros bytes de contador</string>
+    <string name="counters_other_bytes_detail">Direcciones informadas sin una disposición de contador decodificada.</string>
+    <string name="counters_measure_maximum">Medir un máximo…</string>
+    <string name="counters_check_maximums">Revisar los máximos…</string>
+    <string name="counters_simulated">Valores simulados</string>
+    <string name="counters_not_read">Valores actuales sin leer</string>
+    <string name="counters_endianness">Los contadores de varios bytes son little-endian. Un porcentaje aparece solo donde los datos de disposición declaran un máximo.</string>
+    <string name="counters_layout_uncertain">%1$s  (disposición incierta)</string>
+    <string name="legend_before_current">7F → 00  antes → actual  ·  </string>
+    <string name="legend_changed_highlighted">valores cambiados resaltados</string>
+    <string name="ink_title">Tinta</string>
+    <string name="status_title">Estado de la impresora</string>
+    <string name="status_standard_mib">MIB estándar</string>
+    <string name="status_lifetime_pages">Páginas totales</string>
+
+    <!-- ===== Inspector: InspectState.kt ===== -->
+    <string name="inspect_sweeping_progress">Barriendo…</string>
+
+    <plurals name="inspect_keys_answered">
+        <item quantity="one">%1$s clave respondió. Se usará %2$s.</item>
+        <item quantity="other">%1$s claves respondieron. Se usará %2$s.</item>
+    </plurals>
+    <string name="inspect_other_operation">Ya hay una operación en curso con la impresora.</string>
+    <string name="inspect_trying_keys">Probando claves de lectura…</string>
+    <string name="inspect_trying_keys_log">Probando %1$s claves de lectura conocidas — solo lectura, no se escribe nada.</string>
+    <string name="inspect_no_reply">Ninguna respuesta en absoluto — la impresora nunca abrió un canal D4. %1$s</string>
+    <string name="inspect_no_key_answered">Ninguna de las claves de lectura conocidas produjo una lectura.</string>
+    <string name="inspect_many_keys">Respondió más de una clave, así que este firmware probablemente no comprueba la clave de lectura. El resultado útil es el barrido, no la clave.</string>
+    <string name="inspect_sweeping">Barriendo 0x0000–%1$s con la clave %2$s — solo lectura.</string>
+    <string name="inspect_sweep_failed">Falló el barrido: %1$s</string>
+    <string name="inspect_no_address">Ninguna dirección respondió. Lo más probable es que la clave sea incorrecta.</string>
+    <string name="inspect_nothing_swept">Aún no se ha barrido nada.</string>
+
+    <plurals name="inspect_sweep_read">
+        <item quantity="one">Se leyeron %1$s de %2$s direcciones; %3$s contador candidato.</item>
+        <item quantity="other">Se leyeron %1$s de %2$s direcciones; %3$s contadores candidatos.</item>
+    </plurals>
+
+    <!-- ===== Device inspector: InspectPanel.kt ===== -->
+    <string name="inspect_using_key">Usando %1$s</string>
+    <string name="inspect_like_models"> · como %1$s</string>
+    <string name="inspect_target_readonly">Destino: %1$s (%2$s) — solo lectura.</string>
+    <string name="inspect_target_readonly_no_pid">Destino: %1$s — solo lectura.</string>
+    <string name="inspect_bytes">bytes</string>
+
+    <plurals name="inspect_probe_hits">
+        <item quantity="one">%1$s/%2$s sondeo</item>
+        <item quantity="other">%1$s/%2$s sondeos</item>
+    </plurals>
+    <string name="inspect_title">Inspector de dispositivos</string>
+    <string name="inspect_intro">Para una impresora que la base de datos no cubre. Todo lo de esta pantalla es de solo lectura — nunca se envía ninguna escritura, así que es seguro usarla con una impresora que nadie ha identificado.</string>
+    <string name="inspect_no_printer">No se detectó ninguna impresora. Conecte la impresora, pulse Sin impresora arriba y vuelva a explorar — esta pestaña solo funciona con hardware real.</string>
+    <string name="inspect_step_key_title">Encontrar una clave de lectura</string>
+    <string name="inspect_step_key_blurb">Cada modelo necesita una clave de lectura de 16 bits antes de informar de nada. La suya probablemente sea una que la base de datos ya conoce — solo hay unos cientos, y van por familias.</string>
+    <string name="inspect_try_keys">Probar claves conocidas</string>
+    <string name="inspect_cancel">Cancelar</string>
+    <string name="inspect_several_keys">Respondieron varias claves, así que esta impresora probablemente no comprueba la clave en absoluto. Cualquiera de ellas sirve — el hallazgo real es el barrido.</string>
+    <string name="inspect_no_known_key">Ninguna clave conocida produjo una lectura. Puede que este modelo use una clave que nadie ha registrado todavía.</string>
+    <string name="inspect_step_sweep_title">Barrer la EEPROM</string>
+    <string name="inspect_step_sweep_blurb">Lee todas las direcciones del rango y muestra lo que devolvieron. Solo lectura: el comando de lectura no lleva clave de escritura, así que esto no puede alterar la impresora.</string>
+    <string name="inspect_sweep_button">Barrer 0x0000–%1$s</string>
+    <string name="inspect_sweep_answered">%1$s de %2$s direcciones respondieron</string>
+    <string name="inspect_step_candidates_title">Contadores candidatos</string>
+    <string name="inspect_step_candidates_blurb">Ordenados por aquello en lo que se apoya la conjetura. Una coincidencia de familia significa que un modelo que comparte su clave de lectura usa exactamente estas direcciones — eso es bastante más sólido que un patrón de bytes que simplemente parece una cuenta.</string>
+    <string name="inspect_run_sweep_first">Ejecute antes un barrido.</string>
+    <string name="inspect_nothing_looked_like">Nada del barrido parecía un contador.</string>
+    <string name="inspect_step_share_title">Comparta lo que ha encontrado</string>
+    <string name="inspect_step_share_blurb">La superposición hace que esta aplicación lea su impresora de inmediato. El informe corresponde a reinkpy, de donde vienen los dos archivos incluidos — un modelo añadido allí llega a todas las herramientas construidas sobre él, no solo a esta.</string>
+    <string name="inspect_model_name">Nombre del modelo</string>
+    <string name="inspect_copy_overlay">Copiar el JSON de superposición</string>
+    <string name="inspect_copy_report">Copiar el informe</string>
+    <string name="inspect_save_overlay">Guarde la superposición como counters-overlay.json junto a la caché de la base de datos (%1$s) y reinicie.</string>
+
+    <!-- ===== Snapshots, the state machine: SnapshotState.kt ===== -->
+    <string name="snap_other_operation">Ya hay una operación en curso con la impresora.</string>
+    <string name="snap_pick_model_first">Elija primero el modelo — una restauración necesita su clave de escritura.</string>
+    <string name="snap_generating">Generando la secuencia de restauración…</string>
+    <string name="snap_restoring">Restaurando %1$s direcciones en %2$s desde la copia tomada %3$s.</string>
+    <string name="snap_dry_run_note">SIMULACIÓN — una restauración real leería y guardaría los bytes actuales antes de escribir.</string>
+    <string name="snap_saving_overwritten">Guardando los bytes que están a punto de sobrescribirse…</string>
+    <string name="snap_restore_complete">Restauración completa — %1$s/%2$s escrituras confirmadas.</string>
+    <string name="snap_power_cycle">Apague y encienda la impresora para consolidar el cambio.</string>
+    <string name="snap_restore_incomplete">La restauración no se completó.</string>
+    <string name="snap_read_failed">No se escribió nada — los bytes que esta restauración sobrescribiría no se pudieron leer antes (%1$s). Las lecturas no requieren privilegios y se pueden reintentar sin riesgo.</string>
+    <string name="snap_nothing_to_write">Esta instantánea no escribe nada, así que no se envió nada.</string>
+    <string name="snap_stopped_before_writing">Se detuvo antes de escribir nada: no hubo respuesta a la lectura en %1$s de las direcciones que esta restauración escribiría, así que no se pudieron guardar antes (%2$s). Las lecturas no requieren privilegios y se pueden reintentar sin riesgo.</string>
+    <string name="snap_saved_current">Se guardaron los bytes actuales en %1$s — %2$s direcciones, tomadas justo antes de esta restauración.</string>
+    <string name="snap_could_not_save_first">No se escribió nada — los bytes actuales no se pudieron guardar antes %1$s</string>
+    <string name="snap_model_mismatch_warn">Esta copia es de %1$s pero está seleccionado %2$s. Una ejecución real se negaría.</string>
+    <string name="snap_select_target_printer">Seleccione primero la impresora en la que restaurar.</string>
+    <string name="snap_refusing_cross_model">Esa copia es de %1$s, pero la impresora seleccionada es %2$s. Se niega a escribir los bytes de un modelo en otro.</string>
+    <string name="snap_refusing_cross_unit">Esa copia vino de %1$s; esta impresora declara %2$s. Se niega a escribir.</string>
+    <string name="snap_ambiguous_units">%1$s %2$s equipos coinciden y ninguno se distingue por su número de serie.</string>
+    <string name="snap_untied_unit">Esta copia no se puede vincular a este equipo concreto — %1$s. Compruebe que apunta a la impresora correcta.</string>
+    <string name="snap_select_printer_above">Seleccione una impresora en el destino de arriba.</string>
+    <string name="snap_choose_model_above">Elija el modelo de la impresora en el destino de arriba.</string>
+    <string name="snap_nothing_saved_busy">No se guardó nada — ya hay una operación en curso con la impresora.</string>
+    <string name="snap_nothing_saved">No se guardó nada — %1$s</string>
+    <string name="snap_nothing_saved_detail">No se guardó nada — %1$s.</string>
+    <string name="snap_target_changed">No se guardó nada — la impresora de destino cambió mientras se leía.</string>
+    <string name="snap_model_changed">No se guardó nada — el modelo de destino cambió mientras se leía la impresora.</string>
+    <string name="snap_no_reading">No se guardó nada — la impresora no produjo ninguna lectura.</string>
+    <string name="snap_why_no_model">elija primero el modelo al que pertenecen estos contadores</string>
+    <string name="snap_why_no_report">lea antes los contadores — una instantánea guarda bytes que se han leído de verdad</string>
+    <string name="snap_why_wrong_model">la última lectura pertenece a %1$s, no a %2$s; vuelva a leer</string>
+    <string name="snap_why_dry_run">estos valores vienen de la EEPROM simulada de una simulación, no de una impresora. Cambie a modo real y vuelva a leer</string>
+    <string name="snap_why_nothing_answered">nada respondió a la última lectura, así que no hay nada que guardar</string>
+    <string name="snap_why_no_addresses">%1$s no tiene direcciones reiniciables que guardar</string>
+    <string name="snap_no_resettable">%1$s no tiene direcciones reiniciables, así que una instantánea no tendría nada que devolver.</string>
+    <string name="snap_not_saved_missing">No se guardó nada: no hubo respuesta a la lectura en %1$s de las direcciones que escribiría un reinicio (%2$s), así que una restauración no podría devolverlas. Las lecturas no requieren privilegios y se pueden reintentar sin riesgo.</string>
+    <string name="snap_saved">Instantánea guardada como %1$s — %2$s direcciones, %3$s difieren de su valor de reinicio.</string>
+    <string name="snap_not_saved_error">Instantánea no guardada: %1$s.</string>
+    <string name="snap_read_from_disk">Se leyó %1$s del disco — %2$s, tomada %3$s, %4$s direcciones (%5$s difieren de su valor de reinicio). No intervino ninguna impresora.</string>
+    <string name="snap_read_printer_first">Lea antes la impresora — lo que cambiaría una restauración se mide contra ella.</string>
+    <string name="snap_select_snapshot_first">Seleccione antes una instantánea.</string>
+    <string name="snap_choose_model_to_read">Elija %1$s en el destino de arriba para que haya un modelo que leer.</string>
+    <string name="snap_compare_model_mismatch">Esta instantánea es de un %1$s pero está seleccionado %2$s. La misma dirección es un contador distinto en cada uno, así que no hay nada que comparar.</string>
+    <string name="snap_no_printer_selected">No hay ninguna impresora seleccionada — elija una en el menú de impresoras de arriba.</string>
+    <string name="snap_compare_dry_run">La simulación inventa un byte para cada dirección, así que compararse con ella mostraría diferencias que no son reales. Cambie a modo real para leer esta impresora.</string>
+    <string name="snap_no_current_reading">No hay ninguna lectura actual con la que comparar — lea antes los contadores.</string>
+    <string name="snap_compare_from_dry_run">Esa lectura vino de la EEPROM simulada de una simulación, no de una impresora. Cambie a modo real y vuelva a leer antes de comparar.</string>
+    <string name="snap_compare_busy">No se puede leer para comparar — ya hay una operación en curso con la impresora.</string>
+    <string name="snap_compare_blocked">No se puede leer para comparar — %1$s</string>
+    <string name="snap_compare_nothing_answered">Nada respondió a la lectura, así que no hay nada con lo que comparar.</string>
+    <string name="snap_current_reading">Lectura actual</string>
+    <string name="snap_read_just_now">leída ahora mismo</string>
+    <string name="snap_select_snapshot">Seleccione una instantánea.</string>
+    <string name="snap_choose_model_for_key">Elija %1$s en el destino de arriba — una restauración necesita su clave de escritura.</string>
+    <string name="snap_restore_model_mismatch">Esta instantánea es de un %1$s; está seleccionado %2$s. Cambie la selección antes de escribir los bytes de un modelo en otro.</string>
+    <string name="snap_model_not_in_database">'%1$s' no está en la base de datos, así que su clave de escritura no está disponible.</string>
+    <string name="snap_selected_model">Seleccionado %1$s — el modelo del que se tomó esta instantánea.</string>
+
+    <plurals name="snap_missing_reset_addresses">
+        <item quantity="one">%1$s dirección de reinicio no respondió a la lectura, así que la instantánea quedaría incompleta</item>
+        <item quantity="other">%1$s direcciones de reinicio no respondieron a la lectura, así que la instantánea quedaría incompleta</item>
+    </plurals>
+
+    <!-- ===== Snapshots screen: SnapshotPanel.kt ===== -->
+    <string name="snap_title">Instantáneas</string>
+    <string name="snap_saved_count">%1$s guardadas · %2$s</string>
+    <string name="snap_saved_count_filtered">%1$s de %2$s · %3$s en total · %4$s</string>
+    <string name="snap_looking">Buscando…</string>
+    <string name="snap_read_and_save">Leer y guardar</string>
+    <string name="snap_addr_count">%1$s dir.</string>
+    <string name="snap_comparing">Comparando ▾</string>
+    <string name="snap_compare">Comparar ▾</string>
+    <string name="snap_restore_title">Restaurar la EEPROM — %1$s</string>
+    <string name="snap_restore_metadata">%1$s · instantánea %2$s</string>
+    <string name="snap_restore_confirm">Sí, restaurar la EEPROM</string>
+
+    <plurals name="snap_address_count">
+        <item quantity="one">%1$s dirección</item>
+        <item quantity="other">%1$s direcciones</item>
+    </plurals>
+    <string name="snap_refresh">Actualizar</string>
+    <string name="snap_showing_filter">Mostrando solo %1$s</string>
+    <string name="snap_show_all">Mostrar todas</string>
+    <string name="snap_none_for_model">No hay instantáneas guardadas de %1$s. Use Leer y guardar arriba para capturar una.</string>
+    <string name="snap_none_yet">Aún no hay nada guardado. Use Leer y guardar arriba — o ejecute un reinicio real, que toma una por su cuenta antes de escribir nada.</string>
+    <string name="snap_create_title">Crear una instantánea</string>
+    <string name="snap_no_target">Ningún destino seleccionado</string>
+    <string name="snap_create_blurb">Hace una lectura nueva de la impresora y guarda las direcciones de reinicio y recuperación. No se escribe nada.</string>
+    <string name="snap_would_be_saved_as">%1$s La instantánea se guardaría como %2$s.</string>
+    <string name="snap_unreadable">ilegible — mal formada, o con un byte fuera de 0..255</string>
+    <string name="snap_none_selected">Ninguna instantánea seleccionada</string>
+    <string name="snap_file_unreadable">No se pudo leer este archivo</string>
+    <string name="snap_pick_one">Elija una a la izquierda para volver a leerla. Los bytes están en el archivo, así que no se le pide nada a ninguna impresora — esto funciona sin nada conectado.</string>
+    <string name="snap_invalid_file">%1$s no es una instantánea válida. La carga rechaza cualquier byte fuera de 0..255, así que un archivo dañado falla aquí y no en la impresora.</string>
+    <string name="snap_no_layout_known">No se conoce ninguna disposición de contadores para %1$s, así que los bytes guardados se muestran como bytes. La tabla de arriba está completa en cualquier caso — la disposición solo decide cuáles de ellos forman un número.</string>
+    <string name="snap_restore_explainer">Restaurar devuelve estos bytes a las direcciones de las que salieron — niveles de residuo incluidos. Es una recuperación de una operación a medias, no una forma de deshacer una que salió bien. Lo que la impresora contiene ahora se lee y se guarda antes como su propia instantánea, así que la restauración es a su vez reversible.\n\nComparar dos instantáneas tomadas a uno y otro lado de una cantidad conocida de impresión muestra qué direcciones se mueven de verdad, y cuánto. Compararlas con la impresora tal como está ahora dice si un reinicio se mantuvo.</string>
+    <string name="snap_simulating_write">Simulando la escritura — nada llega a la impresora</string>
+    <string name="snap_writing_back">Volviendo a escribir los bytes guardados</string>
+    <string name="snap_what_would_change">Lo que cambiaría al restaurar</string>
+    <string name="snap_not_read_yet">La impresora no se ha leído, así que lo que contiene ahora se desconoce — solo se muestra el byte guardado que recibiría cada dirección. Lea la impresora para rellenar el lado izquierdo.</string>
+    <string name="snap_nothing_would_change">No cambiaría nada: las %1$s direcciones ya contienen el byte que guardó esta instantánea.</string>
+    <string name="snap_differing">%1$s de %2$s direcciones contienen algo distinto del byte guardado, y son las que esto cambiaría — mostradas en rojo.</string>
+    <string name="snap_cancel">Cancelar</string>
+    <string name="snap_save_then_restore">Guardar lo actual y restaurar</string>
+    <string name="snap_restore_without_saving">Restaurar sin guardar antes</string>
+    <string name="snap_simulate_restore">Simular la restauración — no escribe nada</string>
+    <string name="snap_showing_the_write">Mostrando la escritura ▾</string>
+    <string name="snap_reading">Leyendo…</string>
+    <string name="snap_printer_now">La impresora tal como está ahora</string>
+    <string name="snap_back_to_saved">Volver a los bytes guardados</string>
+    <string name="snap_stop_comparing">Dejar de comparar</string>
+    <string name="snap_all_at_reset_value">Todas las direcciones del lado posterior contienen su valor de reinicio — si se ejecutó un reinicio entre estas dos muestras, se mantuvo.</string>
+    <string name="snap_unexplained_note">La impresora mantiene aquí algo que la disposición de contadores de este modelo no describe. Vale la pena informarlo con ambas instantáneas — qué cuenta no se puede deducir de dos lecturas, así que no se da nada por supuesto.</string>
+    <string name="snap_serial">número de serie %1$s</string>
+    <string name="snap_serial_not_recorded">no registrado</string>
+    <string name="snap_not_at_reset_value">%1$s no están en su valor de reinicio</string>
+    <string name="snap_selected_model_label">Modelo seleccionado: %1$s</string>
+    <string name="snap_none">ninguno</string>
+    <string name="snap_select_model">Seleccionar %1$s</string>
+    <string name="snap_restore_headline">Escribir %1$s bytes de EEPROM guardados en %2$s.</string>
+    <string name="snap_restore_warning">Estos son valores históricos. Pueden aumentar contadores y sustituir datos más recientes de la impresora.</string>
+    <string name="snap_restore_only_recovery">Use esto solo para recuperarse de un reinicio o una restauración interrumpidos. No es una forma de deshacer un reinicio que salió bien.</string>
+    <string name="snap_restore_saves_first">Los bytes que ahora hay en la impresora se leen y se guardan antes como una instantánea nueva, por la misma conexión. Si no se pueden leer todos, no se escribe nada.</string>
+    <string name="snap_restore_no_save">Los valores que ahora hay en la impresora no se guardan antes, así que esta escritura no se podrá deshacer. Continúe solo si esta instantánea es el punto de recuperación que quiere aplicar.</string>
+
+    <plurals name="snap_unexplained_moved">
+        <item quantity="one">%1$s dirección se movió sin que ningún contador la reclame</item>
+        <item quantity="other">%1$s direcciones se movieron sin que ningún contador las reclame</item>
+    </plurals>
+
+    <!-- ===== Calibration form: CalibrationState.kt ===== -->
+    <string name="cal_overlay_removed">Se eliminó %1$s.</string>
+    <string name="cal_name_the_model">Indique el modelo real de esta impresora.</string>
+    <string name="cal_name_is_family">'%1$s' nombra una familia, no un equipo. Elija el modelo exacto — un máximo archivado contra una familia no se puede distinguir después de uno medido en cualquiera de sus miembros.</string>
+    <string name="cal_name_unknown">'%1$s' no está en la base de datos. No pasa nada si es un modelo que nadie ha añadido todavía; en caso contrario, merece una segunda mirada.</string>
+    <string name="cal_overrides_confirmed">Usted confirmó esta impresora como %1$s — solo se llama "%2$s", que es una familia. Archivarla como %3$s sustituye su propia respuesta, así que archive la que pueda leer en la impresora.</string>
+    <string name="cal_answers_family">Esta impresora responde "%1$s" (%2$s), que es una familia y no un equipo — %3$s es la entrada de esa familia en la base de datos, no la respuesta de esta impresora. Si %4$s es lo que dice la etiqueta, es el mejor nombre que archivar.</string>
+    <string name="cal_derived_from">El nombre de arriba se dedujo de "%1$s" (%2$s), que abarca varios equipos. Compruébelo con la etiqueta de la impresora — un máximo archivado contra el hermano equivocado no se puede distinguir después de uno medido en el correcto.</string>
+    <string name="cal_overrides_strongest">Esta impresora se identifica como %1$s mediante %2$s, que es la identificación más fiable disponible aquí. Archivarla como %3$s anula eso.</string>
+    <string name="cal_why_no_model">elija primero el modelo al que pertenecen estos contadores</string>
+    <string name="cal_why_no_report">lea antes los contadores — una calibración es una lectura con un máximo adjunto</string>
+    <string name="cal_why_dry_run">estos valores vienen de la EEPROM simulada de una simulación, no de una impresora. Cambie a modo real y vuelva a leer</string>
+    <string name="cal_why_nothing_answered">nada respondió a la última lectura, así que no hay nada que medir</string>
+    <string name="cal_why_nothing_decoded">ninguno de los contadores de este modelo se decodificó a un solo número distinto de cero, así que no hay nada a lo que ponerle un máximo</string>
+    <string name="cal_applied">Aplicado a %1$s en esta sesión: %2$s. Guarde la superposición para conservarlo tras reiniciar.</string>
+    <string name="cal_applied_item">dir. %1$s máx. %2$s → %3$s%</string>
+    <string name="cal_reverted">Las disposiciones de contadores vuelven a ser las del disco. Cualquier máximo aplicado a esta sesión ha desaparecido; los porcentajes se calculan otra vez con las cifras incluidas.</string>
+    <string name="cal_reload_failed">No se pudieron recargar las disposiciones de contadores: %1$s</string>
+    <string name="cal_no_overlay">No hay ningún archivo de superposición que eliminar en %1$s.</string>
+    <string name="cal_remove_failed">No se pudo eliminar la superposición: %1$s</string>
+    <string name="cal_no_file_manager">No se pudo abrir un gestor de archivos. El directorio es %1$s</string>
+    <string name="cal_too_long">Demasiado largo para rellenarlo automáticamente — el informe está en el portapapeles, péguelo en el formulario.</string>
+    <string name="cal_issue_opened">Se abrió una incidencia de calibración para %1$s. No se ha enviado nada: el formulario es suyo para leerlo y enviarlo.</string>
+    <string name="cal_no_browser">No se pudo abrir un navegador. El informe está en el portapapeles — preséntelo en %1$s</string>
+
+    <!-- ===== Calibration screen: CalibrationPanel.kt ===== -->
+    <string name="cal_dialog_title">Aportar una calibración — %1$s</string>
+    <string name="cal_no_model">sin modelo</string>
+    <string name="cal_nothing_yet">Aún no hay nada que calibrar — %1$s.</string>
+    <string name="cal_close">Cerrar</string>
+    <string name="cal_note_label">Nota (opcional)</string>
+    <string name="cal_note_placeholder">Qué herramienta indicó el porcentaje, qué decía el panel de la impresora…</string>
+    <string name="cal_measure_title">Medir el máximo de un contador</string>
+    <string name="cal_models_with_limit">%1$s de %2$s modelos pueden mostrar un porcentaje</string>
+    <string name="cal_intro">Un porcentaje necesita un máximo, y Epson no publica ninguno — todos los que esta aplicación conoce se midieron en una impresora. La suya puede aportar uno: diga cuánto marca un contador en un momento en que se conoce su porcentaje real, y el máximo se deduce.</string>
+    <string name="cal_model_label">El modelo real de esta impresora</string>
+    <string name="cal_model_placeholder">ET-2825</string>
+    <string name="cal_no_candidates">Sin candidatos</string>
+    <string name="cal_pick">Elegir…</string>
+    <string name="cal_siblings">%1$s modelos comparten esta disposición de contadores. La entrada solo se atribuye al nombrado arriba — una disposición compartida no prueba una capacidad de almohadilla compartida, y si alguna vez un hermano mide distinto, estos nombres son lo que permite dividir el grupo.</string>
+    <string name="cal_source_reported">declarado por la impresora</string>
+    <string name="cal_source_confirmed">confirmado por usted</string>
+    <string name="cal_source_selected">seleccionado en el destino</string>
+    <string name="cal_no_maximum">Esta aplicación no tiene un máximo para este contador, así que no muestra ningún porcentaje. Eso es lo que falta.</string>
+    <string name="cal_has_maximum">Esta aplicación tiene un máximo de %1$s, así que muestra %2$s%. Volver a medirlo sigue mereciendo la pena — esa cifra vino de una sola impresora.</string>
+    <string name="cal_percent_label">Porcentaje que muestra otra herramienta</string>
+    <string name="cal_percent_placeholder">60,90</string>
+    <string name="cal_count_label">…y la cuenta que muestra</string>
+    <string name="cal_service_required">…o la impresora está pidiendo servicio ahora mismo</string>
+    <string name="cal_not_measured">Sin medir — déjelo en blanco si no tiene nada que decir sobre este contador.</string>
+    <string name="cal_cannot_calibrate">No se puede calibrar este contador — %1$s.</string>
+    <string name="cal_result">máx. %1$s  ·  muestra %2$s%3$s</string>
+    <string name="cal_result_range">  ·  compatible con %1$s–%2$s</string>
+    <string name="cal_fills_a_gap">Nuevo — este modelo no tenía máximo para este contador.</string>
+    <string name="cal_confirms">Confirma el %1$s que ya consta. Merece la pena presentarlo igualmente: esa cifra se apoya en una impresora, y esta es una segunda.</string>
+    <string name="cal_disagrees">Discrepa del %1$s que ya consta, que mostraría %2$s%. Cada uno vino de una sola impresora, así que esto es un hallazgo — preséntelo en vez de dar por hecho que uno de los dos está mal.</string>
+    <string name="cal_limit_marker">Este byte marca 94 (0x5E), que es el marcador de límite de Epson y no una cuenta — esos marcan 94 siempre. Merece la pena comprobar que de verdad es un contador antes de presentar esto.</string>
+    <string name="cal_loose_decimals">Ese porcentaje se dio con pocos decimales, así que acota el máximo de forma imprecisa. Escriba todos los dígitos que muestre la otra herramienta.</string>
+    <string name="cal_report_contains">Qué contiene el informe</string>
+    <string name="cal_report_body">Modelo, firmware y conexión; los contadores de arriba con sus valores y lo que esta aplicación cree actualmente de cada uno; %1$sy el bloque de estado en bruto de la impresora, sin decodificar.</string>
+    <string name="cal_report_no_ink">ningún nivel de tinta (esta impresora no informó de ninguno); </string>
+    <string name="cal_report_ink">niveles de tinta (%1$s); </string>
+    <string name="cal_no_serial">El número de serie no. La capacidad de una almohadilla es una constante del modelo, así que el número de serie identificaría su impresora en una incidencia pública sin aportar nada. Tampoco se envía nada por su cuenta: "Abrir una incidencia" rellena un formulario en su navegador para que usted lo lea y lo envíe.</string>
+    <string name="cal_open_issue">Abrir una incidencia</string>
+    <string name="cal_applied_label">Aplicado</string>
+    <string name="cal_use_maximum">Usar este máximo ahora</string>
+    <string name="cal_undo">Deshacer</string>
+    <string name="cal_copy_entry">Copiar la entrada</string>
+    <string name="cal_copy_overlay">Copiar la superposición</string>
+    <string name="cal_copy_report">Copiar el informe</string>
+    <string name="cal_session_note">Todos los porcentajes de este modelo se dividen ahora por el máximo de arriba, solo en esta sesión — Deshacer lo revierte, y reiniciar también. Para conservarlo, guarde la superposición como counters-overlay.json en el directorio de datos (%1$s); esa sobrevive a un reinicio y solo se deshace borrando el archivo, cosa que Ajustes puede hacer. Y presente la incidencia, para que nadie con este modelo tenga que volver a medirlo.</string>
+
+    <!-- ===== View model: ResetViewModel.kt ===== -->
+    <string name="vm_progress_packet">Paquete %1$s / %2$s — %3$s</string>
+    <string name="vm_verifying">Verificando…</string>
+    <string name="vm_and_more"> +%1$s más</string>
+    <string name="vm_downloading">Descargando…</string>
+    <string name="vm_database_updated_status">Actualizada — %1$s modelos.</string>
+    <string name="vm_forgot">Se olvidó %1$s.</string>
+    <string name="vm_testing_device">Probando %1$s por %2$s…</string>
+    <string name="vm_serial">Número de serie: %1$s</string>
+    <string name="vm_read_of_addresses">Se leyeron %1$s de %2$s direcciones.</string>
+    <string name="via_usb_descriptor">su descriptor USB</string>
+    <string name="via_usb_ejl">una consulta EJL por USB</string>
+    <string name="via_network_advert">su anuncio en la red</string>
+    <string name="via_snmp">SNMP</string>
+    <string name="via_snmp_cross_link">SNMP en su dirección de red</string>
+    <string name="via_confirmed">usted</string>
+
+    <string name="vm_busy_remembered_models">Espere a que termine la operación en curso antes de cambiar los modelos recordados.</string>
+    <string name="vm_busy_target">Espere a que termine la operación en curso antes de cambiar el destino.</string>
+    <string name="vm_busy_scan">Espere a que termine la operación en curso antes de volver a explorar.</string>
+    <string name="vm_busy_printers">Espere a que termine la operación en curso antes de cambiar de impresora.</string>
+    <string name="vm_busy_add">Espere a que termine la operación en curso antes de añadir una impresora.</string>
+    <string name="vm_busy_forget">Espere a que termine la operación en curso antes de olvidar una impresora.</string>
+    <string name="vm_busy_test">Espere a que termine la operación en curso antes de probar la conexión.</string>
+    <string name="vm_busy_models">Espere a que termine la operación en curso antes de cambiar de modelo.</string>
+    <string name="vm_busy_overview">Espere a que termine la operación en curso antes de actualizar el resumen.</string>
+    <string name="vm_busy_read">Espere a que termine la operación en curso antes de leer los contadores.</string>
+    <string name="vm_busy_reset">Espere a que termine la operación en curso antes de iniciar un reinicio.</string>
+
+    <string name="vm_forgot_model">Se olvidó el modelo recordado para %1$s.</string>
+    <string name="vm_model_mismatch">Esta impresora se identifica como %1$s, pero está seleccionado %2$s. Una ejecución real escribiría la clave y las direcciones de %3$s en una %4$s.</string>
+    <string name="vm_family_blocked">Esta impresora se declara como "%1$s", que nombra una familia de %2$s modelos que no comparten receta de reinicio. Elija el modelo impreso en la impresora.</string>
+    <string name="vm_not_reached">No se pudo contactar con la impresora seleccionada. Vuelva a explorar o pruebe su conexión antes de usar el modo real.</string>
+    <string name="vm_network_refused">Esta impresora respondió a la identidad y al estado por red pero rechazó el acceso a los contadores. Conéctela por USB para reiniciarla.</string>
+    <string name="vm_models_loaded">Se cargaron %1$s modelos de impresora (%2$s).</string>
+    <string name="vm_layouts_loaded">Disposiciones de contadores para %1$s modelos.</string>
+    <string name="vm_overlay_applied">Superposición de usuario aplicada desde %1$s.</string>
+    <string name="vm_overlay_ignored">Superposición ignorada — %1$s</string>
+    <string name="vm_layouts_unavailable">Disposiciones de contadores no disponibles: %1$s</string>
+    <string name="vm_database_failed">No se pudo cargar la base de datos de impresoras: %1$s</string>
+    <string name="vm_downloading_database">Descargando la última base de datos de impresoras…</string>
+    <string name="vm_database_updated">Base de datos actualizada — %1$s modelos.</string>
+    <string name="vm_database_download_failed">No se pudo descargar la base de datos. Se conserva la copia actual.</string>
+    <string name="vm_database_update_failed">Falló la actualización de la base de datos: %1$s. Se conserva la copia actual.</string>
+    <string name="vm_scan_stopped">Exploración de impresoras detenida.</string>
+    <string name="vm_libusb_missing">libusb no está instalado — %1$s</string>
+    <string name="vm_usb_scan_failed">Falló la exploración por USB — %1$s</string>
+    <string name="vm_dry_runs_still_work">%1$s Las simulaciones siguen funcionando.</string>
+    <string name="vm_network_unavailable">Detección en red no disponible — %1$s</string>
+    <string name="vm_no_printers_found">No se encontraron impresoras Epson por USB ni en la red.</string>
+    <string name="vm_match_exact">coincidencia exacta</string>
+    <string name="vm_match_likely">coincidencia probable — confírmela</string>
+    <string name="vm_match_family">coincide con una familia, no con un equipo</string>
+    <string name="vm_match_none">sin coincidencia</string>
+    <string name="vm_matched_log">%1$s por %2$s → %3$s (%4$s).</string>
+    <string name="vm_no_database_entry">%1$s no coincidió con ninguna entrada de la base de datos — elija el modelo manualmente.</string>
+    <string name="vm_cross_link_conflict">El descriptor de esta impresora coincide con %1$s, pero el mismo número de serie responde por SNMP en %2$s como %3$s — y los dos no escriben los mismos bytes (rkey %4$s frente a %5$s). Elija el de la etiqueta antes de ejecutar en modo real.</string>
+    <string name="vm_cross_link_used">El mismo número de serie responde por SNMP en %1$s como %2$s. Se usa eso: el descriptor solo dice "%3$s", que nombra una familia.</string>
+    <string name="vm_family_remembered">"%1$s" nombra una familia; esta impresora se confirmó antes como %2$s.</string>
+    <string name="vm_family_pick">Esta impresora declara "%1$s", que abarca %2$s modelos que no comparten receta de reinicio. Elija el modelo impreso en la propia impresora — de lo contrario se escribiría en ella la clave de otro miembro.</string>
+    <string name="vm_bad_address">'%1$s' no es una dirección ni un nombre de host.</string>
+    <string name="vm_added_address">Se añadió %1$s. Preguntando qué hay ahí…</string>
+    <string name="vm_saved_no_answer">La dirección guardada no respondió a la prueba de conexión.</string>
+    <string name="vm_reports_itself_as">Se declara como: %1$s</string>
+    <string name="vm_firmware">Firmware: %1$s</string>
+    <string name="vm_matched_from_report">Emparejada con %1$s a partir de lo que declaró la impresora.</string>
+    <string name="vm_mismatch_dry_ok">%1$s Las simulaciones siguen funcionando; una ejecución real se negará.</string>
+    <string name="vm_session_only_model">Se usa %1$s para esta impresora, solo en esta sesión — nada la identifica lo bastante bien como para recordar la elección.</string>
+    <string name="vm_remembered_choice">Recordado: la impresora en %1$s que declara "%2$s" es una %3$s.</string>
+    <string name="vm_forgot_choice">Se olvidó la elección para esta impresora.</string>
+    <string name="vm_forgot_choice_reports">Se olvidó la elección para esta impresora. Declara "%1$s" — elija de nuevo.</string>
+    <string name="vm_back_to_model">De vuelta a %1$s, que es como se declara esta impresora.</string>
+    <string name="vm_cancelling">Cancelando tras el paquete actual…</string>
+    <string name="vm_select_printer_overview">Seleccione una impresora antes de actualizar el resumen.</string>
+    <string name="vm_refreshing_overview">Actualizando el resumen de la impresora…</string>
+    <string name="vm_refreshing_overview_for">Actualizando el resumen de %1$s…</string>
+    <string name="vm_mib_unavailable">La información del MIB de impresora no estaba disponible: %1$s.</string>
+    <string name="vm_overview_cancelled">Se canceló la actualización del resumen; se conservaron los resultados disponibles.</string>
+    <string name="vm_overview_complete">Actualización del resumen completa.</string>
+    <string name="vm_reading_counters">Leyendo los contadores…</string>
+    <string name="vm_reading_address">Leyendo la dirección %1$s (%2$s / %3$s)</string>
+    <string name="vm_lifetime_pages">Páginas totales: %1$s</string>
+    <string name="vm_read_failed">Falló la lectura: %1$s</string>
+    <string name="vm_no_answer_at_all">La impresora no respondió a ninguna de las %1$s peticiones de lectura.</string>
+    <string name="vm_partial_read">Se leyeron %1$s de %2$s direcciones; las demás no respondieron.</string>
+    <string name="vm_all_at_reset">Se leyeron %1$s direcciones — todas ya en sus valores de reinicio.</string>
+    <string name="vm_dry_run_values">SIMULACIÓN — los valores vinieron de una EEPROM simulada, no de su impresora.</string>
+    <string name="vm_generating">Generando la secuencia…</string>
+    <string name="vm_generated">Se generaron %1$s paquetes para %2$s (%3$s escrituras de EEPROM).</string>
+    <string name="vm_dry_run_nothing_written">SIMULACIÓN — no se escribirá nada en la impresora.</string>
+    <string name="vm_live_would_refuse">%1$s Una ejecución real se negaría.</string>
+    <string name="vm_reading_before_reset">Leyendo los contadores antes del reinicio…</string>
+    <string name="vm_blocker_clear_it">%1$s Resuélvalo y vuelva a ejecutar — no se escribió nada.</string>
+    <string name="vm_backing_up">Copiando los bytes que están a punto de escribirse…</string>
+    <string name="vm_readback_unavailable">Las escrituras se confirmaron, pero no se pudieron releer los contadores.</string>
+    <string name="vm_readback_failed">Las escrituras se confirmaron, pero falló la relectura: %1$s</string>
+    <string name="vm_readback_partial">Las escrituras se confirmaron, pero solo se releyeron %1$s/%2$s direcciones.</string>
+    <string name="vm_readback_not_reset">Las escrituras se confirmaron, pero la relectura encontró valores que no se reiniciaron.</string>
+    <string name="vm_dry_run_complete">Simulación completa — %1$s escrituras generadas y verificadas contra el dispositivo falso.</string>
+    <string name="vm_reset_complete">Reinicio completo — los %1$s valores de EEPROM verificados por relectura.</string>
+    <string name="vm_power_cycle_now">Apague y encienda la impresora ahora para consolidar el cambio.</string>
+    <string name="vm_reset_incomplete">El reinicio no se completó.</string>
+    <string name="vm_no_write_packets">La secuencia no contiene paquetes de escritura de EEPROM — no se reinició nada.</string>
+    <string name="vm_dry_run_would_stop">Simulación: sin respuesta de %1$s, así que una ejecución real se detendría aquí (%2$s).</string>
+    <string name="vm_stopped_no_backup">Se detuvo antes de escribir nada: no fue posible releer %1$s de las direcciones que escribiría este reinicio, así que no se pueden copiar (%2$s). Las lecturas no requieren privilegios y se pueden reintentar sin riesgo.</string>
+    <string name="vm_dry_run_backup">SIMULACIÓN — se copiarían %1$s direcciones; no se escribió ningún archivo.</string>
+    <string name="vm_backed_up">Se copiaron %1$s direcciones en %2$s (%3$s cambiarán).</string>
+    <string name="vm_readback_unverified">No se pudieron releer los contadores, así que el reinicio está sin verificar.</string>
+    <string name="vm_verified">Verificado por relectura: las %1$s direcciones contienen ahora sus valores de reinicio (%2$s cambiaron).</string>
+    <string name="vm_backup_not_saved">Se detuvo antes de escribir nada: no se pudo guardar la copia (%1$s).</string>
+    <string name="vm_transport_no_printer">No se pudo abrir la impresora.</string>
+    <string name="vm_no_printer_selected">Ninguna impresora seleccionada.</string>
+
+    <plurals name="vm_forgot_choices">
+        <item quantity="one">Se olvidó %1$s elección de modelo recordada.</item>
+        <item quantity="other">Se olvidaron %1$s elecciones de modelo recordadas.</item>
+    </plurals>
+
+    <plurals name="vm_devices_found">
+        <item quantity="one">Se encontró %1$s dispositivo Epson — %2$s por USB, %3$s en la red.</item>
+        <item quantity="other">Se encontraron %1$s dispositivos Epson — %2$s por USB, %3$s en la red.</item>
+    </plurals>
+
+    <plurals name="vm_writes_acknowledged">
+        <item quantity="one">%1$s escritura se confirmó antes de que esto se detuviera. Los bytes previos a la escritura están guardados en %2$s — restáurelo para devolverlos.</item>
+        <item quantity="other">%1$s escrituras se confirmaron antes de que esto se detuviera. Los bytes previos a la escritura están guardados en %2$s — restáurelo para devolverlos.</item>
+    </plurals>
+
+    <plurals name="vm_dry_run_missing">
+        <item quantity="one">%1$s dirección</item>
+        <item quantity="other">%1$s direcciones</item>
+    </plurals>
+
+    <plurals name="vm_stuck_addresses">
+        <item quantity="one">La relectura muestra %1$s dirección que no está en el valor de reinicio: </item>
+        <item quantity="other">La relectura muestra %1$s direcciones que no están en el valor de reinicio: </item>
+    </plurals>
+
+    <!-- ===== Top bar: App.kt ===== -->
+    <string name="topbar_database">%1$s modelos</string>
+    <string name="db_source_bundled">incluida</string>
+    <string name="db_source_cached">descargada</string>
+    <string name="topbar_database_error">error de base de datos</string>
+    <string name="topbar_database_loading">cargando la base de datos…</string>
+    <string name="topbar_update_available">Actualización disponible — %1$s</string>
+
+    <!-- ===== Sweep candidates: probe/SweepAnalysis.kt, probe/DeviceInspector.kt ===== -->
+    <string name="sweep_waste_counter">Contador de residuos</string>
+    <string name="sweep_why_limit_byte">par little-endian contiguo delimitado por un byte de límite 0x5E</string>
+    <string name="sweep_why_plausible">par little-endian contiguo con una cuenta plausible</string>
+    <string name="sweep_channel_never_opened">El canal D4 nunca se abrió — la impresora no respondió nada.</string>
+    <string name="sweep_trying_key">Probando la clave %1$s</string>
+    <string name="sweep_key_answered">La clave %1$s respondió %2$s/%3$s sondeos%4$s</string>
+    <string name="sweep_key_used_by"> (usada por %1$s)</string>
+    <string name="sweep_no_channel">El canal D4 nunca se abrió.</string>
+    <string name="sweep_cancelled">Cancelado tras %1$s de %2$s lecturas.</string>
+    <string name="sweep_reading">Leyendo %1$s</string>
+
+    <!-- ===== Log panel: LogPanel.kt ===== -->
+    <string name="log_title">Registro</string>
+    <string name="log_show">Mostrar</string>
+    <string name="log_hide">Ocultar</string>
+    <string name="log_hide_trace">Ocultar la traza de paquetes</string>
+    <string name="log_show_trace">Mostrar la traza de paquetes</string>
+    <string name="log_copy">Copiar</string>
+    <string name="log_clear">Limpiar</string>
+
+</resources>
