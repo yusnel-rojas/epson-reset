@@ -25,7 +25,7 @@
     <string name="settings_language_system">System</string>
     <string name="settings_language_en">English</string>
     <string name="settings_language_es">Español</string>
-    <string name="settings_language_body">Applies at once, everywhere in the app.</string>
+    <string name="settings_language_body">System uses your computer's language, if available. Changes apply immediately.</string>
     <string name="settings_nav_general">General</string>
     <string name="settings_nav_printers">Printers</string>
     <string name="settings_nav_advanced">Advanced</string>
@@ -367,7 +367,7 @@
     <string name="settings_model_reports">reports "%1$s"</string>
     <string name="settings_history_section">Counter history</string>
     <string name="settings_history_toggle">Keep counter history on this computer</string>
-    <string name="settings_history_body">Appends successful live counter reads to a local journal. Dry runs and reads from snapshot files are never recorded. Turning this off pauses collection without deleting what is already here.</string>
+    <string name="settings_history_body">Records live readings so you can compare them later.</string>
     <string name="settings_history_stats">%1$s · %2$s · %3$s</string>
     <string name="settings_history_confirm_delete">Delete every printer's counter history? This cannot be undone.</string>
     <string name="settings_history_delete">Delete history</string>
@@ -375,45 +375,45 @@
     <string name="settings_history_delete_prompt">Delete counter history…</string>
 
     <string name="settings_identification_section">Identification</string>
-    <string name="settings_identification_toggle">Resolve the exact model over SNMP</string>
-    <string name="settings_identification_body">A USB descriptor names a family — "ET-2820 Series" covers eight units that are not all the same printer. The same machine on the network answers SNMP with the unit. When both links show the same serial, the unit is used. Costs no extra traffic: the network entry has already been asked by the time the two are compared.</string>
+    <string name="settings_identification_toggle">Confirm the exact model over the network</string>
+    <string name="settings_identification_body">Some printers report only a family name over USB. The network names the exact model.</string>
 
     <string name="settings_database_section">Printer database</string>
     <string name="settings_database_loaded">%1$s models</string>
     <string name="settings_database_error">could not be loaded — %1$s</string>
     <string name="settings_database_loading">loading…</string>
-    <string name="settings_database_body">The copy in the jar is used until a download replaces it. A download that does not parse is discarded rather than cached, so a failed update keeps the working copy.</string>
+    <string name="settings_database_body">Reset recipes for every printer the app knows.</string>
     <string name="settings_database_update">Update database</string>
     <string name="settings_result_see_log">The log, at the bottom of the main window, has the detail.</string>
 
     <string name="settings_updates_section">App updates</string>
     <string name="settings_updates_version">Version %1$s</string>
     <string name="settings_updates_toggle">Check automatically</string>
-    <string name="settings_updates_body">Once a day at most, and never for a development build. A check that cannot reach GitHub does not count against the day's allowance.</string>
+    <string name="settings_updates_body">Once a day at most.</string>
     <string name="settings_updates_checking">Checking…</string>
-    <string name="settings_updates_dev">No release to compare a dev build against, so the check is off here.</string>
+    <string name="settings_updates_dev">No released version to compare against.</string>
     <string name="settings_updates_check_now">Check now</string>
 
     <string name="settings_maxima_section">Counter maxima</string>
-    <string name="settings_maxima_body">Percentages need a maximum, and most counters ship without one. A calibration supplies it. "Use this maximum now" on the calibration form applies one to this session only — it is gone at the next launch. Saving counters-overlay.json into the data directory applies it permanently, and nothing but removing that file undoes it.</string>
-    <string name="settings_maxima_overlay">An overlay file is in force. Counters it names read from it, not from the shipped figures.</string>
-    <string name="settings_maxima_session">A calibration is applied to this session only.</string>
-    <string name="settings_maxima_shipped">No overlay and no session calibration — the shipped figures are in use.</string>
+    <string name="settings_maxima_body">Percentages need a maximum. Most counters ship without one; calibrating supplies it.</string>
+    <string name="settings_maxima_overlay">A saved calibration is in use.</string>
+    <string name="settings_maxima_session">Calibrated for this session only.</string>
+    <string name="settings_maxima_shipped">Using the figures the app ships with.</string>
     <string name="settings_maxima_undo_session">Undo for this session</string>
-    <string name="settings_maxima_delete_overlay">Delete the overlay file</string>
+    <string name="settings_maxima_delete_overlay">Delete the saved calibration</string>
 
     <string name="settings_data_dir_section">Data directory</string>
-    <string name="settings_data_dir_body">The database cache, saved snapshots, counter history, the overlay, remembered choices and preferences. Every one of them is a plain file you can read, edit or delete.</string>
+    <string name="settings_data_dir_body">Snapshots, counter history, calibrations and preferences.</string>
     <string name="settings_data_dir_open">Open data directory</string>
 
     <string name="settings_choices_section">Remembered model choices</string>
-    <string name="settings_choices_none">None. One is filed whenever a printer names a family whose members do not share a reset recipe, and you say which of them it is.</string>
+    <string name="settings_choices_none">None yet. One is saved when you pick a printer's model.</string>
     <string name="settings_choices_forget">Forget</string>
     <string name="settings_choices_forget_all">Forget all</string>
 
     <string name="settings_developer_section">Developer</string>
-    <string name="settings_developer_toggle">Developer mode (verbose logging)</string>
-    <string name="settings_developer_body">Adds low-level diagnostics to the log: which printers the Windows spooler enumerates and on which ports, and every WritePrinter/ReadPrinter result with its Windows error code. When something like a USB read fails, turn this on, reproduce it, and use Copy in the log panel — the extra lines are included and make the cause visible.</string>
+    <string name="settings_developer_toggle">Developer mode</string>
+    <string name="settings_developer_body">Adds low-level detail to the log.</string>
 
     <string name="settings_about_section">About</string>
     <string name="settings_about_name">Epson Reset %1$s</string>

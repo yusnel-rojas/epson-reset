@@ -17,7 +17,7 @@
     <string name="settings_language_system">Sistema</string>
     <string name="settings_language_en">English</string>
     <string name="settings_language_es">Español</string>
-    <string name="settings_language_body">Se aplica al instante, en toda la aplicación.</string>
+    <string name="settings_language_body">Sistema usa el idioma del equipo, si está disponible. Los cambios se aplican al momento.</string>
     <string name="settings_nav_general">General</string>
     <string name="settings_nav_printers">Impresoras</string>
     <string name="settings_nav_advanced">Avanzado</string>
@@ -357,7 +357,7 @@
     <string name="settings_model_reports">declara "%1$s"</string>
     <string name="settings_history_section">Historial de contadores</string>
     <string name="settings_history_toggle">Guardar el historial de contadores en este equipo</string>
-    <string name="settings_history_body">Añade a un registro local las lecturas de contadores en vivo que tengan éxito. Las simulaciones y las lecturas desde archivos de instantánea no se registran nunca. Desactivarlo pausa la recogida sin borrar lo que ya hay.</string>
+    <string name="settings_history_body">Guarda las lecturas en vivo para poder compararlas después.</string>
     <string name="settings_history_stats">%1$s · %2$s · %3$s</string>
     <string name="settings_history_confirm_delete">¿Borrar el historial de contadores de todas las impresoras? Esto no se puede deshacer.</string>
     <string name="settings_history_delete">Borrar el historial</string>
@@ -365,45 +365,45 @@
     <string name="settings_history_delete_prompt">Borrar el historial de contadores…</string>
 
     <string name="settings_identification_section">Identificación</string>
-    <string name="settings_identification_toggle">Resolver el modelo exacto por SNMP</string>
-    <string name="settings_identification_body">Un descriptor USB nombra una familia — "ET-2820 Series" abarca ocho equipos que no son todos la misma impresora. La misma máquina en la red responde por SNMP con el equipo concreto. Cuando ambos enlaces muestran el mismo número de serie, se usa el equipo. No cuesta tráfico adicional: a la entrada de red ya se le ha preguntado cuando se comparan las dos.</string>
+    <string name="settings_identification_toggle">Confirmar el modelo exacto por la red</string>
+    <string name="settings_identification_body">Algunas impresoras solo indican una familia por USB. La red indica el modelo exacto.</string>
 
     <string name="settings_database_section">Base de datos de impresoras</string>
     <string name="settings_database_loaded">%1$s modelos</string>
     <string name="settings_database_error">no se pudo cargar — %1$s</string>
     <string name="settings_database_loading">cargando…</string>
-    <string name="settings_database_body">Se usa la copia incluida en el jar hasta que una descarga la sustituya. Una descarga que no se pueda analizar se descarta en lugar de guardarse, así que una actualización fallida conserva la copia que funciona.</string>
+    <string name="settings_database_body">Recetas de reinicio de todas las impresoras que conoce la aplicación.</string>
     <string name="settings_database_update">Actualizar la base de datos</string>
     <string name="settings_result_see_log">El registro, al pie de la ventana principal, tiene el detalle.</string>
 
     <string name="settings_updates_section">Actualizaciones de la aplicación</string>
     <string name="settings_updates_version">Versión %1$s</string>
     <string name="settings_updates_toggle">Comprobar automáticamente</string>
-    <string name="settings_updates_body">Una vez al día como mucho, y nunca en una compilación de desarrollo. Una comprobación que no consigue llegar a GitHub no gasta el cupo del día.</string>
+    <string name="settings_updates_body">Una vez al día como mucho.</string>
     <string name="settings_updates_checking">Comprobando…</string>
-    <string name="settings_updates_dev">No hay ninguna versión con la que comparar una compilación de desarrollo, así que la comprobación está desactivada aquí.</string>
+    <string name="settings_updates_dev">No hay ninguna versión publicada con la que comparar.</string>
     <string name="settings_updates_check_now">Comprobar ahora</string>
 
     <string name="settings_maxima_section">Máximos de los contadores</string>
-    <string name="settings_maxima_body">Los porcentajes necesitan un máximo, y la mayoría de los contadores vienen sin él. Una calibración lo aporta. "Usar este máximo ahora" en el formulario de calibración lo aplica solo a esta sesión — desaparece al arrancar de nuevo. Guardar counters-overlay.json en el directorio de datos lo aplica de forma permanente, y solo borrar ese archivo lo deshace.</string>
-    <string name="settings_maxima_overlay">Hay un archivo de superposición en vigor. Los contadores que nombra se leen de él, no de las cifras incluidas.</string>
-    <string name="settings_maxima_session">Hay una calibración aplicada solo a esta sesión.</string>
-    <string name="settings_maxima_shipped">Sin superposición ni calibración de sesión — se usan las cifras incluidas.</string>
+    <string name="settings_maxima_body">Los porcentajes necesitan un máximo. La mayoría de los contadores vienen sin él; calibrar lo aporta.</string>
+    <string name="settings_maxima_overlay">Se está usando una calibración guardada.</string>
+    <string name="settings_maxima_session">Calibrado solo para esta sesión.</string>
+    <string name="settings_maxima_shipped">Se usan las cifras que incluye la aplicación.</string>
     <string name="settings_maxima_undo_session">Deshacer en esta sesión</string>
-    <string name="settings_maxima_delete_overlay">Borrar el archivo de superposición</string>
+    <string name="settings_maxima_delete_overlay">Borrar la calibración guardada</string>
 
     <string name="settings_data_dir_section">Directorio de datos</string>
-    <string name="settings_data_dir_body">La caché de la base de datos, las instantáneas guardadas, el historial de contadores, la superposición, las elecciones recordadas y las preferencias. Cada uno de ellos es un archivo de texto que puede leer, editar o borrar.</string>
+    <string name="settings_data_dir_body">Instantáneas, historial de contadores, calibraciones y preferencias.</string>
     <string name="settings_data_dir_open">Abrir el directorio de datos</string>
 
     <string name="settings_choices_section">Elecciones de modelo recordadas</string>
-    <string name="settings_choices_none">Ninguna. Se registra una cada vez que una impresora nombra una familia cuyos miembros no comparten receta de reinicio y usted indica cuál de ellos es.</string>
+    <string name="settings_choices_none">Ninguna todavía. Se guarda una cuando usted elige el modelo de una impresora.</string>
     <string name="settings_choices_forget">Olvidar</string>
     <string name="settings_choices_forget_all">Olvidarlas todas</string>
 
     <string name="settings_developer_section">Desarrollo</string>
-    <string name="settings_developer_toggle">Modo de desarrollo (registro detallado)</string>
-    <string name="settings_developer_body">Añade diagnósticos de bajo nivel al registro: qué impresoras enumera la cola de Windows y en qué puertos, y cada resultado de WritePrinter/ReadPrinter con su código de error de Windows. Cuando algo como una lectura USB falle, actívelo, reproduzca el fallo y use Copiar en el panel del registro — las líneas adicionales se incluyen y hacen visible la causa.</string>
+    <string name="settings_developer_toggle">Modo de desarrollador</string>
+    <string name="settings_developer_body">Añade detalle de bajo nivel al registro.</string>
 
     <string name="settings_about_section">Acerca de</string>
     <string name="settings_about_name">Epson Reset %1$s</string>

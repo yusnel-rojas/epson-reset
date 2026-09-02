@@ -315,9 +315,6 @@ private fun Language(vm: ResetViewModel) {
     var menu by remember { mutableStateOf(false) }
 
     Group(stringResource(Res.string.settings_language_section)) {
-        // A choice, so it looks like one: the same plain DropdownMenu every other picker in the app
-        // uses, sized to its longest name rather than to a fixed width. The heading above already
-        // says "Language", so the row carries only what the setting does.
         SettingRow(label = null, body = stringResource(Res.string.settings_language_body)) {
             Box {
                 OutlinedButton(onClick = { menu = true }) {

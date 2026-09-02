@@ -67,7 +67,7 @@ are two ways to apply one, and they differ in exactly the way that matters after
 | | Lasts | Undone by |
 |---|---|---|
 | **Use this maximum now**, on the form | This session | **Undo**, next to it — or quitting the app |
-| **counters-overlay.json**, saved into the data directory by hand | Until the file is deleted | **Settings → Counter maxima → Delete the overlay file** |
+| **counters-overlay.json**, saved into the data directory by hand | Until the file is deleted | **Settings → Counter maxima → Delete the saved calibration** |
 
 Settings states which of the two is in force, if either, so "my percentages look wrong" has an
 answer that does not involve knowing that a restart would have cleared half of it. Nothing in the
