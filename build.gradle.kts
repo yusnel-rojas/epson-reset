@@ -283,8 +283,9 @@ compose.desktop {
             // jlink builds the bundled runtime from exactly the modules named here — nothing is
             // inferred. JNA reaches for sun.misc.Unsafe, so without jdk.unsupported the installers
             // ship a runtime whose USB layer dies on first call while `./gradlew run` (full JDK)
-            // works fine. `./gradlew suggestRuntimeModules` re-derives this list.
-            modules("java.instrument", "jdk.unsupported")
+            // works fine. Same for java.net.http: the update check throws NoClassDefFoundError in
+            // the packaged app without it. `./gradlew suggestRuntimeModules` re-derives this list.
+            modules("java.instrument", "jdk.unsupported", "java.net.http")
 
             // Filesystem-level name: the macOS .app, the Linux binary and the Debian package all
             // derive from it, and dpkg rejects a package name containing a space. The user-facing
