@@ -312,19 +312,6 @@ compose.desktop {
                 bundleID = "nl.rlabs.epsonreset"
                 appCategory = "public.app-category.utilities"
                 dockName = "Epson Reset"
-
-                // Unsigned unless SIGN_APP=true and a certificate is in the keychain; CI sets that
-                // only when the signing secrets exist, so a fork still gets a (unsigned) .dmg.
-                signing {
-                    sign.set(System.getenv("SIGN_APP")?.toBoolean() ?: false)
-                    identity.set(System.getenv("IDENTITY") ?: "")
-                }
-
-                notarization {
-                    appleID.set(System.getenv("APPLE_ID") ?: "")
-                    password.set(System.getenv("NOTARIZATION_PASSWORD") ?: "")
-                    teamID.set(System.getenv("TEAM_ID") ?: "")
-                }
             }
         }
     }
