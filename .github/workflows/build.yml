@@ -88,6 +88,11 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJSON(needs.setup.outputs.matrix) }}
     runs-on: ${{ matrix.os }}
+    # Job level so the steps' `if:` can see them. Empty on a fork, which falls back to an unsigned .dmg.
+    env:
+      # On a tag ref github.ref_name is "vX.Y.Z"; build.gradle.kts strips the leading "v".
+      APP_VERSION: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || '' }}
+      MACOS_SIGN_IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
     steps:
       - uses: actions/checkout@v4
 
@@ -101,36 +106,33 @@ jobs:
       # Caches Gradle dependencies and the build cache between runs.
       - uses: gradle/actions/setup-gradle@v4
 
-      # Sign macOS builds only when a certificate secret is configured — otherwise produce an
-      # unsigned .dmg rather than failing the build.
-      - name: Detect macOS signing
-        id: signing
-        if: runner.os == 'macOS'
-        shell: bash
-        env:
-          CERT: ${{ secrets.MACOS_CERTIFICATE_P12 }}
-        run: |
-          if [ -n "$CERT" ]; then echo "enabled=true" >> "$GITHUB_OUTPUT"; else echo "enabled=false" >> "$GITHUB_OUTPUT"; fi
-
       - name: Import signing certificate
-        if: runner.os == 'macOS' && steps.signing.outputs.enabled == 'true'
+        if: runner.os == 'macOS' && env.MACOS_SIGN_IDENTITY != ''
         uses: apple-actions/import-codesign-certs@v3
         with:
           p12-file-base64: ${{ secrets.MACOS_CERTIFICATE_P12 }}
           p12-password: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
 
       - name: Package Compose distribution
+        if: runner.os != 'macOS' || env.MACOS_SIGN_IDENTITY == ''
         shell: bash      # makes ./gradlew work the same way on the Windows runner
         run: ./gradlew ${{ matrix.task }} --stacktrace
+
+      # notarizeDmg builds the .dmg signed (hardened runtime, Compose's default JVM entitlements),
+      # submits it to Apple, waits, and staples the ticket into the .dmg in place.
+      - name: Package, sign and notarize (macOS)
+        if: runner.os == 'macOS' && env.MACOS_SIGN_IDENTITY != ''
         env:
-          # On a tag ref github.ref_name is "vX.Y.Z"; build.gradle.kts strips the leading "v".
-          APP_VERSION: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || '' }}
-          # Compose's macOS signing block reads these; SIGN_APP gates whether it signs at all.
-          SIGN_APP: ${{ steps.signing.outputs.enabled == 'true' && 'true' || 'false' }}
-          IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          NOTARIZATION_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
-          TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_ID: ${{ secrets.APPLE_NOTARY_APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_NOTARY_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_NOTARY_TEAM_ID }}
+        run: |
+          ./gradlew notarizeDmg --stacktrace \
+            -Pcompose.desktop.mac.sign=true \
+            -Pcompose.desktop.mac.signing.identity="$MACOS_SIGN_IDENTITY" \
+            -Pcompose.desktop.mac.notarization.appleID="$APPLE_ID" \
+            -Pcompose.desktop.mac.notarization.password="$APPLE_PASSWORD" \
+            -Pcompose.desktop.mac.notarization.teamID="$APPLE_TEAM_ID"
 
       # Compose's TargetFormat.AppImage produces a jpackage app-image directory, not a freedesktop
       # .AppImage file. packageDeb already builds that same relocatable directory; make it the
