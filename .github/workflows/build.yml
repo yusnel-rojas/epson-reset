@@ -248,6 +248,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write     # GITHUB_TOKEN needs this to create the Release
+      id-token: write     # OIDC token for the Sigstore signing certificate
+      attestations: write # persist the build provenance attestations
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -271,6 +273,16 @@ jobs:
             mv "$d$file" "$name.${file##*.}"
           done
           ls -la
+
+      # Must run after the rename/zip so it covers the exact bytes published as release assets.
+      - uses: actions/attest@v4
+        with:
+          subject-path: |
+            artifacts/*.dmg
+            artifacts/*.exe
+            artifacts/*.deb
+            artifacts/*.AppImage
+            artifacts/*.zip
 
       # Publishing to this same repo, so the default GITHUB_TOKEN is enough. To publish elsewhere
       # (e.g. a separate public repo), add `repository:` plus a fine-grained PAT with Contents:
