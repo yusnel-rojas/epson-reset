@@ -218,8 +218,16 @@ class CalibrationState(
                     Calibration.Basis.Reference(input.percent, input.reportedValue)
                 else -> return@map Row(counter, null)
             }
-            Row(counter, Calibration.measure(counter.spec, counter.value, basis))
+            Row(counter, Calibration.measure(counter.spec, counter.value, basis, onFile(counter.spec)))
         }
+
+    /** Layouts as shipped, so a maximum the contributor applied locally never reads as on file. */
+    private val bundled by lazy { CounterSpecs.loadBundled() }
+
+    private fun onFile(spec: CounterSpec): Int? {
+        val model = selectedModel() ?: return null
+        return bundled[model.name]?.firstOrNull { it.addresses == spec.addresses }?.max
+    }
 
     val measurements: List<Calibration.Measured>
         get() = rows.mapNotNull { (it.outcome as? Calibration.Outcome.Ok)?.measured }
