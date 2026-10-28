@@ -24,6 +24,7 @@ import nl.rlabs.epsonreset.resources.cal_applied
 import nl.rlabs.epsonreset.resources.cal_applied_item
 import nl.rlabs.epsonreset.resources.cal_derived_from
 import nl.rlabs.epsonreset.resources.cal_issue_opened
+import nl.rlabs.epsonreset.resources.cal_log_on_clipboard
 import nl.rlabs.epsonreset.resources.cal_name_is_family
 import nl.rlabs.epsonreset.resources.cal_name_the_model
 import nl.rlabs.epsonreset.resources.cal_name_unknown
@@ -62,6 +63,7 @@ class CalibrationState(
     private val counterSpecs: () -> CounterSpecs?,
     private val updateCounterSpecs: (CounterSpecs) -> Unit,
     private val specsFor: (PrinterModel) -> List<CounterSpec>,
+    private val exportLog: () -> String = { "" },
     private val info: (String) -> Unit,
     private val good: (String) -> Unit,
     private val warn: (String) -> Unit,
@@ -242,7 +244,7 @@ class CalibrationState(
         sharedLayout = layoutSiblings.size,
     )
 
-    fun report(): String = Calibration.report(context(), measurements)
+    fun report(withLog: Boolean = true): String = Calibration.report(context(), measurements, withLog)
 
     fun overlay(): String {
         val selected = selectedModel() ?: return ""
@@ -321,8 +323,15 @@ class CalibrationState(
         val submission = Calibration.submission(
             model = modelName,
             entry = entry(),
-            evidence = report(),
+            report(),
+            report(withLog = false),
         )
+
+        // A log too long for the URL still reaches the issue: the full report goes on the clipboard.
+        if (submission.prefilled && exportLog().isNotBlank() && !submission.url.contains(encodedLogHeading)) {
+            toClipboard(report())
+            info(Strings.get(Res.string.cal_log_on_clipboard))
+        }
 
         if (!submission.prefilled) {
             toClipboard(report())
@@ -358,8 +367,11 @@ class CalibrationState(
             inkLevels = status()?.inkLevels.orEmpty().map { it.colour to it.percent },
             statusFields = statusFields,
             note = note,
+            log = exportLog(),
         )
     }
+
+    private val encodedLogHeading = java.net.URLEncoder.encode("## Log", Charsets.UTF_8)
 
     /** The printer's own state block, as bytes, for the submission to carry. */
     private val statusFields: List<Pair<String, String>>

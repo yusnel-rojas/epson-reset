@@ -860,6 +860,7 @@
     <string name="cal_no_overlay">No hay ningún archivo de superposición que eliminar en %1$s.</string>
     <string name="cal_remove_failed">No se pudo eliminar la superposición: %1$s</string>
     <string name="cal_no_file_manager">No se pudo abrir un gestor de archivos. El directorio es %1$s</string>
+    <string name="cal_log_on_clipboard">El registro era demasiado largo para rellenarlo — el informe completo, con el registro, está en el portapapeles. Sustituya con él el informe del formulario.</string>
     <string name="cal_too_long">Demasiado largo para rellenarlo automáticamente — el informe está en el portapapeles, péguelo en el formulario.</string>
     <string name="cal_issue_opened">Se abrió una incidencia de calibración para %1$s. No se ha enviado nada: el formulario es suyo para leerlo y enviarlo.</string>
     <string name="cal_no_browser">No se pudo abrir un navegador. El informe está en el portapapeles — preséntelo en %1$s</string>

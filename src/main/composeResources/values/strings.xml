@@ -872,6 +872,7 @@
     <string name="cal_no_overlay">No overlay file to remove at %1$s.</string>
     <string name="cal_remove_failed">Could not remove the overlay: %1$s</string>
     <string name="cal_no_file_manager">Could not open a file manager. The directory is %1$s</string>
+    <string name="cal_log_on_clipboard">The log was too long to prefill — the full report, log included, is on the clipboard. Replace the form\'s report with it.</string>
     <string name="cal_too_long">Too long to prefill — the report is on the clipboard, paste it into the form.</string>
     <string name="cal_issue_opened">Opened a calibration issue for %1$s. Nothing has been sent: the form is yours to read and submit.</string>
     <string name="cal_no_browser">Could not open a browser. The report is on the clipboard — file it at %1$s</string>

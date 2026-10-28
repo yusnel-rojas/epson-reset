@@ -607,6 +607,7 @@ class ResetViewModel(
         counterSpecs = { counterSpecs },
         updateCounterSpecs = { counterSpecs = it },
         specsFor = { specsFor(it) },
+        exportLog = { exportLog() },
         info = { info(it) },
         good = { good(it) },
         warn = { warn(it) },
