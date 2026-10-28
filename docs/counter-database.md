@@ -12,7 +12,7 @@ column is derived from the bundled data at load time. Clicking a row selects tha
 | Resettable | 1475 of 1588 — the other 113 carry no EEPROM addresses |
 | Platen-only | 313, where a reset clears the platen pad only |
 | Values decoded | 123 fully, 1352 in part — upstream marks some layouts a guess, or the group is too wide to be one number |
-| Percentage possible | 14 — a maximum is declared upstream for 6, measured here for the ET-282x family. [Your printer can add to that](calibration.md) |
+| Percentage possible | 17 — a maximum is declared upstream for 6, measured here for the ET-282x family, the L3150, the L1800 and the ET-2870. [Your printer can add to that](calibration.md) |
 
 Reset and read are separate columns even though the bundled data answers them identically today: an
 OTA refresh or user overlay can move one without the other, and reading shouldn't inherit a "no"

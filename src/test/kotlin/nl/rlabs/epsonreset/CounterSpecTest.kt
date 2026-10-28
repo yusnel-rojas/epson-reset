@@ -185,10 +185,10 @@ class DecodedCounterTest {
         assertTrue(decoded.any { it.percent != null }, "ET-2825 is calibrated and should have percentages")
     }
 
-    /** An uncalibrated model must still say "no limit" rather than borrow someone else's. */
+    /** An uncalibrated model must still say "no limit" — L3110 shares the calibrated L3150 layout. */
     @Test
     fun `an uncalibrated model reports no percentage`() {
-        val other = assertNotNull(CounterSpecs.loadBundled()["L3150"])
+        val other = assertNotNull(CounterSpecs.loadBundled()["L3110"])
         val readings = other.flatMap { it.addresses }.map { CounterReader.Reading(it, 0x10, 0, "g") }
 
         assertTrue(CounterReader.decode(readings, other).all { it.percent == null })
