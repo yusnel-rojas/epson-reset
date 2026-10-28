@@ -127,7 +127,27 @@
     <string name="printer_error_paper_jam">atasco de papel</string>
     <string name="printer_error_ink_out">sin tinta</string>
     <string name="printer_error_paper_out">sin papel</string>
+    <string name="printer_error_double_feed">alimentación doble</string>
+    <string name="printer_error_paper_misc">error de papel</string>
+    <string name="printer_error_waste_ink_full">tinta residual llena</string>
+    <string name="printer_error_tear_off">esperando volver de la posición de corte</string>
+    <string name="printer_error_double_feed_error">error de alimentación doble</string>
+    <string name="printer_error_cleaning_impossible">limpieza imposible</string>
+    <string name="printer_error_cartridge_lever">palanca del cartucho de tinta liberada</string>
+    <string name="printer_error_cutter_error">error de la cuchilla</string>
+    <string name="printer_error_cutter_jam">atasco de la cuchilla</string>
+    <string name="printer_error_no_maintenance_cartridge">falta el cartucho de mantenimiento</string>
+    <string name="printer_error_rear_cover_open">tapa trasera abierta</string>
+    <string name="printer_error_cd_tray_out">bandeja de CD fuera</string>
+    <string name="printer_error_card_loading">error al cargar la tarjeta</string>
+    <string name="printer_error_tray_cover_open">tapa de la bandeja abierta</string>
+    <string name="printer_error_no_maintenance_box">falta la caja de mantenimiento</string>
+    <string name="printer_error_maintenance_box_full">caja de mantenimiento llena</string>
+    <string name="printer_error_maintenance_cover_open">tapa del cartucho de mantenimiento abierta</string>
+    <string name="printer_error_front_cover_open">tapa frontal abierta</string>
+    <string name="printer_error_strip_bin_missing">falta el depósito de recortes</string>
     <string name="printer_error_maintenance">solicitud de mantenimiento</string>
+    <string name="printer_error_named">%1$s, código %2$s</string>
     <string name="printer_error_unknown">código de error %1$s</string>
 
     <string name="printer_state_error">informando de un error</string>
@@ -347,6 +367,7 @@
     <string name="supply_type_raw">tipo %1$s</string>
     <string name="supply_unnamed">Consumible %1$s</string>
     <string name="supply_level_none">—</string>
+    <string name="vm_printer_error">Error de la impresora: %1$s</string>
     <string name="vm_ink_levels">Tinta: %1$s</string>
     <string name="supply_percent_full">%1$s lleno</string>
     <string name="supply_level_unspecified">sin especificar</string>
@@ -839,6 +860,7 @@
     <string name="cal_no_overlay">No hay ningún archivo de superposición que eliminar en %1$s.</string>
     <string name="cal_remove_failed">No se pudo eliminar la superposición: %1$s</string>
     <string name="cal_no_file_manager">No se pudo abrir un gestor de archivos. El directorio es %1$s</string>
+    <string name="cal_log_on_clipboard">El registro era demasiado largo para rellenarlo — el informe completo, con el registro, está en el portapapeles. Sustituya con él el informe del formulario.</string>
     <string name="cal_too_long">Demasiado largo para rellenarlo automáticamente — el informe está en el portapapeles, péguelo en el formulario.</string>
     <string name="cal_issue_opened">Se abrió una incidencia de calibración para %1$s. No se ha enviado nada: el formulario es suyo para leerlo y enviarlo.</string>
     <string name="cal_no_browser">No se pudo abrir un navegador. El informe está en el portapapeles — preséntelo en %1$s</string>

@@ -126,8 +126,9 @@ class CapabilityTest {
         assertEquals(123, summary.decoded)
         assertEquals(1352, summary.uncertain)
 
-        // 6 counters declare a maximum in counters.json; calibrations.json adds the ET-282x family.
-        assertEquals(14, summary.withLimit)
+        // 6 counters declare a maximum in counters.json; calibrations.json adds the ET-282x family,
+        // the L3150, the L1800 and the ET-2870.
+        assertEquals(17, summary.withLimit)
 
         // Zero as long as both data files are generated together: every model with a read layout has
         // reset data too.

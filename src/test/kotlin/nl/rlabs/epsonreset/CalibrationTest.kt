@@ -474,4 +474,38 @@ class CalibrationTest {
         assertTrue(submission.url.length <= Calibration.MAX_URL)
         assertTrue(submission.url.contains("template=calibration.yml"))
     }
+
+    @Test
+    fun `a maximum the contributor applied locally does not count as on file`() {
+        // The overlay put 6346 on this counter; the project ships none for it.
+        val overlaid = CounterSpec(listOf(48, 49), "Waste counter", max = 6346)
+        val measured = assertIs<Calibration.Outcome.Ok>(
+            Calibration.measure(overlaid, 6346, Calibration.Basis.ServiceRequired, onFile = null),
+        ).measured
+
+        assertNull(measured.existingMax)
+        assertEquals(Calibration.Agreement.FILLS_A_GAP, measured.agreement)
+    }
+
+    @Test
+    fun `the report carries the log, and drops it first when the URL is too long`() {
+        val spec = et2820(listOf(48, 49))
+        val measured = listOf(measure(spec, 6346, Calibration.Basis.ServiceRequired))
+        val context = Calibration.Context(
+            model = "ET-2820",
+            log = "12:00  [WARN] Printer error: waste ink full, code 0x10",
+        )
+
+        val full = Calibration.report(context, measured)
+        assertContains(full, "## Log")
+        assertContains(full, "waste ink full, code 0x10")
+
+        val bare = Calibration.report(context, measured, withLog = false)
+        assertFalse(bare.contains("## Log"))
+
+        val long = Calibration.report(context.copy(log = "x".repeat(20_000)), measured)
+        val submission = Calibration.submission("ET-2820", "{}", long, bare)
+        assertTrue(submission.prefilled)
+        assertFalse(submission.url.contains("xxxx"), "the oversized log is shed, the report kept")
+    }
 }

@@ -90,8 +90,12 @@ object Calibration {
         data class Rejected(val reason: String) : Outcome
     }
 
-    /** Derives the maximum [value] implies on this counter, or says why it can't. */
-    fun measure(spec: CounterSpec, value: Long?, basis: Basis): Outcome {
+    /**
+     * Derives the maximum [value] implies on this counter, or says why it can't. [onFile] is the
+     * maximum the project already ships — not one this contributor layered on with their own
+     * overlay or "apply to session", which would let a unit confirm itself.
+     */
+    fun measure(spec: CounterSpec, value: Long?, basis: Basis, onFile: Int? = spec.max): Outcome {
         if (!spec.isSingleValue) {
             return Outcome.Rejected(
                 "this group is wider than one integer, so it has no single maximum to measure",
@@ -103,7 +107,7 @@ object Calibration {
 
         return when (basis) {
             // The counter reached the limit, so it is the limit. One integer, no window.
-            Basis.ServiceRequired -> accept(spec, value, basis, value..value)
+            Basis.ServiceRequired -> accept(spec, value, basis, value..value, onFile)
 
             is Basis.Reference -> {
                 // A percentage is only about this counter if the tool that printed it was reading
@@ -137,25 +141,26 @@ object Calibration {
                             "a pad counter — check the figure",
                     )
                 }
-                accept(spec, value, basis, window)
+                accept(spec, value, basis, window, onFile)
             }
         }
     }
 
     /** The maximum is taken from the **bottom** of the window. */
-    private fun accept(spec: CounterSpec, value: Long, basis: Basis, window: LongRange): Outcome = Outcome.Ok(
-        Measured(
-            addresses = spec.addresses,
-            description = spec.description,
-            value = value,
-            basis = basis,
-            max = window.first.toInt(),
-            // The top end can run away when a tiny percentage is typed; the maximum itself is
-            // already known to fit, and a bound past what a counter can hold says nothing.
-            range = window.first.toInt()..window.last.coerceAtMost(MAX_PLAUSIBLE).toInt(),
-            existingMax = spec.max,
-        ),
-    )
+    private fun accept(spec: CounterSpec, value: Long, basis: Basis, window: LongRange, onFile: Int?): Outcome =
+        Outcome.Ok(
+            Measured(
+                addresses = spec.addresses,
+                description = spec.description,
+                value = value,
+                basis = basis,
+                max = window.first.toInt(),
+                // The top end can run away when a tiny percentage is typed; the maximum itself is
+                // already known to fit, and a bound past what a counter can hold says nothing.
+                range = window.first.toInt()..window.last.coerceAtMost(MAX_PLAUSIBLE).toInt(),
+                existingMax = onFile,
+            ),
+        )
 
     /** A percentage as typed: `scaled / 10^decimals`, so `60.90` is `6090` with 2 decimals. */
     private data class Percent(val scaled: Long, val decimals: Int)
@@ -333,6 +338,8 @@ object Calibration {
         /** Raw ST2 fields, name to hex, as corroboration — see [report]. */
         val statusFields: List<Pair<String, String>> = emptyList(),
         val note: String = "",
+        /** The app's log as exported for bug reports, so a reviewer sees what led up to the read. */
+        val log: String = "",
     )
 
     /**
@@ -350,7 +357,7 @@ object Calibration {
     }
 
     /** The report to file. */
-    fun report(context: Context, measured: List<Measured>): String = buildString {
+    fun report(context: Context, measured: List<Measured>, withLog: Boolean = true): String = buildString {
         appendLine("# Waste counter calibration: ${context.model}")
         appendLine()
         appendLine(headline(measured))
@@ -491,6 +498,18 @@ object Calibration {
         appendLine("```json")
         appendLine(entryJson(context.model, measured, context.note, context.sharedLayout))
         appendLine("```")
+        if (withLog && context.log.isNotBlank()) {
+            appendLine()
+            appendLine("## Log")
+            appendLine()
+            appendLine("<details><summary>Application log</summary>")
+            appendLine()
+            appendLine("```")
+            appendLine(context.log.trimEnd())
+            appendLine("```")
+            appendLine()
+            appendLine("</details>")
+        }
     }
 
     /**
@@ -533,13 +552,18 @@ object Calibration {
     /** Where to send the user, and whether the form arrives filled in. */
     data class Submission(val url: String, val prefilled: Boolean)
 
-    /** A prefilled issue on the calibration form, shedding fields until it fits. */
-    fun submission(model: String, entry: String, evidence: String): Submission {
+    /**
+     * A prefilled issue on the calibration form, shedding fields until it fits. [evidence] is tried
+     * in order, fullest first — the report with the log, then without it.
+     */
+    fun submission(model: String, entry: String, vararg evidence: String): Submission {
         val base = "$ISSUE_BASE?template=${encode(TEMPLATE)}&title=${encode("Calibration: $model")}" +
             "&model=${encode(model)}"
 
-        val withEverything = "$base&entry=${encode(entry)}&evidence=${encode(evidence)}"
-        if (withEverything.length <= MAX_URL) return Submission(withEverything, prefilled = true)
+        for (text in evidence) {
+            val withEverything = "$base&entry=${encode(entry)}&evidence=${encode(text)}"
+            if (withEverything.length <= MAX_URL) return Submission(withEverything, prefilled = true)
+        }
 
         val withEntry = "$base&entry=${encode(entry)}"
         if (withEntry.length <= MAX_URL) return Submission(withEntry, prefilled = true)
