@@ -6,6 +6,7 @@ import nl.rlabs.epsonreset.db.PrinterDatabase
 import nl.rlabs.epsonreset.protocol.CounterReader
 import nl.rlabs.epsonreset.protocol.FakeTransport
 import kotlin.test.Test
+import kotlin.test.assertContains
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
@@ -236,5 +237,18 @@ class DecodedCounterTest {
 
         assertEquals(report.readings, published)
         assertTrue(published.all { it.value == 0x7F })
+    }
+
+    @Test
+    fun `a printer silent on every read is pointed at key discovery`() {
+        val report = CounterReader.readAll(FakeTransport(readKey = model.readKey xor 0xFFFF), model)
+
+        assertTrue(report.readings.isNotEmpty())
+        assertContains(assertNotNull(report.error), "Try known keys")
+    }
+
+    @Test
+    fun `a printer that answers carries no silence explanation`() {
+        assertNull(CounterReader.readAll(FakeTransport(), model).error)
     }
 }
