@@ -146,6 +146,7 @@ import nl.rlabs.epsonreset.resources.vm_overview_cancelled
 import nl.rlabs.epsonreset.resources.vm_overview_complete
 import nl.rlabs.epsonreset.resources.vm_partial_read
 import nl.rlabs.epsonreset.resources.vm_power_cycle_now
+import nl.rlabs.epsonreset.resources.vm_printer_error
 import nl.rlabs.epsonreset.resources.vm_progress_packet
 import nl.rlabs.epsonreset.resources.vm_read_failed
 import nl.rlabs.epsonreset.resources.vm_read_of_addresses
@@ -1828,6 +1829,9 @@ class ResetViewModel(
         status = read
         if (!isDry) history.acceptLive(report, identifyingSerial(device, read?.serial))
         read?.let { s ->
+            s.errorCode?.let { code ->
+                warn(Strings.get(Res.string.vm_printer_error, StatusText.error(code).resolveNow()))
+            }
             s.inkLevels.takeIf { it.isNotEmpty() }?.let { levels ->
                 val inks = levels.joinToString(", ") { "${StatusText.inkColour(it).resolveNow()} ${it.percent}%" }
                 info(Strings.get(Res.string.vm_ink_levels, inks))

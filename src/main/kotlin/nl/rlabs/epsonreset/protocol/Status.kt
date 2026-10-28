@@ -151,11 +151,12 @@ object Status {
         0x0A to "shutting down",
     )
 
-    /** A code's name, or the code itself when [ERRORS] has never seen it. */
-    fun describeError(code: Int): String = ERRORS[code] ?: "error code 0x%02X".format(code)
+    /** A code's name with the code beside it for tracing, or the code alone when [ERRORS] has never seen it. */
+    fun describeError(code: Int): String = ERRORS[code]?.let { "$it, code 0x%02X".format(code) }
+        ?: "error code 0x%02X".format(code)
 
     /**
-     * Error codes for field 0x02, as far as they are agreed on. Unlisted codes are shown raw for
+     * Error codes for field 0x02, as Gutenprint's escputil names them. Unlisted codes are shown raw for
      * the same reason unlisted field types are: a wrong label is worse than a number.
      */
     private val ERRORS = mapOf(
@@ -165,7 +166,26 @@ object Status {
         0x04 to "paper jam",
         0x05 to "ink out",
         0x06 to "paper out",
-        0x10 to "maintenance request",
+        0x0B to "double feed",
+        0x0C to "paper error",
+        ERROR_WASTE_INK_FULL to "waste ink full",
+        0x11 to "waiting to return from the tear-off position",
+        0x12 to "double feed error",
+        0x16 to "cleaning impossible",
+        0x1A to "ink cartridge lever released",
+        0x1C to "cutter error",
+        0x1D to "cutter jam",
+        0x22 to "no maintenance cartridge",
+        0x25 to "rear cover open",
+        0x29 to "CD tray out",
+        0x2A to "card loading error",
+        0x2B to "tray cover open",
+        0x2D to "no maintenance box",
+        0x2E to "maintenance box full",
+        0x36 to "maintenance cartridge cover open",
+        0x37 to "front cover open",
+        0x40 to "strip bin missing",
+        0x41 to "maintenance request",
     )
 
     /**

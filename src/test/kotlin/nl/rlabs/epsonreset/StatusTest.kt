@@ -201,6 +201,23 @@ class StatusParsingTest {
         assertTrue(blocker.contains("cover open"), blocker)
     }
 
+    /** Issue 15: an ET-2870 stopped on a full pad was refused the reset that clears it. */
+    @Test
+    fun `waste ink full does not block the reset that clears it`() {
+        val report = blockWith(0x01 to 0x00, 0x02 to 0x10)
+
+        assertNull(report.writeBlocker)
+        assertTrue(assertNotNull(report.busyReason).contains("waste ink full"))
+    }
+
+    /** A full maintenance box is replaced, not reset, so it still refuses. */
+    @Test
+    fun `a full maintenance box still blocks`() {
+        val blocker = assertNotNull(blockWith(0x01 to 0x00, 0x02 to 0x2E).writeBlocker)
+
+        assertTrue(blocker.contains("maintenance box full"), blocker)
+    }
+
     @Test
     fun `an unlisted error code is shown raw rather than guessed at`() {
         val blocker = assertNotNull(blockWith(0x01 to 0x00, 0x02 to 0x77).writeBlocker)

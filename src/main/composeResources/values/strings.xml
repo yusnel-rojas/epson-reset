@@ -137,7 +137,27 @@
     <string name="printer_error_paper_jam">paper jam</string>
     <string name="printer_error_ink_out">ink out</string>
     <string name="printer_error_paper_out">paper out</string>
+    <string name="printer_error_double_feed">double feed</string>
+    <string name="printer_error_paper_misc">paper error</string>
+    <string name="printer_error_waste_ink_full">waste ink full</string>
+    <string name="printer_error_tear_off">waiting to return from the tear-off position</string>
+    <string name="printer_error_double_feed_error">double feed error</string>
+    <string name="printer_error_cleaning_impossible">cleaning impossible</string>
+    <string name="printer_error_cartridge_lever">ink cartridge lever released</string>
+    <string name="printer_error_cutter_error">cutter error</string>
+    <string name="printer_error_cutter_jam">cutter jam</string>
+    <string name="printer_error_no_maintenance_cartridge">no maintenance cartridge</string>
+    <string name="printer_error_rear_cover_open">rear cover open</string>
+    <string name="printer_error_cd_tray_out">CD tray out</string>
+    <string name="printer_error_card_loading">card loading error</string>
+    <string name="printer_error_tray_cover_open">tray cover open</string>
+    <string name="printer_error_no_maintenance_box">no maintenance box</string>
+    <string name="printer_error_maintenance_box_full">maintenance box full</string>
+    <string name="printer_error_maintenance_cover_open">maintenance cartridge cover open</string>
+    <string name="printer_error_front_cover_open">front cover open</string>
+    <string name="printer_error_strip_bin_missing">strip bin missing</string>
     <string name="printer_error_maintenance">maintenance request</string>
+    <string name="printer_error_named">%1$s, code %2$s</string>
     <string name="printer_error_unknown">error code %1$s</string>
 
     <string name="printer_state_error">reporting an error</string>
@@ -357,6 +377,7 @@
     <string name="supply_type_raw">type %1$s</string>
     <string name="supply_unnamed">Supply %1$s</string>
     <string name="supply_level_none">—</string>
+    <string name="vm_printer_error">Printer error: %1$s</string>
     <string name="vm_ink_levels">Ink: %1$s</string>
     <string name="supply_percent_full">%1$s full</string>
     <string name="supply_level_unspecified">unspecified</string>
