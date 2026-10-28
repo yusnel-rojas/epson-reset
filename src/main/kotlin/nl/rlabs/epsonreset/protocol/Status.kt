@@ -80,8 +80,13 @@ object Status {
                     (STATES[code] ?: "in state 0x%02X".format(code)) + (detail ?: "") + "."
             }
 
-        /** Why writing to the EEPROM now is a bad idea, or null when it isn't. */
-        val writeBlocker: String? get() = busyReason
+        /**
+         * Why writing to the EEPROM now is a bad idea, or null when it isn't. Waste ink full
+         * is the pad-full stop itself — the one error a counter reset exists to clear, so refusing
+         * on it would make the reset unusable exactly when it is needed.
+         */
+        val writeBlocker: String?
+            get() = if (state == STATE_ERROR && errorCode == ERROR_WASTE_INK_FULL) null else busyReason
 
         override fun equals(other: Any?) = other is Report && fields == other.fields && raw.contentEquals(other.raw)
 
@@ -125,9 +130,17 @@ object Status {
     /** Running a cleaning cycle — what a cleaning command puts it into, and the one to wait out. */
     const val STATE_CLEANING = 0x07
 
+    const val STATE_ERROR = 0x00
+
+    /**
+     * Error 0x10, "maintenance cartridge overflow" in Gutenprint: the waste pad counter at its
+     * limit. Not 0x41 "maintenance request", and not 0x2E, a replaceable maintenance box that is full.
+     */
+    const val ERROR_WASTE_INK_FULL = 0x10
+
     /** States field 0x01 can report, phrased for the refusal they produce. */
     private val STATES = mapOf(
-        0x00 to "reporting an error",
+        STATE_ERROR to "reporting an error",
         STATE_SELF_TEST to "printing a self-test page",
         STATE_BUSY to "busy",
         0x03 to "waiting",
