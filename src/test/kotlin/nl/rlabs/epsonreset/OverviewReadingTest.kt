@@ -95,7 +95,7 @@ class OverviewReadingTest {
             ).alerts.firstOrNull { it.severity == OverviewAlert.Severity.ERROR },
         )
 
-        assertEquals("The printer reports paper jam.", alert.detail.resolveNow())
+        assertEquals("The printer reports paper jam, code 0x04.", alert.detail.resolveNow())
     }
 
     /**

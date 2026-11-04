@@ -140,6 +140,12 @@ object CounterReader {
             }
         }
 
+        // Total silence is what a firmware that validates the read key does on the wrong one, so
+        // point at key discovery rather than leave a column of identical failures to interpret.
+        if (readings.isNotEmpty() && readings.all { it.error == SILENT }) {
+            return Report(model.name, readings, SILENCE_EXPLANATION)
+        }
+
         return Report(model.name, readings)
     }
 
@@ -216,7 +222,7 @@ object CounterReader {
             // answered, and said no to the command class. See FactoryReply.
             FactoryReply.isRefused(reply) ->
                 Reading(address, null, expected, group.description, "refused (:41:NA;)")
-            all.isEmpty() -> Reading(address, null, expected, group.description, "no EE: reply")
+            all.isEmpty() -> Reading(address, null, expected, group.description, SILENT)
             else -> Reading(
                 address,
                 null,
@@ -247,6 +253,13 @@ object CounterReader {
     private val EE_PATTERN = Regex("""EE:([0-9a-fA-F]{6});""")
 
     private const val REFUSED = "refused (:41:NA;)"
+
+    private const val SILENT = "no EE: reply"
+
+    private const val SILENCE_EXPLANATION =
+        "The printer answered none of the counter reads. A firmware that checks the read key stays " +
+            "silent on the wrong one, so this model's key may not match this unit: open Inspect → " +
+            "Try known keys, then read again with the key that answers."
 
     private const val REFUSAL_EXPLANATION =
         "The printer refused the counter read (:41:NA;) — it is declining factory commands over " +

@@ -80,8 +80,13 @@ object Status {
                     (STATES[code] ?: "in state 0x%02X".format(code)) + (detail ?: "") + "."
             }
 
-        /** Why writing to the EEPROM now is a bad idea, or null when it isn't. */
-        val writeBlocker: String? get() = busyReason
+        /**
+         * Why writing to the EEPROM now is a bad idea, or null when it isn't. Waste ink full
+         * is the pad-full stop itself — the one error a counter reset exists to clear, so refusing
+         * on it would make the reset unusable exactly when it is needed.
+         */
+        val writeBlocker: String?
+            get() = if (state == STATE_ERROR && errorCode == ERROR_WASTE_INK_FULL) null else busyReason
 
         override fun equals(other: Any?) = other is Report && fields == other.fields && raw.contentEquals(other.raw)
 
@@ -125,9 +130,17 @@ object Status {
     /** Running a cleaning cycle — what a cleaning command puts it into, and the one to wait out. */
     const val STATE_CLEANING = 0x07
 
+    const val STATE_ERROR = 0x00
+
+    /**
+     * Error 0x10, "maintenance cartridge overflow" in Gutenprint: the waste pad counter at its
+     * limit. Not 0x41 "maintenance request", and not 0x2E, a replaceable maintenance box that is full.
+     */
+    const val ERROR_WASTE_INK_FULL = 0x10
+
     /** States field 0x01 can report, phrased for the refusal they produce. */
     private val STATES = mapOf(
-        0x00 to "reporting an error",
+        STATE_ERROR to "reporting an error",
         STATE_SELF_TEST to "printing a self-test page",
         STATE_BUSY to "busy",
         0x03 to "waiting",
@@ -138,11 +151,12 @@ object Status {
         0x0A to "shutting down",
     )
 
-    /** A code's name, or the code itself when [ERRORS] has never seen it. */
-    fun describeError(code: Int): String = ERRORS[code] ?: "error code 0x%02X".format(code)
+    /** A code's name with the code beside it for tracing, or the code alone when [ERRORS] has never seen it. */
+    fun describeError(code: Int): String = ERRORS[code]?.let { "$it, code 0x%02X".format(code) }
+        ?: "error code 0x%02X".format(code)
 
     /**
-     * Error codes for field 0x02, as far as they are agreed on. Unlisted codes are shown raw for
+     * Error codes for field 0x02, as Gutenprint's escputil names them. Unlisted codes are shown raw for
      * the same reason unlisted field types are: a wrong label is worse than a number.
      */
     private val ERRORS = mapOf(
@@ -152,7 +166,26 @@ object Status {
         0x04 to "paper jam",
         0x05 to "ink out",
         0x06 to "paper out",
-        0x10 to "maintenance request",
+        0x0B to "double feed",
+        0x0C to "paper error",
+        ERROR_WASTE_INK_FULL to "waste ink full",
+        0x11 to "waiting to return from the tear-off position",
+        0x12 to "double feed error",
+        0x16 to "cleaning impossible",
+        0x1A to "ink cartridge lever released",
+        0x1C to "cutter error",
+        0x1D to "cutter jam",
+        0x22 to "no maintenance cartridge",
+        0x25 to "rear cover open",
+        0x29 to "CD tray out",
+        0x2A to "card loading error",
+        0x2B to "tray cover open",
+        0x2D to "no maintenance box",
+        0x2E to "maintenance box full",
+        0x36 to "maintenance cartridge cover open",
+        0x37 to "front cover open",
+        0x40 to "strip bin missing",
+        0x41 to "maintenance request",
     )
 
     /**

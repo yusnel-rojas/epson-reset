@@ -32,6 +32,45 @@
         { "addr": [50, 51], "max": 3400, "observed": { "value": 60, "percent": 1.76 }, "range": [3400, 3418] },
         { "addr": [252, 253], "max": 1300, "observed": { "value": 180, "percent": 13.85 }, "range": [1299, 1300] }
       ]
+    },
+    {
+      "models": ["L3150"],
+      "measured": "L3150, 2026-10-16",
+      "note": "Measured on one unit. The other 101 models sharing this EEPROM layout are deliberately not included: a shared layout does not prove identical pad capacity.",
+      "maxima": [
+        {
+          "addr": [48, 49],
+          "max": 6346,
+          "observed": { "value": 6346, "at": "service required" },
+          "range": [6346, 6346]
+        }
+      ]
+    },
+    {
+      "models": ["L1800"],
+      "measured": "L1800, 2026-10-23",
+      "note": "Measured on one unit. Deliberately not extended to the models sharing this EEPROM layout: a shared layout does not prove identical pad capacity.",
+      "maxima": [
+        {
+          "addr": [28, 29],
+          "max": 12480,
+          "observed": { "value": 12480, "at": "service required" },
+          "range": [12480, 12480]
+        }
+      ]
+    },
+    {
+      "models": ["ET-2870"],
+      "measured": "ET-2870, 2026-10-28",
+      "note": "Measured on one unit. The other 139 models sharing this EEPROM layout are deliberately not included: a shared layout does not prove identical pad capacity.",
+      "maxima": [
+        {
+          "addr": [48, 49],
+          "max": 6346,
+          "observed": { "value": 6346, "at": "service required" },
+          "range": [6346, 6346]
+        }
+      ]
     }
   ]
 }

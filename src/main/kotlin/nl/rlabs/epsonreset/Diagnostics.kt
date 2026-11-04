@@ -14,6 +14,7 @@ import nl.rlabs.epsonreset.protocol.CounterReader
 import nl.rlabs.epsonreset.protocol.Executor
 import nl.rlabs.epsonreset.protocol.FakeTransport
 import nl.rlabs.epsonreset.protocol.SequenceGenerator
+import nl.rlabs.epsonreset.protocol.Status
 import nl.rlabs.epsonreset.update.AppVersion
 import nl.rlabs.epsonreset.usb.LibUsb
 import nl.rlabs.epsonreset.usb.UsbPrinterScanner
@@ -219,6 +220,7 @@ object Diagnostics {
                 CounterReader.readStatus(transport)?.let { status ->
                     println()
                     status.serial?.let { println("   serial     $it") }
+                    status.errorCode?.let { println("   error      ${Status.describeError(it)}") }
                     if (status.inkLevels.isNotEmpty()) {
                         println("   ink levels:")
                         for (ink in status.inkLevels) {

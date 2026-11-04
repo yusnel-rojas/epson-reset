@@ -485,6 +485,14 @@ private fun CounterByteRow(
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.primary,
                 )
+                counter.spec.max?.takeIf { it > 0 }?.let { max ->
+                    Text(
+                        " / $max",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontFamily = FontFamily.Monospace,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
                 counter.percent?.let { pct ->
                     Spacer(Modifier.width(10.dp))
                     Text(
